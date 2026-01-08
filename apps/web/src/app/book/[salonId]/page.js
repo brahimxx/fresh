@@ -1,0 +1,437 @@
+'use client';
+
+import { useState, useEffect, use } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { 
+  ChevronLeft, 
+  Check, 
+  Calendar, 
+  Clock, 
+  User, 
+  Scissors,
+  MapPin,
+  Phone,
+  Star,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Import booking steps
+import { ServiceSelection } from '@/components/booking-widget/service-selection';
+import { StaffSelection } from '@/components/booking-widget/staff-selection';
+import { DateTimeSelection } from '@/components/booking-widget/datetime-selection';
+import { ClientDetails } from '@/components/booking-widget/client-details';
+import { BookingConfirmation } from '@/components/booking-widget/booking-confirmation';
+
+var STEPS = [
+  { id: 'services', label: 'Services', icon: Scissors },
+  { id: 'staff', label: 'Staff', icon: User },
+  { id: 'datetime', label: 'Date & Time', icon: Calendar },
+  { id: 'details', label: 'Your Details', icon: User },
+  { id: 'confirm', label: 'Confirm', icon: Check },
+];
+
+export default function BookingPage({ params }) {
+  var resolvedParams = use(params);
+  var salonId = resolvedParams.salonId;
+  var searchParams = useSearchParams();
+  
+  var [salon, setSalon] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [currentStep, setCurrentStep] = useState(0);
+  
+  // Booking state
+  var [selectedServices, setSelectedServices] = useState([]);
+  var [selectedStaff, setSelectedStaff] = useState(null);
+  var [selectedDate, setSelectedDate] = useState(null);
+  var [selectedTime, setSelectedTime] = useState(null);
+  var [clientDetails, setClientDetails] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    notes: '',
+  });
+  var [bookingComplete, setBookingComplete] = useState(false);
+  var [bookingResult, setBookingResult] = useState(null);
+  
+  // Load salon data
+  useEffect(function() {
+    async function loadSalon() {
+      try {
+        var res = await fetch('/api/widget/' + salonId);
+        if (res.ok) {
+          var data = await res.json();
+          setSalon(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to load salon:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSalon();
+  }, [salonId]);
+  
+  // Calculate totals
+  var totalDuration = selectedServices.reduce(function(sum, s) {
+    return sum + (s.duration || 0);
+  }, 0);
+  
+  var totalPrice = selectedServices.reduce(function(sum, s) {
+    return sum + parseFloat(s.price || 0);
+  }, 0);
+  
+  function handleNext() {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  }
+  
+  function handleBack() {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  }
+  
+  function canProceed() {
+    switch (currentStep) {
+      case 0: return selectedServices.length > 0;
+      case 1: return true; // Staff is optional
+      case 2: return selectedDate && selectedTime;
+      case 3: return clientDetails.firstName && clientDetails.email && clientDetails.phone;
+      default: return true;
+    }
+  }
+  
+  async function handleConfirmBooking() {
+    try {
+      // Parse the selected time to get startTime and staffId
+      // Format: "2024-01-15T10:00:00.000Z-123" (ISO time + staffId)
+      var timeParts = selectedTime.split('-');
+      var staffIdFromSlot = timeParts.pop();
+      var startTime = timeParts.join('-');
+      
+      var res = await fetch('/api/widget/' + salonId + '/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceId: selectedServices[0]?.id, // Primary service
+          staffId: selectedStaff?.id || parseInt(staffIdFromSlot),
+          startTime: startTime,
+          firstName: clientDetails.firstName,
+          lastName: clientDetails.lastName,
+          email: clientDetails.email,
+          phone: clientDetails.phone,
+          notes: clientDetails.notes,
+        }),
+      });
+      
+      if (res.ok) {
+        var result = await res.json();
+        setBookingResult(result.data);
+        setBookingComplete(true);
+      } else {
+        var errorData = await res.json();
+        alert(errorData.error || 'Booking failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Booking failed:', error);
+      alert('Booking failed. Please try again.');
+    }
+  }
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-4 w-full max-w-md p-6">
+          <Skeleton className="h-12 w-48 mx-auto" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+  
+  if (!salon) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center">
+            <h2 className="text-xl font-semibold mb-2">Salon Not Found</h2>
+            <p className="text-muted-foreground">
+              This booking page is not available.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  if (bookingComplete) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <BookingConfirmation 
+            salon={salon}
+            booking={bookingResult}
+            selectedServices={selectedServices}
+            selectedStaff={selectedStaff}
+            selectedDate={selectedDate}
+            selectedTime={selectedTime}
+            clientDetails={clientDetails}
+          />
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="bg-white border-b sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            {salon.logo ? (
+              <img src={salon.logo} alt={salon.name} className="h-10 w-10 rounded-full object-cover" />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
+                {salon.name?.charAt(0)}
+              </div>
+            )}
+            <div>
+              <h1 className="font-semibold">{salon.name}</h1>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {salon.rating && (
+                  <span className="flex items-center gap-1">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                    {salon.rating}
+                  </span>
+                )}
+                {salon.city && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {salon.city}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      
+      {/* Progress Steps */}
+      <div className="bg-white border-b">
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            {STEPS.map(function(step, index) {
+              var isActive = index === currentStep;
+              var isCompleted = index < currentStep;
+              var Icon = step.icon;
+              
+              return (
+                <div key={step.id} className="flex items-center">
+                  <div className={
+                    'flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ' +
+                    (isCompleted ? 'bg-primary text-white' : 
+                     isActive ? 'bg-primary text-white' : 
+                     'bg-gray-100 text-gray-400')
+                  }>
+                    {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  </div>
+                  <span className={
+                    'hidden sm:block ml-2 text-sm ' +
+                    (isActive ? 'text-foreground font-medium' : 'text-muted-foreground')
+                  }>
+                    {step.label}
+                  </span>
+                  {index < STEPS.length - 1 && (
+                    <div className={
+                      'hidden sm:block w-12 h-0.5 mx-2 ' +
+                      (isCompleted ? 'bg-primary' : 'bg-gray-200')
+                    } />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      
+      {/* Main Content */}
+      <main className="max-w-3xl mx-auto px-4 py-6">
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Step Content */}
+          <div className="lg:col-span-2">
+            {currentStep === 0 && (
+              <ServiceSelection
+                salonId={salonId}
+                selected={selectedServices}
+                onSelect={setSelectedServices}
+              />
+            )}
+            
+            {currentStep === 1 && (
+              <StaffSelection
+                salonId={salonId}
+                services={selectedServices}
+                selected={selectedStaff}
+                onSelect={setSelectedStaff}
+              />
+            )}
+            
+            {currentStep === 2 && (
+              <DateTimeSelection
+                salonId={salonId}
+                services={selectedServices}
+                staffId={selectedStaff?.id}
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                onDateSelect={setSelectedDate}
+                onTimeSelect={setSelectedTime}
+              />
+            )}
+            
+            {currentStep === 3 && (
+              <ClientDetails
+                details={clientDetails}
+                onChange={setClientDetails}
+              />
+            )}
+            
+            {currentStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Review Your Booking</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Services</h4>
+                    {selectedServices.map(function(service) {
+                      return (
+                        <div key={service.id} className="flex justify-between text-sm py-1">
+                          <span>{service.name}</span>
+                          <span>${parseFloat(service.price).toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {selectedStaff && (
+                    <div>
+                      <h4 className="font-medium mb-1">Staff</h4>
+                      <p className="text-sm text-muted-foreground">{selectedStaff.name}</p>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h4 className="font-medium mb-1">Date & Time</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedDate} at {selectedTime}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-1">Contact</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {clientDetails.firstName} {clientDetails.lastName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{clientDetails.email}</p>
+                    <p className="text-sm text-muted-foreground">{clientDetails.phone}</p>
+                  </div>
+                  
+                  {clientDetails.notes && (
+                    <div>
+                      <h4 className="font-medium mb-1">Notes</h4>
+                      <p className="text-sm text-muted-foreground">{clientDetails.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          {/* Summary Sidebar */}
+          <div className="lg:col-span-1">
+            <Card className="sticky top-32">
+              <CardHeader>
+                <CardTitle className="text-lg">Booking Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedServices.length > 0 ? (
+                  <>
+                    <div className="space-y-2">
+                      {selectedServices.map(function(service) {
+                        return (
+                          <div key={service.id} className="flex justify-between text-sm">
+                            <div>
+                              <p className="font-medium">{service.name}</p>
+                              <p className="text-muted-foreground">{service.duration} min</p>
+                            </div>
+                            <p className="font-medium">${parseFloat(service.price).toFixed(2)}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Duration</span>
+                        <span>{totalDuration} min</span>
+                      </div>
+                      <div className="flex justify-between font-semibold">
+                        <span>Total</span>
+                        <span>${totalPrice.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    
+                    {selectedDate && selectedTime && (
+                      <div className="border-t pt-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>{selectedDate}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm mt-1">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>{selectedTime}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Select services to see summary
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        
+        {/* Navigation */}
+        <div className="flex justify-between mt-6 pt-6 border-t">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 0}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          
+          {currentStep < STEPS.length - 1 ? (
+            <Button onClick={handleNext} disabled={!canProceed()}>
+              Continue
+            </Button>
+          ) : (
+            <Button onClick={handleConfirmBooking} disabled={!canProceed()}>
+              Confirm Booking
+            </Button>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

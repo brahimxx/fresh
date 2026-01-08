@@ -1,0 +1,540 @@
+'use client';
+
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { 
+  Search, 
+  MapPin, 
+  Star, 
+  Filter, 
+  SlidersHorizontal,
+  ChevronDown,
+  X,
+  Clock,
+  Grid,
+  List as ListIcon
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+var CATEGORIES = [
+  { id: 'hair', name: 'Hair Salons' },
+  { id: 'nails', name: 'Nail Salons' },
+  { id: 'spa', name: 'Spas & Wellness' },
+  { id: 'barber', name: 'Barbershops' },
+  { id: 'beauty', name: 'Beauty Salons' },
+  { id: 'massage', name: 'Massage' },
+];
+
+var PRICE_RANGES = [
+  { id: '1', label: '$', description: 'Budget-friendly' },
+  { id: '2', label: '$$', description: 'Moderate' },
+  { id: '3', label: '$$$', description: 'Upscale' },
+  { id: '4', label: '$$$$', description: 'Luxury' },
+];
+
+var SORT_OPTIONS = [
+  { value: 'recommended', label: 'Recommended' },
+  { value: 'rating', label: 'Highest Rated' },
+  { value: 'reviews', label: 'Most Reviews' },
+  { value: 'distance', label: 'Nearest' },
+  { value: 'price_low', label: 'Price: Low to High' },
+  { value: 'price_high', label: 'Price: High to Low' },
+];
+
+function SalonSearchContent() {
+  var searchParams = useSearchParams();
+  var router = useRouter();
+  
+  var [salons, setSalons] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [viewMode, setViewMode] = useState('grid');
+  
+  // Filter states
+  var [query, setQuery] = useState(searchParams.get('q') || '');
+  var [location, setLocation] = useState(searchParams.get('location') || '');
+  var [selectedCategories, setSelectedCategories] = useState(
+    searchParams.get('category')?.split(',').filter(Boolean) || []
+  );
+  var [selectedPrices, setSelectedPrices] = useState([]);
+  var [minRating, setMinRating] = useState(null);
+  var [sortBy, setSortBy] = useState('recommended');
+  var [openNow, setOpenNow] = useState(false);
+  
+  // Load salons
+  useEffect(function() {
+    async function loadSalons() {
+      setLoading(true);
+      try {
+        var params = new URLSearchParams();
+        if (query) params.append('q', query);
+        if (location) params.append('location', location);
+        if (selectedCategories.length) params.append('categories', selectedCategories.join(','));
+        if (selectedPrices.length) params.append('price', selectedPrices.join(','));
+        if (minRating) params.append('minRating', minRating);
+        if (openNow) params.append('openNow', 'true');
+        params.append('sort', sortBy);
+        
+        var res = await fetch('/api/marketplace/salons?' + params.toString());
+        if (res.ok) {
+          var data = await res.json();
+          setSalons(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load salons:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSalons();
+  }, [query, location, selectedCategories, selectedPrices, minRating, sortBy, openNow]);
+  
+  function toggleCategory(catId) {
+    if (selectedCategories.includes(catId)) {
+      setSelectedCategories(selectedCategories.filter(function(c) { return c !== catId; }));
+    } else {
+      setSelectedCategories([...selectedCategories, catId]);
+    }
+  }
+  
+  function togglePrice(priceId) {
+    if (selectedPrices.includes(priceId)) {
+      setSelectedPrices(selectedPrices.filter(function(p) { return p !== priceId; }));
+    } else {
+      setSelectedPrices([...selectedPrices, priceId]);
+    }
+  }
+  
+  function clearFilters() {
+    setSelectedCategories([]);
+    setSelectedPrices([]);
+    setMinRating(null);
+    setOpenNow(false);
+  }
+  
+  var activeFilterCount = selectedCategories.length + selectedPrices.length + (minRating ? 1 : 0) + (openNow ? 1 : 0);
+  
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Search Header */}
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search services or salons..."
+              value={query}
+              onChange={function(e) { setQuery(e.target.value); }}
+              className="pl-10"
+            />
+          </div>
+          <div className="relative md:w-64">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Location"
+              value={location}
+              onChange={function(e) { setLocation(e.target.value); }}
+              className="pl-10"
+            />
+          </div>
+        </div>
+        
+        {/* Filter Bar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Mobile Filter Button */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="gap-2 md:hidden">
+                <SlidersHorizontal className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge className="ml-1">{activeFilterCount}</Badge>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-80">
+              <SheetHeader>
+                <SheetTitle>Filters</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6 space-y-6">
+                {/* Categories */}
+                <div>
+                  <h4 className="font-medium mb-3">Category</h4>
+                  <div className="space-y-2">
+                    {CATEGORIES.map(function(cat) {
+                      return (
+                        <div key={cat.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={'mob-cat-' + cat.id}
+                            checked={selectedCategories.includes(cat.id)}
+                            onCheckedChange={function() { toggleCategory(cat.id); }}
+                          />
+                          <Label htmlFor={'mob-cat-' + cat.id}>{cat.name}</Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Price */}
+                <div>
+                  <h4 className="font-medium mb-3">Price Range</h4>
+                  <div className="flex gap-2">
+                    {PRICE_RANGES.map(function(price) {
+                      return (
+                        <Button
+                          key={price.id}
+                          variant={selectedPrices.includes(price.id) ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={function() { togglePrice(price.id); }}
+                        >
+                          {price.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Rating */}
+                <div>
+                  <h4 className="font-medium mb-3">Minimum Rating</h4>
+                  <div className="flex gap-2">
+                    {[4, 4.5].map(function(rating) {
+                      return (
+                        <Button
+                          key={rating}
+                          variant={minRating === rating ? 'default' : 'outline'}
+                          size="sm"
+                          className="gap-1"
+                          onClick={function() { setMinRating(minRating === rating ? null : rating); }}
+                        >
+                          <Star className="h-3 w-3 fill-current" />
+                          {rating}+
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Open Now */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="mob-open-now"
+                    checked={openNow}
+                    onCheckedChange={function(checked) { setOpenNow(checked); }}
+                  />
+                  <Label htmlFor="mob-open-now">Open Now</Label>
+                </div>
+                
+                <Button variant="outline" onClick={clearFilters} className="w-full">
+                  Clear All Filters
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+          
+          {/* Desktop Filters */}
+          <div className="hidden md:flex items-center gap-2">
+            {CATEGORIES.slice(0, 4).map(function(cat) {
+              return (
+                <Button
+                  key={cat.id}
+                  variant={selectedCategories.includes(cat.id) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={function() { toggleCategory(cat.id); }}
+                >
+                  {cat.name}
+                </Button>
+              );
+            })}
+            
+            <Button
+              variant={openNow ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1"
+              onClick={function() { setOpenNow(!openNow); }}
+            >
+              <Clock className="h-3 w-3" />
+              Open Now
+            </Button>
+          </div>
+          
+          <div className="flex-1" />
+          
+          {/* Sort & View */}
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map(function(option) {
+                return (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          
+          <div className="hidden sm:flex border rounded-lg">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-9 w-9 rounded-r-none"
+              onClick={function() { setViewMode('grid'); }}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-9 w-9 rounded-l-none"
+              onClick={function() { setViewMode('list'); }}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Active Filters */}
+        {activeFilterCount > 0 && (
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <span className="text-sm text-muted-foreground">Active filters:</span>
+            {selectedCategories.map(function(catId) {
+              var cat = CATEGORIES.find(function(c) { return c.id === catId; });
+              return (
+                <Badge key={catId} variant="secondary" className="gap-1">
+                  {cat?.name}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={function() { toggleCategory(catId); }}
+                  />
+                </Badge>
+              );
+            })}
+            {openNow && (
+              <Badge variant="secondary" className="gap-1">
+                Open Now
+                <X
+                  className="h-3 w-3 cursor-pointer"
+                  onClick={function() { setOpenNow(false); }}
+                />
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear all
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {/* Results */}
+      <div className="mb-4">
+        <p className="text-muted-foreground">
+          {loading ? 'Searching...' : salons.length + ' salons found'}
+        </p>
+      </div>
+      
+      {loading ? (
+        <div className={viewMode === 'grid' 
+          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
+          : 'space-y-4'
+        }>
+          {[1, 2, 3, 4, 5, 6].map(function(i) {
+            return viewMode === 'grid' ? (
+              <Card key={i}>
+                <Skeleton className="aspect-[4/3]" />
+                <CardContent className="p-4 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3" />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card key={i} className="flex">
+                <Skeleton className="w-48 h-36" />
+                <CardContent className="flex-1 p-4 space-y-2">
+                  <Skeleton className="h-5 w-1/2" />
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-4 w-2/3" />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : salons.length > 0 ? (
+        <div className={viewMode === 'grid'
+          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
+          : 'space-y-4'
+        }>
+          {salons.map(function(salon) {
+            return viewMode === 'grid' ? (
+              <SalonCardGrid key={salon.id} salon={salon} />
+            ) : (
+              <SalonCardList key={salon.id} salon={salon} />
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">🔍</div>
+          <h3 className="text-xl font-semibold mb-2">No salons found</h3>
+          <p className="text-muted-foreground mb-4">
+            Try adjusting your search or filters
+          </p>
+          <Button variant="outline" onClick={clearFilters}>
+            Clear Filters
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SalonCardGrid({ salon }) {
+  return (
+    <Link href={'/salon/' + salon.id}>
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group h-full">
+        <div className="aspect-[4/3] overflow-hidden bg-gray-100">
+          {salon.cover_image_url ? (
+            <img
+              src={salon.cover_image_url}
+              alt={salon.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-4xl">
+              💇
+            </div>
+          )}
+        </div>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold group-hover:text-primary transition-colors">{salon.name}</h3>
+              <p className="text-sm text-muted-foreground">{salon.category || 'Salon'}</p>
+            </div>
+            {salon.price_level && (
+              <Badge variant="secondary">{'$'.repeat(salon.price_level)}</Badge>
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <span className="font-medium">{salon.rating?.toFixed(1) || 'New'}</span>
+            {salon.review_count > 0 && (
+              <span className="text-muted-foreground">({salon.review_count} reviews)</span>
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            {salon.city}{salon.state ? ', ' + salon.state : ''}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function SalonCardList({ salon }) {
+  return (
+    <Link href={'/salon/' + salon.id}>
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
+        <div className="flex">
+          <div className="w-48 h-36 shrink-0 overflow-hidden bg-gray-100">
+            {salon.cover_image_url ? (
+              <img
+                src={salon.cover_image_url}
+                alt={salon.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-4xl">
+                💇
+              </div>
+            )}
+          </div>
+          <CardContent className="flex-1 p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold group-hover:text-primary transition-colors">{salon.name}</h3>
+                <p className="text-sm text-muted-foreground">{salon.category || 'Salon'}</p>
+              </div>
+              {salon.price_level && (
+                <Badge variant="secondary">{'$'.repeat(salon.price_level)}</Badge>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <span className="font-medium">{salon.rating?.toFixed(1) || 'New'}</span>
+              {salon.review_count > 0 && (
+                <span className="text-muted-foreground">({salon.review_count} reviews)</span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              {salon.address || salon.city}
+            </div>
+            {salon.services_preview && (
+              <div className="mt-2 flex gap-1 flex-wrap">
+                {salon.services_preview.slice(0, 3).map(function(service, idx) {
+                  return (
+                    <Badge key={idx} variant="outline" className="text-xs">
+                      {service}
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+export default function SalonsPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <Skeleton className="h-10 w-full mb-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map(function(i) {
+            return (
+              <Card key={i}>
+                <Skeleton className="aspect-[4/3]" />
+                <CardContent className="p-4 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    }>
+      <SalonSearchContent />
+    </Suspense>
+  );
+}
