@@ -1,11 +1,13 @@
-import { query, getOne } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
-import { success, error, created, forbidden } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
+import { success, error, created, forbidden } from "@/lib/response";
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
+  if (role === "admin") return true;
+  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
+    salonId,
+  ]);
   if (!salon) return false;
   if (salon.owner_id === userId) return true;
   const staff = await getOne(
@@ -19,7 +21,7 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salon_id');
+    const salonId = searchParams.get("salon_id");
 
     let sql = `
       SELECT sc.*
@@ -29,11 +31,11 @@ export async function GET(request) {
     const params = [];
 
     if (salonId) {
-      sql += ' AND sc.salon_id = ?';
+      sql += " AND sc.salon_id = ?";
       params.push(salonId);
     }
 
-    sql += ' ORDER BY sc.display_order ASC, sc.name ASC';
+    sql += " ORDER BY sc.display_order ASC, sc.name ASC";
 
     const categories = await query(sql, params);
 
@@ -46,8 +48,8 @@ export async function GET(request) {
       })),
     });
   } catch (err) {
-    console.error('Get categories error:', err);
-    return error('Failed to get categories', 500);
+    console.error("Get categories error:", err);
+    return error("Failed to get categories", 500);
   }
 }
 
@@ -59,17 +61,21 @@ export async function POST(request) {
     const { salon_id, name, display_order } = body;
 
     if (!salon_id) {
-      return error('salon_id is required', 400);
+      return error("salon_id is required", 400);
     }
 
     if (!name) {
-      return error('Category name is required', 400);
+      return error("Category name is required", 400);
     }
 
     // Check salon access
-    const hasAccess = await checkSalonAccess(salon_id, session.userId, session.role);
+    const hasAccess = await checkSalonAccess(
+      salon_id,
+      session.userId,
+      session.role
+    );
     if (!hasAccess) {
-      return forbidden('Not authorized to add categories to this salon');
+      return forbidden("Not authorized to add categories to this salon");
     }
 
     const result = await query(
@@ -79,7 +85,7 @@ export async function POST(request) {
     );
 
     const newCategory = await getOne(
-      'SELECT * FROM service_categories WHERE id = ?',
+      "SELECT * FROM service_categories WHERE id = ?",
       [result.insertId]
     );
 
@@ -90,7 +96,7 @@ export async function POST(request) {
       displayOrder: newCategory.display_order,
     });
   } catch (err) {
-    console.error('Create category error:', err);
-    return error('Failed to create category', 500);
+    console.error("Create category error:", err);
+    return error("Failed to create category", 500);
   }
 }

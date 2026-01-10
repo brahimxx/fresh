@@ -26,9 +26,9 @@ export async function GET(request, { params }) {
     if (serviceIds.length > 0) {
       staffQuery += ` AND (
         s.id IN (
-          SELECT staff_id FROM staff_services WHERE service_id IN (${serviceIds.map(() => '?').join(',')})
+          SELECT staff_id FROM service_staff WHERE service_id IN (${serviceIds.map(() => '?').join(',')})
         )
-        OR NOT EXISTS (SELECT 1 FROM staff_services WHERE staff_id = s.id)
+        OR NOT EXISTS (SELECT 1 FROM service_staff WHERE staff_id = s.id)
       )`;
       queryParams.push(...serviceIds);
     }
@@ -40,13 +40,11 @@ export async function GET(request, { params }) {
     
     // Get specialties for each staff member
     const staffWithDetails = await Promise.all(staff.map(async (member) => {
-      // Get top 3 services they specialize in
-      const specialties = await query(
-        `SELECT s.name 
-         FROM staff_services ss
-         JOIN services s ON s.id = ss.service_id
-         WHERE ss.staff_id = ?
-         LIMIT 3`,
+    // Get service IDs they can perform
+      const serviceIds = await query(
+        `SELECT ss.service_id
+         FROM service_staff ss
+         WHERE ss.staff_id = ?`,
         [member.id]
       );
       
@@ -57,7 +55,8 @@ export async function GET(request, { params }) {
         avatar_url: member.avatar_url,
         rating: member.rating ? parseFloat(member.rating) : null,
         review_count: parseInt(member.review_count) || 0,
-        specialties: specialties.map(s => s.name)
+        service_ids: serviceIds.map(s => s.service_id),
+        specialties: serviceIds.map(s => s.service_id) // Keep for backward compatibility if needed
       };
     }));
     

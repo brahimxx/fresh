@@ -142,7 +142,7 @@ export async function POST(request) {
       return error(formatValidationErrors(validation.errors));
     }
     
-    const { salonId, staffId, serviceIds, startDatetime, notes, source } = validation.data;
+    const { salonId, clientId, staffId, serviceIds, startDatetime, endDatetime, notes, source } = validation.data;
 
     // Get services to calculate total duration and price
     if (serviceIds.length === 0) {
@@ -161,10 +161,15 @@ export async function POST(request) {
     const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
     const totalPrice = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
 
-    // Calculate end datetime
+    // Use provided end datetime or calculate from services
     const startDate = new Date(startDatetime);
-    const endDate = new Date(startDate.getTime() + totalDuration * 60000);
-    const endDatetime = endDate.toISOString().slice(0, 19).replace('T', ' ');
+    let endDate;
+    if (endDatetime) {
+      endDate = new Date(endDatetime);
+    } else {
+      endDate = new Date(startDate.getTime() + totalDuration * 60000);
+    }
+    const endDatetimeFormatted = endDate.toISOString().slice(0, 19).replace('T', ' ');
     const startDatetimeFormatted = startDate.toISOString().slice(0, 19).replace('T', ' ');
 
     // Check staff working hours (outside transaction for faster fail)
@@ -200,7 +205,7 @@ export async function POST(request) {
          AND status NOT IN ('cancelled', 'no_show')
          AND start_datetime < ? AND end_datetime > ?
          FOR UPDATE`,
-        [staffId, endDatetime, startDatetimeFormatted]
+        [staffId, endDatetimeFormatted, startDatetimeFormatted]
       );
 
       if (conflicts.length > 0) {
@@ -211,7 +216,7 @@ export async function POST(request) {
       const [bookingResult] = await conn.execute(
         `INSERT INTO bookings (salon_id, client_id, staff_id, start_datetime, end_datetime, status, source, notes, created_at)
          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NOW())`,
-        [salonId, session.userId, staffId, startDatetimeFormatted, endDatetime, source, notes || null]
+        [salonId, clientId, staffId, startDatetimeFormatted, endDatetimeFormatted, source, notes || null]
       );
 
       const bookingId = bookingResult.insertId;
@@ -228,7 +233,7 @@ export async function POST(request) {
       // Update or create salon_clients record
       const [existingClient] = await conn.execute(
         'SELECT salon_id FROM salon_clients WHERE salon_id = ? AND client_id = ?',
-        [salonId, session.userId]
+        [salonId, clientId]
       );
 
       const isNewClient = existingClient.length === 0;
@@ -236,7 +241,7 @@ export async function POST(request) {
       if (isNewClient) {
         await conn.execute(
           'INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits) VALUES (?, ?, NOW(), NOW(), 1)',
-          [salonId, session.userId]
+          [salonId, clientId]
         );
 
         // If marketplace booking and new client, create platform fee
@@ -249,7 +254,7 @@ export async function POST(request) {
       } else {
         await conn.execute(
           'UPDATE salon_clients SET last_visit_date = NOW(), total_visits = total_visits + 1 WHERE salon_id = ? AND client_id = ?',
-          [salonId, session.userId]
+          [salonId, clientId]
         );
       }
 
@@ -259,9 +264,10 @@ export async function POST(request) {
     return created({
       id: result.bookingId,
       salonId,
+      clientId,
       staffId,
       startDatetime: startDatetimeFormatted,
-      endDatetime,
+      endDatetime: endDatetimeFormatted,
       status: 'pending',
       source,
       totalDuration,

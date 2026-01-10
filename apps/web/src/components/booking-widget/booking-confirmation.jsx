@@ -1,78 +1,99 @@
-'use client';
+"use client";
 
-import { CheckCircle, Calendar, Clock, User, MapPin, Mail, Printer, CalendarPlus } from 'lucide-react';
+import {
+  CheckCircle,
+  Calendar,
+  Clock,
+  User,
+  MapPin,
+  Mail,
+  Printer,
+  CalendarPlus,
+} from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
-export function BookingConfirmation({ 
-  booking, 
-  salon, 
-  selectedServices, 
+export function BookingConfirmation({
+  booking,
+  salon,
+  selectedServices,
   selectedStaff,
   selectedDate,
   selectedTime,
-  clientDetails 
+  user,
 }) {
   function formatDate(date) {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   }
-  
+
   function formatTime(time) {
-    var parts = time.split(':');
+    var parts = time.split(":");
     var hour = parseInt(parts[0]);
     var min = parts[1];
-    var ampm = hour >= 12 ? 'PM' : 'AM';
+    var ampm = hour >= 12 ? "PM" : "AM";
     hour = hour % 12 || 12;
-    return hour + ':' + min + ' ' + ampm;
+    return hour + ":" + min + " " + ampm;
   }
-  
-  var totalPrice = selectedServices.reduce(function(sum, s) {
+
+  var totalPrice = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
     return sum + parseFloat(s.price);
-  }, 0);
-  
-  var totalDuration = selectedServices.reduce(function(sum, s) {
+  }, 0) : 0;
+
+  var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
     return sum + (s.duration || 30);
-  }, 0);
-  
+  }, 0) : 0;
+
   function addToCalendar(type) {
-    var title = encodeURIComponent('Appointment at ' + salon.name);
+    var title = encodeURIComponent("Appointment at " + salon.name);
     var startDate = new Date(selectedDate);
-    var timeParts = selectedTime.split(':');
+    var timeParts = selectedTime.split(":");
     startDate.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]));
-    
+
     var endDate = new Date(startDate.getTime() + totalDuration * 60000);
-    
+
     var details = encodeURIComponent(
-      'Services: ' + selectedServices.map(function(s) { return s.name; }).join(', ') +
-      (selectedStaff ? '\nStaff: ' + selectedStaff.name : '')
+      "Services: " +
+        selectedServices
+          .map(function (s) {
+            return s.name;
+          })
+          .join(", ") +
+        (selectedStaff ? "\nStaff: " + selectedStaff.name : "")
     );
-    
-    var location = encodeURIComponent(salon.address || '');
-    
-    if (type === 'google') {
-      var start = startDate.toISOString().replace(/-|:|\.\d\d\d/g, '');
-      var end = endDate.toISOString().replace(/-|:|\.\d\d\d/g, '');
-      var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
-        '&text=' + title +
-        '&dates=' + start + '/' + end +
-        '&details=' + details +
-        '&location=' + location;
-      window.open(url, '_blank');
+
+    var location = encodeURIComponent(salon.address || "");
+
+    if (type === "google") {
+      var start = startDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
+      var end = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
+      var url =
+        "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+        "&text=" +
+        title +
+        "&dates=" +
+        start +
+        "/" +
+        end +
+        "&details=" +
+        details +
+        "&location=" +
+        location;
+      window.open(url, "_blank");
     }
   }
-  
+
   function printConfirmation() {
     window.print();
   }
-  
+
   return (
     <Card className="text-center">
       <CardHeader className="pb-4">
@@ -92,19 +113,19 @@ export function BookingConfirmation({
             <p className="text-2xl font-mono font-bold">{booking.reference}</p>
           </div>
         )}
-        
+
         {/* Confirmation Email */}
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Mail className="h-4 w-4" />
-          <span>Confirmation sent to {clientDetails.email}</span>
+          <span>Confirmation sent to {user?.email}</span>
         </div>
-        
+
         <Separator />
-        
+
         {/* Appointment Details */}
         <div className="text-left space-y-4">
           <h3 className="font-semibold">Appointment Details</h3>
-          
+
           <div className="space-y-3">
             {/* Date & Time */}
             <div className="flex items-start gap-3">
@@ -118,7 +139,7 @@ export function BookingConfirmation({
                 </p>
               </div>
             </div>
-            
+
             {/* Location */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -127,11 +148,13 @@ export function BookingConfirmation({
               <div>
                 <p className="font-medium">{salon.name}</p>
                 {salon.address && (
-                  <p className="text-sm text-muted-foreground">{salon.address}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {salon.address}
+                  </p>
                 )}
               </div>
             </div>
-            
+
             {/* Staff */}
             {selectedStaff && (
               <div className="flex items-start gap-3">
@@ -141,28 +164,37 @@ export function BookingConfirmation({
                 <div>
                   <p className="font-medium">{selectedStaff.name}</p>
                   {selectedStaff.title && (
-                    <p className="text-sm text-muted-foreground">{selectedStaff.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedStaff.title}
+                    </p>
                   )}
                 </div>
               </div>
             )}
           </div>
         </div>
-        
+
         <Separator />
-        
+
         {/* Services */}
         <div className="text-left">
           <h3 className="font-semibold mb-3">Services</h3>
           <div className="space-y-2">
-            {selectedServices.map(function(service) {
+            {selectedServices && Array.isArray(selectedServices) && selectedServices.map(function (service) {
               return (
-                <div key={service.id} className="flex justify-between items-center">
+                <div
+                  key={service.id}
+                  className="flex justify-between items-center"
+                >
                   <div>
                     <p className="font-medium">{service.name}</p>
-                    <p className="text-sm text-muted-foreground">{service.duration} min</p>
+                    <p className="text-sm text-muted-foreground">
+                      {service.duration} min
+                    </p>
                   </div>
-                  <p className="font-medium">${parseFloat(service.price).toFixed(2)}</p>
+                  <p className="font-medium">
+                    ${parseFloat(service.price).toFixed(2)}
+                  </p>
                 </div>
               );
             })}
@@ -173,22 +205,24 @@ export function BookingConfirmation({
             <span>${totalPrice.toFixed(2)}</span>
           </div>
         </div>
-        
+
         <Separator />
-        
+
         {/* Actions */}
         <div className="space-y-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="w-full gap-2"
-            onClick={function() { addToCalendar('google'); }}
+            onClick={function () {
+              addToCalendar("google");
+            }}
           >
             <CalendarPlus className="h-4 w-4" />
             Add to Google Calendar
           </Button>
-          
-          <Button 
-            variant="ghost" 
+
+          <Button
+            variant="ghost"
             className="w-full gap-2"
             onClick={printConfirmation}
           >
@@ -196,13 +230,15 @@ export function BookingConfirmation({
             Print Confirmation
           </Button>
         </div>
-        
+
         {/* Cancellation Policy */}
         <div className="bg-yellow-50 rounded-lg p-4 text-left">
-          <h4 className="font-medium text-yellow-900 text-sm">Cancellation Policy</h4>
+          <h4 className="font-medium text-yellow-900 text-sm">
+            Cancellation Policy
+          </h4>
           <p className="text-sm text-yellow-800 mt-1">
-            Free cancellation up to 24 hours before your appointment. 
-            Late cancellations may be subject to a fee.
+            Free cancellation up to 24 hours before your appointment. Late
+            cancellations may be subject to a fee.
           </p>
         </div>
       </CardContent>

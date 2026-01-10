@@ -61,7 +61,8 @@ export default function RegisterPage() {
       const { confirm_password, ...registerData } = data;
       await registerUser(registerData);
       toast.success('Account created successfully! 🎉');
-      router.push('/');
+      // Redirect to onboarding for new users
+      router.push('/onboarding');
     } catch (error) {
       const message = error.message || 'Failed to create account';
       setServerError(message);

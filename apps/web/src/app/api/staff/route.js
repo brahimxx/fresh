@@ -1,11 +1,13 @@
-import { query, getOne } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
-import { success, error, created, forbidden } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
+import { success, error, created, forbidden } from "@/lib/response";
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
+  if (role === "admin") return true;
+  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
+    salonId,
+  ]);
   if (!salon) return false;
   if (salon.owner_id === userId) return true;
   const staff = await getOne(
@@ -19,7 +21,7 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salon_id');
+    const salonId = searchParams.get("salon_id");
 
     let sql = `
       SELECT s.*, u.first_name, u.last_name, u.email, u.phone
@@ -30,11 +32,11 @@ export async function GET(request) {
     const params = [];
 
     if (salonId) {
-      sql += ' AND s.salon_id = ?';
+      sql += " AND s.salon_id = ?";
       params.push(salonId);
     }
 
-    sql += ' ORDER BY s.display_order ASC, u.first_name ASC';
+    sql += " ORDER BY s.display_order ASC, u.first_name ASC";
 
     const staffMembers = await query(sql, params);
 
@@ -58,8 +60,8 @@ export async function GET(request) {
       })),
     });
   } catch (err) {
-    console.error('Get staff error:', err);
-    return error('Failed to get staff', 500);
+    console.error("Get staff error:", err);
+    return error("Failed to get staff", 500);
   }
 }
 
@@ -68,44 +70,58 @@ export async function POST(request) {
   try {
     const session = await requireAuth();
     const body = await request.json();
-    const { salon_id, email, name, first_name, last_name, phone, role, title, bio } = body;
+    const {
+      salon_id,
+      email,
+      name,
+      first_name,
+      last_name,
+      phone,
+      role,
+      title,
+      bio,
+    } = body;
 
     if (!salon_id) {
-      return error('salon_id is required', 400);
+      return error("salon_id is required", 400);
     }
 
     // Handle name field - can be either "name" or "first_name/last_name"
     let firstName = first_name;
     let lastName = last_name;
-    
+
     if (name && !firstName) {
-      const nameParts = name.trim().split(' ');
+      const nameParts = name.trim().split(" ");
       firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(' ') || null;
+      lastName = nameParts.slice(1).join(" ") || null;
     }
 
     if (!firstName) {
-      return error('Name is required', 400);
+      return error("Name is required", 400);
     }
 
     // Check salon access
-    const hasAccess = await checkSalonAccess(salon_id, session.userId, session.role);
+    const hasAccess = await checkSalonAccess(
+      salon_id,
+      session.userId,
+      session.role
+    );
     if (!hasAccess) {
-      return forbidden('Not authorized to add staff to this salon');
+      return forbidden("Not authorized to add staff to this salon");
     }
 
     let user;
-    
+
     if (email) {
       // Check if user already exists
-      user = await getOne('SELECT id FROM users WHERE email = ?', [email]);
-      
+      user = await getOne("SELECT id FROM users WHERE email = ?", [email]);
+
       if (!user) {
         // Create a new user with a temporary password (they'll need to set it via invite)
         const tempPassword = Math.random().toString(36).slice(-12);
-        const bcrypt = await import('bcryptjs');
+        const bcrypt = await import("bcryptjs");
         const passwordHash = await bcrypt.hash(tempPassword, 10);
-        
+
         const userResult = await query(
           `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
            VALUES (?, ?, ?, ?, ?, 'staff')`,
@@ -115,40 +131,42 @@ export async function POST(request) {
       }
     } else {
       // Create user without email (using a placeholder)
-      const placeholderEmail = `staff_${Date.now()}_${Math.random().toString(36).slice(-4)}@placeholder.local`;
+      const placeholderEmail = `staff_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(-4)}@placeholder.local`;
       const tempPassword = Math.random().toString(36).slice(-12);
-      const bcrypt = await import('bcryptjs');
+      const bcrypt = await import("bcryptjs");
       const passwordHash = await bcrypt.hash(tempPassword, 10);
-      
+
       const userResult = await query(
         `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
          VALUES (?, ?, ?, ?, ?, 'staff')`,
-        [placeholderEmail, passwordHash, firstName, lastName || null, phone || null]
+        [
+          placeholderEmail,
+          passwordHash,
+          firstName,
+          lastName || null,
+          phone || null,
+        ]
       );
       user = { id: userResult.insertId };
     }
 
     // Check if staff already exists for this salon
     const existingStaff = await getOne(
-      'SELECT id FROM staff WHERE salon_id = ? AND user_id = ?',
+      "SELECT id FROM staff WHERE salon_id = ? AND user_id = ?",
       [salon_id, user.id]
     );
 
     if (existingStaff) {
-      return error('This user is already a team member of this salon', 400);
+      return error("This user is already a team member of this salon", 400);
     }
 
     // Create staff entry
     const result = await query(
       `INSERT INTO staff (salon_id, user_id, role, title, bio, is_active, is_visible)
        VALUES (?, ?, ?, ?, ?, 1, 1)`,
-      [
-        salon_id,
-        user.id,
-        role || 'staff',
-        title || null,
-        bio || null,
-      ]
+      [salon_id, user.id, role || "staff", title || null, bio || null]
     );
 
     const newStaff = await getOne(
@@ -176,7 +194,7 @@ export async function POST(request) {
       isVisible: newStaff.is_visible,
     });
   } catch (err) {
-    console.error('Create staff error:', err);
-    return error('Failed to create staff member', 500);
+    console.error("Create staff error:", err);
+    return error("Failed to create staff member", 500);
   }
 }

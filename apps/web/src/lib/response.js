@@ -8,6 +8,10 @@ export function error(message, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
 }
 
+// Aliases for backward compatibility
+export const successResponse = success;
+export const errorResponse = error;
+
 export function created(data) {
   return success(data, 201);
 }

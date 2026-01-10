@@ -1,11 +1,13 @@
-import { query, getOne } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
-import { success, error, created, forbidden } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
+import { success, error, created, forbidden } from "@/lib/response";
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
+  if (role === "admin") return true;
+  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
+    salonId,
+  ]);
   if (!salon) return false;
   if (salon.owner_id === userId) return true;
   const staff = await getOne(
@@ -19,7 +21,7 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salon_id');
+    const salonId = searchParams.get("salon_id");
 
     let sql = `
       SELECT s.*, sc.name as category_name
@@ -30,11 +32,11 @@ export async function GET(request) {
     const params = [];
 
     if (salonId) {
-      sql += ' AND s.salon_id = ?';
+      sql += " AND s.salon_id = ?";
       params.push(salonId);
     }
 
-    sql += ' ORDER BY s.display_order ASC, s.name ASC';
+    sql += " ORDER BY s.display_order ASC, s.name ASC";
 
     const services = await query(sql, params);
 
@@ -54,8 +56,8 @@ export async function GET(request) {
       })),
     });
   } catch (err) {
-    console.error('Get services error:', err);
-    return error('Failed to get services', 500);
+    console.error("Get services error:", err);
+    return error("Failed to get services", 500);
   }
 }
 
@@ -64,20 +66,33 @@ export async function POST(request) {
   try {
     const session = await requireAuth();
     const body = await request.json();
-    const { salon_id, category_id, name, description, duration, price, buffer_time, display_order } = body;
+    const {
+      salon_id,
+      category_id,
+      name,
+      description,
+      duration,
+      price,
+      buffer_time,
+      display_order,
+    } = body;
 
     if (!salon_id) {
-      return error('salon_id is required', 400);
+      return error("salon_id is required", 400);
     }
 
     if (!name) {
-      return error('Service name is required', 400);
+      return error("Service name is required", 400);
     }
 
     // Check salon access
-    const hasAccess = await checkSalonAccess(salon_id, session.userId, session.role);
+    const hasAccess = await checkSalonAccess(
+      salon_id,
+      session.userId,
+      session.role
+    );
     if (!hasAccess) {
-      return forbidden('Not authorized to add services to this salon');
+      return forbidden("Not authorized to add services to this salon");
     }
 
     const result = await query(
@@ -117,7 +132,7 @@ export async function POST(request) {
       isActive: newService.is_active,
     });
   } catch (err) {
-    console.error('Create service error:', err);
-    return error('Failed to create service', 500);
+    console.error("Create service error:", err);
+    return error("Failed to create service", 500);
   }
 }

@@ -16,11 +16,14 @@ export function StaffSelection({ salonId, selectedServices, selected, onSelect }
     async function loadStaff() {
       try {
         // Build service IDs query param
-        var serviceIds = selectedServices.map(function(s) { return s.id; }).join(',');
+        var serviceIds = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.map(function(s) { return s.id; }).join(',') : '';
         var res = await fetch('/api/widget/' + salonId + '/staff?services=' + serviceIds);
         if (res.ok) {
           var data = await res.json();
+          console.log('Loaded staff:', data.data);
           setStaff(data.data || []);
+        } else {
+          console.error('Staff API error:', res.status, await res.text());
         }
       } catch (error) {
         console.error('Failed to load staff:', error);

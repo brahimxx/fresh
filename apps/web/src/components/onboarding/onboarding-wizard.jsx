@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/providers/auth-provider';
 import { 
   CheckCircle2, 
   Store, 
@@ -118,21 +119,52 @@ export function useOnboarding() {
   };
 }
 
+// Global function to trigger wizard opening
+var openWizardCallback = null;
+
+export function useOpenOnboarding() {
+  return function() {
+    if (openWizardCallback) {
+      openWizardCallback();
+    }
+  };
+}
+
 export function OnboardingWizard() {
   var router = useRouter();
+  var { user, isLoading } = useAuth();
   var { isCompleted, currentStep, completeOnboarding, saveStep } = useOnboarding();
   var [open, setOpen] = useState(false);
   
+  // Register callback for opening wizard from anywhere
   useEffect(function() {
-    // Show wizard after a short delay if not completed
+    openWizardCallback = function() {
+      setOpen(true);
+    };
+    return function() {
+      openWizardCallback = null;
+    };
+  }, []);
+  
+  useEffect(function() {
+    // Only show wizard if user is authenticated and onboarding is not completed
+    if (isLoading) return; // Wait for auth to load
+    
+    if (!user) {
+      // User not logged in, don't show wizard
+      setOpen(false);
+      return;
+    }
+    
+    // Show wizard after a short delay if user is logged in and not completed
     var timeout = setTimeout(function() {
-      if (!isCompleted) {
+      if (!isCompleted && user) {
         setOpen(true);
       }
     }, 500);
     
     return function() { clearTimeout(timeout); };
-  }, [isCompleted]);
+  }, [isCompleted, user, isLoading]);
   
   function handleNext() {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
@@ -155,7 +187,7 @@ export function OnboardingWizard() {
     var step = ONBOARDING_STEPS[currentStep];
     if (step.action) {
       router.push(step.action);
-      setOpen(false);
+      // Don't close the wizard - user can continue setup later with "Continue Setup" button
     }
   }
   
@@ -164,7 +196,8 @@ export function OnboardingWizard() {
     setOpen(false);
   }
   
-  if (isCompleted) return null;
+  // Don't show wizard if user is not authenticated or onboarding is completed
+  if (!user || isCompleted) return null;
   
   var step = ONBOARDING_STEPS[currentStep];
   var Icon = step.icon;

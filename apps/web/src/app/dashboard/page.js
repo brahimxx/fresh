@@ -14,6 +14,18 @@ export default function DashboardIndexPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // Check if onboarding is completed
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const onboardingCompleted = localStorage.getItem('fresh_onboarding_completed');
+      if (!onboardingCompleted || onboardingCompleted !== 'true') {
+        // Redirect to onboarding if not completed
+        router.replace('/onboarding');
+        return;
+      }
+    }
+  }, [router]);
+
   // Fetch user's salons to redirect to the first one
   const { data: salons, isLoading } = useQuery({
     queryKey: ['user-salons', user?.id],

@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { format } from 'date-fns';
-import { RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { format } from "date-fns";
+import { RefreshCw, Calendar as CalendarIcon } from "lucide-react";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -21,38 +21,38 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { useToast } from '@/hooks/use-toast';
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { useToast } from "@/hooks/use-toast";
 
-import { 
-  useCreateDiscount, 
-  useUpdateDiscount, 
+import {
+  useCreateDiscount,
+  useUpdateDiscount,
   DISCOUNT_TYPES,
-  generateDiscountCode 
-} from '@/hooks/use-discounts';
+  generateDiscountCode,
+} from "@/hooks/use-discounts";
 
 var discountSchema = z.object({
-  code: z.string().min(1, 'Code is required').max(20),
+  code: z.string().min(1, "Code is required").max(20),
   name: z.string().optional(),
-  type: z.enum(['percentage', 'fixed']),
-  value: z.coerce.number().min(0.01, 'Value must be greater than 0'),
+  type: z.enum(["percentage", "fixed"]),
+  value: z.coerce.number().min(0.01, "Value must be greater than 0"),
   min_purchase: z.coerce.number().min(0).optional(),
   max_uses: z.coerce.number().min(0).optional().nullable(),
   start_date: z.date().optional().nullable(),
@@ -60,19 +60,25 @@ var discountSchema = z.object({
   is_active: z.boolean(),
 });
 
-export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess }) {
+export function DiscountForm({
+  open,
+  onOpenChange,
+  salonId,
+  discount,
+  onSuccess,
+}) {
   var { toast } = useToast();
   var createDiscount = useCreateDiscount();
   var updateDiscount = useUpdateDiscount();
-  
+
   var isEditing = !!discount;
-  
+
   var form = useForm({
     resolver: zodResolver(discountSchema),
     defaultValues: {
-      code: '',
-      name: '',
-      type: 'percentage',
+      code: "",
+      name: "",
+      type: "percentage",
       value: 10,
       min_purchase: 0,
       max_uses: null,
@@ -81,120 +87,136 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
       is_active: true,
     },
   });
-  
+
   // Reset form when discount changes
-  useEffect(function() {
-    if (open) {
-      if (discount) {
-        form.reset({
-          code: discount.code || '',
-          name: discount.name || '',
-          type: discount.type || 'percentage',
-          value: Number(discount.value) || 10,
-          min_purchase: Number(discount.min_purchase || discount.minPurchase) || 0,
-          max_uses: discount.max_uses || discount.maxUses || null,
-          start_date: discount.start_date || discount.startDate ? new Date(discount.start_date || discount.startDate) : null,
-          end_date: discount.end_date || discount.endDate ? new Date(discount.end_date || discount.endDate) : null,
-          is_active: discount.is_active !== false && discount.isActive !== false,
-        });
-      } else {
-        form.reset({
-          code: '',
-          name: '',
-          type: 'percentage',
-          value: 10,
-          min_purchase: 0,
-          max_uses: null,
-          start_date: null,
-          end_date: null,
-          is_active: true,
-        });
+  useEffect(
+    function () {
+      if (open) {
+        if (discount) {
+          form.reset({
+            code: discount.code || "",
+            name: discount.name || "",
+            type: discount.type || "percentage",
+            value: Number(discount.value) || 10,
+            min_purchase:
+              Number(discount.min_purchase || discount.minPurchase) || 0,
+            max_uses: discount.max_uses || discount.maxUses || null,
+            start_date:
+              discount.start_date || discount.startDate
+                ? new Date(discount.start_date || discount.startDate)
+                : null,
+            end_date:
+              discount.end_date || discount.endDate
+                ? new Date(discount.end_date || discount.endDate)
+                : null,
+            is_active:
+              discount.is_active !== false && discount.isActive !== false,
+          });
+        } else {
+          form.reset({
+            code: "",
+            name: "",
+            type: "percentage",
+            value: 10,
+            min_purchase: 0,
+            max_uses: null,
+            start_date: null,
+            end_date: null,
+            is_active: true,
+          });
+        }
       }
-    }
-  }, [open, discount]);
-  
+    },
+    [open, discount]
+  );
+
   function handleGenerateCode() {
     var code = generateDiscountCode();
-    form.setValue('code', code);
+    form.setValue("code", code);
   }
-  
+
   function onSubmit(data) {
     var payload = {
       ...data,
       salon_id: salonId,
-      start_date: data.start_date ? format(data.start_date, 'yyyy-MM-dd') : null,
-      end_date: data.end_date ? format(data.end_date, 'yyyy-MM-dd') : null,
+      start_date: data.start_date
+        ? format(data.start_date, "yyyy-MM-dd")
+        : null,
+      end_date: data.end_date ? format(data.end_date, "yyyy-MM-dd") : null,
     };
-    
+
     if (isEditing) {
-      updateDiscount.mutate({
-        discountId: discount.id,
-        data: payload,
-      }, {
-        onSuccess: function() {
-          toast({ title: 'Discount updated' });
-          onSuccess && onSuccess();
+      updateDiscount.mutate(
+        {
+          discountId: discount.id,
+          data: payload,
         },
-        onError: function(error) {
-          toast({
-            title: 'Error',
-            description: error.message,
-            variant: 'destructive',
-          });
-        },
-      });
+        {
+          onSuccess: function () {
+            toast({ title: "Discount updated" });
+            onSuccess && onSuccess();
+          },
+          onError: function (error) {
+            toast({
+              title: "Error",
+              description: error.message,
+              variant: "destructive",
+            });
+          },
+        }
+      );
     } else {
       createDiscount.mutate(payload, {
-        onSuccess: function() {
-          toast({ title: 'Discount created' });
+        onSuccess: function () {
+          toast({ title: "Discount created" });
           onSuccess && onSuccess();
         },
-        onError: function(error) {
+        onError: function (error) {
           toast({
-            title: 'Error',
+            title: "Error",
             description: error.message,
-            variant: 'destructive',
+            variant: "destructive",
           });
         },
       });
     }
   }
-  
+
   var isPending = createDiscount.isPending || updateDiscount.isPending;
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Discount' : 'Create Discount'}
+            {isEditing ? "Edit Discount" : "Create Discount"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Code */}
             <FormField
               control={form.control}
               name="code"
-              render={function({ field }) {
+              render={function ({ field }) {
                 return (
                   <FormItem>
                     <FormLabel>Discount Code</FormLabel>
                     <div className="flex gap-2">
                       <FormControl>
-                        <Input 
-                          {...field} 
+                        <Input
+                          {...field}
                           placeholder="e.g., SUMMER20"
                           className="font-mono uppercase"
-                          onChange={function(e) {
+                          onChange={function (e) {
                             field.onChange(e.target.value.toUpperCase());
                           }}
                         />
                       </FormControl>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         size="icon"
                         onClick={handleGenerateCode}
                       >
@@ -206,12 +228,12 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 );
               }}
             />
-            
+
             {/* Name */}
             <FormField
               control={form.control}
               name="name"
-              render={function({ field }) {
+              render={function ({ field }) {
                 return (
                   <FormItem>
                     <FormLabel>Name (Optional)</FormLabel>
@@ -223,24 +245,27 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 );
               }}
             />
-            
+
             {/* Type and Value */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="type"
-                render={function({ field }) {
+                render={function ({ field }) {
                   return (
                     <FormItem>
                       <FormLabel>Type</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {DISCOUNT_TYPES.map(function(type) {
+                          {DISCOUNT_TYPES.map(function (type) {
                             return (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
@@ -254,26 +279,26 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                   );
                 }}
               />
-              
+
               <FormField
                 control={form.control}
                 name="value"
-                render={function({ field }) {
-                  var type = form.watch('type');
+                render={function ({ field }) {
+                  var type = form.watch("type");
                   return (
                     <FormItem>
                       <FormLabel>Value</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            {type === 'percentage' ? '%' : '$'}
+                            {type === "percentage" ? "%" : "$"}
                           </span>
-                          <Input 
-                            type="number" 
-                            step={type === 'percentage' ? '1' : '0.01'}
+                          <Input
+                            type="number"
+                            step={type === "percentage" ? "1" : "0.01"}
                             min="0"
-                            max={type === 'percentage' ? '100' : undefined}
-                            {...field} 
+                            max={type === "percentage" ? "100" : undefined}
+                            {...field}
                             className="pl-8"
                           />
                         </div>
@@ -284,12 +309,12 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 }}
               />
             </div>
-            
+
             {/* Min Purchase */}
             <FormField
               control={form.control}
               name="min_purchase"
-              render={function({ field }) {
+              render={function ({ field }) {
                 return (
                   <FormItem>
                     <FormLabel>Minimum Purchase (Optional)</FormLabel>
@@ -298,33 +323,37 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                           $
                         </span>
-                        <Input type="number" step="0.01" min="0" {...field} className="pl-8" />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          {...field}
+                          className="pl-8"
+                        />
                       </div>
                     </FormControl>
-                    <FormDescription>
-                      Leave 0 for no minimum
-                    </FormDescription>
+                    <FormDescription>Leave 0 for no minimum</FormDescription>
                     <FormMessage />
                   </FormItem>
                 );
               }}
             />
-            
+
             {/* Max Uses */}
             <FormField
               control={form.control}
               name="max_uses"
-              render={function({ field }) {
+              render={function ({ field }) {
                 return (
                   <FormItem>
                     <FormLabel>Usage Limit (Optional)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        min="0" 
-                        {...field} 
-                        value={field.value || ''}
-                        onChange={function(e) {
+                      <Input
+                        type="number"
+                        min="0"
+                        {...field}
+                        value={field.value || ""}
+                        onChange={function (e) {
                           var val = e.target.value;
                           field.onChange(val ? parseInt(val) : null);
                         }}
@@ -339,13 +368,13 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 );
               }}
             />
-            
+
             {/* Date Range */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="start_date"
-                render={function({ field }) {
+                render={function ({ field }) {
                   return (
                     <FormItem>
                       <FormLabel>Start Date</FormLabel>
@@ -357,7 +386,9 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                               className="w-full justify-start font-normal"
                             >
                               <CalendarIcon className="h-4 w-4 mr-2" />
-                              {field.value ? format(field.value, 'MMM d, yyyy') : 'Select'}
+                              {field.value
+                                ? format(field.value, "MMM d, yyyy")
+                                : "Select"}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
@@ -374,11 +405,11 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                   );
                 }}
               />
-              
+
               <FormField
                 control={form.control}
                 name="end_date"
-                render={function({ field }) {
+                render={function ({ field }) {
                   return (
                     <FormItem>
                       <FormLabel>End Date</FormLabel>
@@ -390,7 +421,9 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                               className="w-full justify-start font-normal"
                             >
                               <CalendarIcon className="h-4 w-4 mr-2" />
-                              {field.value ? format(field.value, 'MMM d, yyyy') : 'Select'}
+                              {field.value
+                                ? format(field.value, "MMM d, yyyy")
+                                : "Select"}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
@@ -408,12 +441,12 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 }}
               />
             </div>
-            
+
             {/* Active */}
             <FormField
               control={form.control}
               name="is_active"
-              render={function({ field }) {
+              render={function ({ field }) {
                 return (
                   <FormItem className="flex items-center justify-between rounded-lg border p-3">
                     <div>
@@ -432,19 +465,21 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
                 );
               }}
             />
-            
+
             {/* Actions */}
             <div className="flex gap-2 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 className="flex-1"
-                onClick={function() { onOpenChange(false); }}
+                onClick={function () {
+                  onOpenChange(false);
+                }}
               >
                 Cancel
               </Button>
               <Button type="submit" className="flex-1" disabled={isPending}>
-                {isPending ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+                {isPending ? "Saving..." : isEditing ? "Update" : "Create"}
               </Button>
             </div>
           </form>

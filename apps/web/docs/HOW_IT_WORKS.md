@@ -8,23 +8,23 @@ A complete guide explaining how the Fresh salon booking platform works for every
 
 Fresh is a **salon booking platform** (like Fresha or Planity) with 3 main parts:
 
-| Part | URL | Who uses it | What it does |
-|------|-----|-------------|--------------|
-| **Dashboard** | `/dashboard/salon/[id]/*` | Salon owners & staff | Manage bookings, clients, services, payments |
-| **Booking Widget** | `/book/[salonId]` | Customers | Book appointments online (embeddable) |
-| **Marketplace** | `/salons`, `/salon/[id]` | Customers | Discover and find salons |
+| Part               | URL                       | Who uses it          | What it does                                 |
+| ------------------ | ------------------------- | -------------------- | -------------------------------------------- |
+| **Dashboard**      | `/dashboard/salon/[id]/*` | Salon owners & staff | Manage bookings, clients, services, payments |
+| **Booking Widget** | `/book/[salonId]`         | Customers            | Book appointments online (embeddable)        |
+| **Marketplace**    | `/salons`, `/salon/[id]`  | Customers            | Discover and find salons                     |
 
 ---
 
 ## 👥 User Types
 
-| Role | Description | Access |
-|------|-------------|--------|
-| **Client** | Customer who books appointments | Mobile app (future), Booking widget |
-| **Owner** | Salon owner | Full dashboard access |
-| **Staff** | Salon employee | Limited dashboard (own calendar, assigned clients) |
-| **Manager** | Senior staff | More access than staff (reports, all clients) |
-| **Admin** | Platform admin | Everything (manage all salons) |
+| Role        | Description                     | Access                                             |
+| ----------- | ------------------------------- | -------------------------------------------------- |
+| **Client**  | Customer who books appointments | Mobile app (future), Booking widget                |
+| **Owner**   | Salon owner                     | Full dashboard access                              |
+| **Staff**   | Salon employee                  | Limited dashboard (own calendar, assigned clients) |
+| **Manager** | Senior staff                    | More access than staff (reports, all clients)      |
+| **Admin**   | Platform admin                  | Everything (manage all salons)                     |
 
 ---
 
@@ -46,14 +46,13 @@ Fresh is a **salon booking platform** (like Fresha or Planity) with 3 main parts
    • Staff member (or "Any available")
    • Date & Time from available slots
          ↓
-4. Enters contact info:
-   • First name, Last name
-   • Email, Phone
+4. Signs in or creates account:
+   • Login with existing account, OR
+   • Register with: name, email, phone, password
          ↓
-5. Confirms booking
+5. Reviews and confirms booking
          ↓
 6. System creates:
-   • User account (if new customer)
    • salon_clients entry (links customer to this salon)
    • Booking record
          ↓
@@ -63,6 +62,7 @@ Fresh is a **salon booking platform** (like Fresha or Planity) with 3 main parts
 ```
 
 **Database result:**
+
 ```
 users table:           { id: 100, email: "customer@email.com", role: "client" }
 salon_clients table:   { salon_id: 1, client_id: 100, total_visits: 1 }
@@ -98,6 +98,7 @@ bookings table:        { id: 500, salon_id: 1, client_id: 100, status: "confirme
 ```
 
 **Database result:**
+
 ```
 users table:           { id: 101, email: "client_xxx@placeholder.local", role: "client", first_name: "Jane" }
 salon_clients table:   { salon_id: 1, client_id: 101, notes: "Prefers natural products" }
@@ -189,85 +190,95 @@ END OF DAY:
 ## 🏪 Dashboard Features (Detailed)
 
 ### 📅 Calendar (`/dashboard/salon/[id]/calendar`)
-| Feature | Description |
-|---------|-------------|
-| **Day/Week/Month Views** | Switch between calendar views |
-| **Staff Filtering** | Filter to show one staff member's appointments |
-| **Drag & Drop** | Reschedule bookings by dragging |
-| **Click to Book** | Click empty slot to create new booking |
-| **Color Coding** | Each staff has unique color |
-| **Time Grid** | 7 AM - 9 PM, 15-minute slots |
+
+| Feature                  | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| **Day/Week/Month Views** | Switch between calendar views                  |
+| **Staff Filtering**      | Filter to show one staff member's appointments |
+| **Drag & Drop**          | Reschedule bookings by dragging                |
+| **Click to Book**        | Click empty slot to create new booking         |
+| **Color Coding**         | Each staff has unique color                    |
+| **Time Grid**            | 7 AM - 9 PM, 15-minute slots                   |
 
 ### 📋 Bookings (`/dashboard/salon/[id]/bookings`)
-| Feature | Description |
-|---------|-------------|
-| **Booking List** | Table of all bookings with search |
-| **Status Filter** | Filter by pending/confirmed/completed/cancelled/no-show |
-| **Quick Actions** | Confirm, cancel, no-show from dropdown |
-| **Booking Detail** | Click to see full details in side panel |
-| **Checkout** | Go to payment screen |
+
+| Feature            | Description                                             |
+| ------------------ | ------------------------------------------------------- |
+| **Booking List**   | Table of all bookings with search                       |
+| **Status Filter**  | Filter by pending/confirmed/completed/cancelled/no-show |
+| **Quick Actions**  | Confirm, cancel, no-show from dropdown                  |
+| **Booking Detail** | Click to see full details in side panel                 |
+| **Checkout**       | Go to payment screen                                    |
 
 ### 👥 Clients (`/dashboard/salon/[id]/clients`)
-| Feature | Description |
-|---------|-------------|
-| **Client List** | Table with search, sort by name/date/visits |
-| **Stats Cards** | Total clients, new this month, active, avg spend |
-| **Add Client** | Walk-in client registration |
-| **Client Profile** | `/clients/[id]` - Full profile page |
+
+| Feature            | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| **Client List**    | Table with search, sort by name/date/visits      |
+| **Stats Cards**    | Total clients, new this month, active, avg spend |
+| **Add Client**     | Walk-in client registration                      |
+| **Client Profile** | `/clients/[id]` - Full profile page              |
 
 **Client Profile Page includes:**
+
 - Contact info (email, phone, address, birthday)
 - Stats (total visits, total spent, last visit)
 - Booking history (upcoming + past)
 - Notes (salon-specific, add/delete notes)
 
 ### ✂️ Services (`/dashboard/salon/[id]/services`)
-| Feature | Description |
-|---------|-------------|
-| **Categories** | Group services (Hair, Nails, Massage, etc.) |
-| **Add Category** | Create new category with name/description |
-| **Add Service** | Name, description, duration, price, category, buffer time |
-| **Reorder** | Drag to reorder categories |
-| **Toggle** | Enable/disable services |
+
+| Feature          | Description                                               |
+| ---------------- | --------------------------------------------------------- |
+| **Categories**   | Group services (Hair, Nails, Massage, etc.)               |
+| **Add Category** | Create new category with name/description                 |
+| **Add Service**  | Name, description, duration, price, category, buffer time |
+| **Reorder**      | Drag to reorder categories                                |
+| **Toggle**       | Enable/disable services                                   |
 
 ### 👨‍💼 Team (`/dashboard/salon/[id]/team`)
-| Feature | Description |
-|---------|-------------|
-| **Staff Cards** | Grid view with avatar, role, contact |
-| **Add Staff** | Name, email, phone, role, job title, bio |
-| **Roles** | Owner, Manager, Staff, Receptionist |
-| **Schedule** | Set working hours per day of week |
+
+| Feature           | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| **Staff Cards**   | Grid view with avatar, role, contact              |
+| **Add Staff**     | Name, email, phone, role, job title, bio          |
+| **Roles**         | Owner, Manager, Staff, Receptionist               |
+| **Schedule**      | Set working hours per day of week                 |
 | **Working Hours** | Start/end time, break start/end, copy to all days |
 
 ### 🛒 Products (`/dashboard/salon/[id]/products`)
-| Feature | Description |
-|---------|-------------|
-| **Product List** | Table with search, filter by category/stock status |
-| **Add Product** | Name, brand, SKU, category, price, cost, stock |
-| **Stock Management** | Track quantity, low stock alerts |
-| **Categories** | Hair Care, Skincare, Makeup, Tools, etc. |
+
+| Feature              | Description                                        |
+| -------------------- | -------------------------------------------------- |
+| **Product List**     | Table with search, filter by category/stock status |
+| **Add Product**      | Name, brand, SKU, category, price, cost, stock     |
+| **Stock Management** | Track quantity, low stock alerts                   |
+| **Categories**       | Hair Care, Skincare, Makeup, Tools, etc.           |
 
 ### 💰 Sales (`/dashboard/salon/[id]/sales`)
-| Feature | Description |
-|---------|-------------|
-| **Checkout** | `/checkout/[bookingId]` - Process payments |
-| **Add Products** | Add retail products to booking sale |
-| **Discounts** | Apply discount codes |
-| **Gift Cards** | Redeem gift cards |
-| **Tips** | Add tip (10%, 15%, 20%, 25%, custom) |
-| **Payment Methods** | Cash, Card, Card Terminal, Bank Transfer |
-| **Sales History** | List all transactions with filters |
-| **Refunds** | Process full/partial refunds |
+
+| Feature             | Description                                |
+| ------------------- | ------------------------------------------ |
+| **Checkout**        | `/checkout/[bookingId]` - Process payments |
+| **Add Products**    | Add retail products to booking sale        |
+| **Discounts**       | Apply discount codes                       |
+| **Gift Cards**      | Redeem gift cards                          |
+| **Tips**            | Add tip (10%, 15%, 20%, 25%, custom)       |
+| **Payment Methods** | Cash, Card, Card Terminal, Bank Transfer   |
+| **Sales History**   | List all transactions with filters         |
+| **Refunds**         | Process full/partial refunds               |
 
 ### 📊 Reports (`/dashboard/salon/[id]/reports`)
 
 **Overview Dashboard:**
+
 - Revenue with trend
 - Bookings count with trend
 - Client count with trend
 - Staff utilization %
 
 **Revenue Report** (`/reports/revenue`):
+
 - Daily revenue bar chart
 - Revenue by payment method (Card/Cash/Gift Card)
 - Revenue by category
@@ -275,6 +286,7 @@ END OF DAY:
 - Export to CSV
 
 **Bookings Report** (`/reports/bookings`):
+
 - Daily bookings trend
 - Status breakdown (completed, cancelled, no-show)
 - Booking source (direct, marketplace, mobile)
@@ -282,12 +294,14 @@ END OF DAY:
 - Most booked services
 
 **Clients Report** (`/reports/clients`):
+
 - New vs returning clients
 - Client retention rate
 - Top spending clients
 - Acquisition sources
 
 **Staff Report** (`/reports/staff`):
+
 - Bookings per staff member
 - Revenue per staff member
 - Utilization rate
@@ -350,18 +364,21 @@ END OF DAY:
 ### ⚙️ Settings (`/dashboard/salon/[id]/settings`)
 
 **General** (`/settings/general`):
+
 - Salon name, description
 - Contact (email, phone, website)
 - Address (street, city, state, zip, country)
 - Photos (upload, delete, set cover)
 
 **Business Hours** (`/settings/hours`):
+
 - 7-day schedule
 - Enable/disable per day
 - Open/close time
 - Copy to all days
 
 **Booking Policies** (`/settings/policies`):
+
 - Auto-confirm bookings (yes/no)
 - Cancellation policy (flexible/moderate/strict/custom)
 - Cancellation window (hours before)
@@ -371,6 +388,7 @@ END OF DAY:
 - Max advance booking days
 
 **Notifications** (`/settings/notifications`):
+
 - **Client notifications:**
   - Booking confirmation (email/SMS)
   - Reminders (24h, 2h, etc.)
@@ -385,6 +403,7 @@ END OF DAY:
   - Low availability alerts
 
 **Widget** (`/settings/widget`):
+
 - Theme (default/modern/minimal/dark)
 - Colors (primary, text, background)
 - Button text customization
@@ -392,6 +411,7 @@ END OF DAY:
 - Direct booking link
 
 **Marketplace** (`/settings/marketplace`):
+
 - Show on marketplace (yes/no)
 - Profile completeness indicator
 - Tagline
@@ -401,12 +421,14 @@ END OF DAY:
 - Languages spoken
 
 **Reviews** (`/settings/reviews`):
+
 - Average rating display
 - Total reviews
 - Response rate
 - Reply to reviews
 
 **Account** (`/settings/account`):
+
 - Update personal info
 - Change password
 - Notification preferences
@@ -420,6 +442,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 **URL:** `/book/[salonId]`
 
 ### Step 1: Select Services
+
 - Browse services grouped by category
 - Search functionality
 - Multi-select support
@@ -427,6 +450,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 - Running total in sidebar
 
 ### Step 2: Choose Staff
+
 - "Any Available" option (flexible scheduling)
 - Staff cards with:
   - Avatar
@@ -436,6 +460,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 - Filtered by selected services (only staff who can do those services)
 
 ### Step 3: Pick Date & Time
+
 - Calendar for date selection
 - Disables past dates
 - Available time slots fetched from API
@@ -446,6 +471,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 - Shows total duration
 
 ### Step 4: Enter Details
+
 - First Name (required)
 - Last Name (required)
 - Email (required)
@@ -455,6 +481,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 - Terms acceptance checkbox (required)
 
 ### Step 5: Confirmation
+
 - ✓ Success checkmark
 - Booking reference number
 - Email confirmation notice
@@ -476,6 +503,7 @@ The booking widget is a **5-step wizard** that can be embedded on any salon webs
 The marketplace is the **public discovery platform** for customers.
 
 ### Homepage (`/`)
+
 - **Hero Section**: Search box for services and location
 - **Popular Services**: Quick badges (Haircut, Manicure, Massage, etc.)
 - **Browse by Category**: Hair, Nails, Spa, Barber
@@ -484,6 +512,7 @@ The marketplace is the **public discovery platform** for customers.
 - **Business CTA**: "Are you a salon owner?" link
 
 ### Salon Search (`/salons`)
+
 - **Search Bar**: Service/salon name + location
 - **Filters**:
   - Category (Hair, Nails, Spa, Barber)
@@ -495,6 +524,7 @@ The marketplace is the **public discovery platform** for customers.
 - **Salon Cards**: Image, name, category, rating, reviews, location, price level
 
 ### Salon Profile (`/salon/[id]`)
+
 - **Hero Image**: Full-width cover photo
 - **Actions**: Share, Favorite (heart)
 - **Salon Header**: Logo, name, category, rating, Book Now button
@@ -508,6 +538,7 @@ The marketplace is the **public discovery platform** for customers.
 | **About** | Description and amenities checklist |
 
 **Sidebar:**
+
 - Book Now button (sticky)
 - Business hours (highlights today)
 - Contact info (address, phone, website)
@@ -540,6 +571,7 @@ The marketplace is the **public discovery platform** for customers.
 ```
 
 **Key relationships:**
+
 - A **User** can be a client at MANY salons → via `salon_clients`
 - A **Salon** has MANY clients → via `salon_clients`
 - Each salon has their OWN **notes** about a client
@@ -596,7 +628,8 @@ A: Their past bookings remain but show "Deleted Staff". Future bookings need to 
 A: No. Each salon only sees clients who visited THEIR salon via `salon_clients` entries.
 
 **Q: What's the difference between `users.notes` and `salon_clients.notes`?**
-A: 
+A:
+
 - `users` has NO notes field (personal info only)
 - `salon_clients.notes` = each salon's private notes about the client
 
@@ -605,6 +638,7 @@ A:
 ## 🔄 Status Flows
 
 ### Booking Status Flow
+
 ```
 [pending] → [confirmed] → [completed]
     ↓           ↓
@@ -612,6 +646,7 @@ A:
 ```
 
 ### Payment Status Flow
+
 ```
 [unpaid] → [partial] → [paid]
              ↓
@@ -625,124 +660,139 @@ A:
 All API routes are in `/src/app/api/`. Here's the complete list:
 
 ### Authentication
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/auth/register` | POST | Create new user account |
-| `/api/auth/login` | POST | Login and get token |
-| `/api/auth/logout` | POST | End session |
-| `/api/auth/forgot-password` | POST | Request password reset |
-| `/api/auth/reset-password` | POST | Set new password |
-| `/api/auth/me` | GET | Get current user info |
+
+| Route                       | Methods | Description             |
+| --------------------------- | ------- | ----------------------- |
+| `/api/auth/register`        | POST    | Create new user account |
+| `/api/auth/login`           | POST    | Login and get token     |
+| `/api/auth/logout`          | POST    | End session             |
+| `/api/auth/forgot-password` | POST    | Request password reset  |
+| `/api/auth/reset-password`  | POST    | Set new password        |
+| `/api/auth/me`              | GET     | Get current user info   |
 
 ### Salons
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons` | GET, POST | List salons / Create salon |
-| `/api/salons/[id]` | GET, PUT, DELETE | Single salon CRUD |
-| `/api/salons/[id]/onboarding` | GET, PUT | Onboarding status |
-| `/api/salons/[id]/hours` | GET, PUT | Business hours |
-| `/api/salons/[id]/settings` | GET, PUT | Salon settings |
-| `/api/salons/[id]/photos` | GET, POST, DELETE | Salon photos |
-| `/api/salons/[id]/widget-settings` | GET, PUT | Booking widget config |
-| `/api/salons/[id]/stats` | GET | Dashboard statistics |
+
+| Route                              | Methods           | Description                |
+| ---------------------------------- | ----------------- | -------------------------- |
+| `/api/salons`                      | GET, POST         | List salons / Create salon |
+| `/api/salons/[id]`                 | GET, PUT, DELETE  | Single salon CRUD          |
+| `/api/salons/[id]/onboarding`      | GET, PUT          | Onboarding status          |
+| `/api/salons/[id]/hours`           | GET, PUT          | Business hours             |
+| `/api/salons/[id]/settings`        | GET, PUT          | Salon settings             |
+| `/api/salons/[id]/photos`          | GET, POST, DELETE | Salon photos               |
+| `/api/salons/[id]/widget-settings` | GET, PUT          | Booking widget config      |
+| `/api/salons/[id]/stats`           | GET               | Dashboard statistics       |
 
 ### Services
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/services` | GET, POST | List/create services |
-| `/api/salons/[id]/services/[serviceId]` | GET, PUT, DELETE | Single service |
+
+| Route                                   | Methods          | Description          |
+| --------------------------------------- | ---------------- | -------------------- |
+| `/api/salons/[id]/services`             | GET, POST        | List/create services |
+| `/api/salons/[id]/services/[serviceId]` | GET, PUT, DELETE | Single service       |
 
 ### Staff
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/staff` | GET, POST | List/create staff |
-| `/api/salons/[id]/staff/[staffId]` | GET, PUT, DELETE | Single staff |
-| `/api/salons/[id]/staff/[staffId]/availability` | GET, PUT | Staff schedule |
+
+| Route                                           | Methods          | Description       |
+| ----------------------------------------------- | ---------------- | ----------------- |
+| `/api/salons/[id]/staff`                        | GET, POST        | List/create staff |
+| `/api/salons/[id]/staff/[staffId]`              | GET, PUT, DELETE | Single staff      |
+| `/api/salons/[id]/staff/[staffId]/availability` | GET, PUT         | Staff schedule    |
 
 ### Clients
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/clients` | GET, POST | List/create clients |
-| `/api/salons/[id]/clients/[clientId]` | GET, PUT, DELETE | Single client |
+
+| Route                                 | Methods          | Description         |
+| ------------------------------------- | ---------------- | ------------------- |
+| `/api/salons/[id]/clients`            | GET, POST        | List/create clients |
+| `/api/salons/[id]/clients/[clientId]` | GET, PUT, DELETE | Single client       |
 
 ### Bookings
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/bookings` | GET, POST | List/create bookings |
-| `/api/salons/[id]/bookings/[bookingId]` | GET, PUT, DELETE | Single booking |
-| `/api/salons/[id]/bookings/[bookingId]/status` | PUT | Update status only |
+
+| Route                                          | Methods          | Description          |
+| ---------------------------------------------- | ---------------- | -------------------- |
+| `/api/salons/[id]/bookings`                    | GET, POST        | List/create bookings |
+| `/api/salons/[id]/bookings/[bookingId]`        | GET, PUT, DELETE | Single booking       |
+| `/api/salons/[id]/bookings/[bookingId]/status` | PUT              | Update status only   |
 
 ### Payments & Sales
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/payments` | GET, POST | List/create payments |
-| `/api/salons/[id]/payments/[paymentId]` | GET, PUT | Single payment |
-| `/api/salons/[id]/payments/[paymentId]/refund` | POST | Issue refund |
+
+| Route                                          | Methods   | Description          |
+| ---------------------------------------------- | --------- | -------------------- |
+| `/api/salons/[id]/payments`                    | GET, POST | List/create payments |
+| `/api/salons/[id]/payments/[paymentId]`        | GET, PUT  | Single payment       |
+| `/api/salons/[id]/payments/[paymentId]/refund` | POST      | Issue refund         |
 
 ### Products
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/products` | GET, POST | List/create products |
-| `/api/salons/[id]/products/[productId]` | GET, PUT, DELETE | Single product |
+
+| Route                                   | Methods          | Description          |
+| --------------------------------------- | ---------------- | -------------------- |
+| `/api/salons/[id]/products`             | GET, POST        | List/create products |
+| `/api/salons/[id]/products/[productId]` | GET, PUT, DELETE | Single product       |
 
 ### Marketing
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/discounts` | GET, POST | Discount codes |
-| `/api/salons/[id]/discounts/[code]` | GET, PUT, DELETE | Single discount |
-| `/api/salons/[id]/discounts/validate` | POST | Validate code |
-| `/api/salons/[id]/gift-cards` | GET, POST | Gift cards |
-| `/api/salons/[id]/gift-cards/[id]` | GET, PUT | Single gift card |
-| `/api/salons/[id]/packages` | GET, POST | Service packages |
-| `/api/salons/[id]/packages/[id]` | GET, PUT, DELETE | Single package |
-| `/api/salons/[id]/campaigns` | GET, POST | Marketing campaigns |
-| `/api/salons/[id]/campaigns/[id]` | GET, PUT, DELETE | Single campaign |
-| `/api/salons/[id]/waitlist` | GET, POST | Waitlist entries |
-| `/api/salons/[id]/waitlist/[id]` | GET, PUT, DELETE | Single entry |
+
+| Route                                 | Methods          | Description         |
+| ------------------------------------- | ---------------- | ------------------- |
+| `/api/salons/[id]/discounts`          | GET, POST        | Discount codes      |
+| `/api/salons/[id]/discounts/[code]`   | GET, PUT, DELETE | Single discount     |
+| `/api/salons/[id]/discounts/validate` | POST             | Validate code       |
+| `/api/salons/[id]/gift-cards`         | GET, POST        | Gift cards          |
+| `/api/salons/[id]/gift-cards/[id]`    | GET, PUT         | Single gift card    |
+| `/api/salons/[id]/packages`           | GET, POST        | Service packages    |
+| `/api/salons/[id]/packages/[id]`      | GET, PUT, DELETE | Single package      |
+| `/api/salons/[id]/campaigns`          | GET, POST        | Marketing campaigns |
+| `/api/salons/[id]/campaigns/[id]`     | GET, PUT, DELETE | Single campaign     |
+| `/api/salons/[id]/waitlist`           | GET, POST        | Waitlist entries    |
+| `/api/salons/[id]/waitlist/[id]`      | GET, PUT, DELETE | Single entry        |
 
 ### Reports
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/salons/[id]/reports/overview` | GET | Dashboard stats |
-| `/api/salons/[id]/reports/revenue` | GET | Revenue analytics |
-| `/api/salons/[id]/reports/bookings` | GET | Booking analytics |
-| `/api/salons/[id]/reports/clients` | GET | Client analytics |
-| `/api/salons/[id]/reports/staff` | GET | Staff performance |
+
+| Route                               | Methods | Description       |
+| ----------------------------------- | ------- | ----------------- |
+| `/api/salons/[id]/reports/overview` | GET     | Dashboard stats   |
+| `/api/salons/[id]/reports/revenue`  | GET     | Revenue analytics |
+| `/api/salons/[id]/reports/bookings` | GET     | Booking analytics |
+| `/api/salons/[id]/reports/clients`  | GET     | Client analytics  |
+| `/api/salons/[id]/reports/staff`    | GET     | Staff performance |
 
 ### Categories
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/categories` | GET | List all service categories |
+
+| Route             | Methods | Description                 |
+| ----------------- | ------- | --------------------------- |
+| `/api/categories` | GET     | List all service categories |
 
 ### Booking Widget (Public)
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/widget/[salonId]` | GET | Public salon info |
-| `/api/widget/[salonId]/services` | GET | Public services list |
-| `/api/widget/[salonId]/staff` | GET | Public staff list |
-| `/api/widget/[salonId]/availability` | GET | Available slots |
-| `/api/widget/[salonId]/book` | POST | Create booking |
+
+| Route                                | Methods | Description          |
+| ------------------------------------ | ------- | -------------------- |
+| `/api/widget/[salonId]`              | GET     | Public salon info    |
+| `/api/widget/[salonId]/services`     | GET     | Public services list |
+| `/api/widget/[salonId]/staff`        | GET     | Public staff list    |
+| `/api/widget/[salonId]/availability` | GET     | Available slots      |
+| `/api/widget/[salonId]/book`         | POST    | Create booking       |
 
 ### Marketplace (Public)
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/marketplace/salons` | GET | Search salons |
-| `/api/marketplace/salons/[id]` | GET | Public salon profile |
-| `/api/marketplace/salons/[id]/reviews` | GET | Salon reviews |
-| `/api/marketplace/featured` | GET | Featured salons |
+
+| Route                                  | Methods | Description          |
+| -------------------------------------- | ------- | -------------------- |
+| `/api/marketplace/salons`              | GET     | Search salons        |
+| `/api/marketplace/salons/[id]`         | GET     | Public salon profile |
+| `/api/marketplace/salons/[id]/reviews` | GET     | Salon reviews        |
+| `/api/marketplace/featured`            | GET     | Featured salons      |
 
 ### Admin
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/admin/users` | GET | List all users |
-| `/api/admin/salons` | GET | List all salons |
-| `/api/admin/stats` | GET | Platform statistics |
+
+| Route               | Methods | Description         |
+| ------------------- | ------- | ------------------- |
+| `/api/admin/users`  | GET     | List all users      |
+| `/api/admin/salons` | GET     | List all salons     |
+| `/api/admin/stats`  | GET     | Platform statistics |
 
 ---
 
 ## �🚀 Future Features (Mobile App)
 
 For the client mobile app:
+
 1. Client registration/login
 2. Browse salons (marketplace)
 3. Book appointments

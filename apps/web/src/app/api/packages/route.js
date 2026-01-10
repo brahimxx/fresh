@@ -1,34 +1,34 @@
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import { verifyAuth } from '@/lib/auth';
-import { successResponse, errorResponse } from '@/lib/response';
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
+import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/response";
 
 // GET /api/packages - List all packages for the salon
 export async function GET(request) {
   try {
     const auth = await verifyAuth(request);
     if (!auth) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse("Unauthorized", 401);
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 50;
+    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit")) || 50;
     const offset = (page - 1) * limit;
-    const search = searchParams.get('search') || '';
-    const active = searchParams.get('active');
+    const search = searchParams.get("search") || "";
+    const active = searchParams.get("active");
 
-    let whereClause = 'WHERE salon_id = ?';
+    let whereClause = "WHERE salon_id = ?";
     const params = [auth.salonId];
 
     if (search) {
-      whereClause += ' AND (name LIKE ? OR description LIKE ?)';
+      whereClause += " AND (name LIKE ? OR description LIKE ?)";
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    if (active !== null && active !== undefined && active !== '') {
-      whereClause += ' AND is_active = ?';
-      params.push(active === 'true' ? 1 : 0);
+    if (active !== null && active !== undefined && active !== "") {
+      whereClause += " AND is_active = ?";
+      params.push(active === "true" ? 1 : 0);
     }
 
     // Get total count
@@ -50,12 +50,12 @@ export async function GET(request) {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Error fetching packages:', error);
-    return errorResponse('Failed to fetch packages', 500);
+    console.error("Error fetching packages:", error);
+    return errorResponse("Failed to fetch packages", 500);
   }
 }
 
@@ -64,7 +64,7 @@ export async function POST(request) {
   try {
     const auth = await verifyAuth(request);
     if (!auth) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse("Unauthorized", 401);
     }
 
     const body = await request.json();
@@ -76,20 +76,20 @@ export async function POST(request) {
       validity_days,
       max_uses,
       is_active = true,
-      image_url
+      image_url,
     } = body;
 
     // Validation
-    if (!name || name.trim() === '') {
-      return errorResponse('Package name is required', 400);
+    if (!name || name.trim() === "") {
+      return errorResponse("Package name is required", 400);
     }
 
     if (!original_price || isNaN(parseFloat(original_price))) {
-      return errorResponse('Original price is required', 400);
+      return errorResponse("Original price is required", 400);
     }
 
     if (!discounted_price || isNaN(parseFloat(discounted_price))) {
-      return errorResponse('Discounted price is required', 400);
+      return errorResponse("Discounted price is required", 400);
     }
 
     const result = await query(
@@ -104,15 +104,17 @@ export async function POST(request) {
         validity_days ? parseInt(validity_days) : null,
         max_uses ? parseInt(max_uses) : null,
         is_active ? 1 : 0,
-        image_url || null
+        image_url || null,
       ]
     );
 
-    const newPackage = await query('SELECT * FROM packages WHERE id = ?', [result.insertId]);
+    const newPackage = await query("SELECT * FROM packages WHERE id = ?", [
+      result.insertId,
+    ]);
 
     return successResponse({ package: newPackage[0] }, 201);
   } catch (error) {
-    console.error('Error creating package:', error);
-    return errorResponse('Failed to create package', 500);
+    console.error("Error creating package:", error);
+    return errorResponse("Failed to create package", 500);
   }
 }

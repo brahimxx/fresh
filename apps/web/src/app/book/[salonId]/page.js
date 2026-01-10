@@ -1,149 +1,162 @@
-'use client';
+"use client";
 
-import { useState, useEffect, use } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { 
-  ChevronLeft, 
-  Check, 
-  Calendar, 
-  Clock, 
-  User, 
+import { useState, useEffect, use } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  ChevronLeft,
+  Check,
+  Calendar,
+  Clock,
+  User,
   Scissors,
   MapPin,
   Phone,
   Star,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Import booking steps
-import { ServiceSelection } from '@/components/booking-widget/service-selection';
-import { StaffSelection } from '@/components/booking-widget/staff-selection';
-import { DateTimeSelection } from '@/components/booking-widget/datetime-selection';
-import { ClientDetails } from '@/components/booking-widget/client-details';
-import { BookingConfirmation } from '@/components/booking-widget/booking-confirmation';
+import { ServiceSelection } from "@/components/booking-widget/service-selection";
+import { StaffSelection } from "@/components/booking-widget/staff-selection";
+import { DateTimeSelection } from "@/components/booking-widget/datetime-selection";
+import { BookingAuth } from "@/components/booking-widget/booking-auth";
+import { BookingConfirmation } from "@/components/booking-widget/booking-confirmation";
+import { useAuth } from "@/providers/auth-provider";
 
 var STEPS = [
-  { id: 'services', label: 'Services', icon: Scissors },
-  { id: 'staff', label: 'Staff', icon: User },
-  { id: 'datetime', label: 'Date & Time', icon: Calendar },
-  { id: 'details', label: 'Your Details', icon: User },
-  { id: 'confirm', label: 'Confirm', icon: Check },
+  { id: "services", label: "Services", icon: Scissors },
+  { id: "staff", label: "Staff", icon: User },
+  { id: "datetime", label: "Date & Time", icon: Calendar },
+  { id: "account", label: "Sign In", icon: User },
+  { id: "confirm", label: "Confirm", icon: Check },
 ];
 
 export default function BookingPage({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
   var searchParams = useSearchParams();
-  
+
   var [salon, setSalon] = useState(null);
   var [loading, setLoading] = useState(true);
   var [currentStep, setCurrentStep] = useState(0);
-  
+
+  // Auth
+  var { user, isAuthenticated } = useAuth();
+
   // Booking state
   var [selectedServices, setSelectedServices] = useState([]);
   var [selectedStaff, setSelectedStaff] = useState(null);
   var [selectedDate, setSelectedDate] = useState(null);
   var [selectedTime, setSelectedTime] = useState(null);
-  var [clientDetails, setClientDetails] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    notes: '',
-  });
+  var [bookingNotes, setBookingNotes] = useState("");
   var [bookingComplete, setBookingComplete] = useState(false);
   var [bookingResult, setBookingResult] = useState(null);
-  
+
   // Load salon data
-  useEffect(function() {
-    async function loadSalon() {
-      try {
-        var res = await fetch('/api/widget/' + salonId);
-        if (res.ok) {
-          var data = await res.json();
-          setSalon(data.data);
+  useEffect(
+    function () {
+      async function loadSalon() {
+        try {
+          var res = await fetch("/api/widget/" + salonId);
+          if (res.ok) {
+            var data = await res.json();
+            setSalon(data.data);
+          }
+        } catch (error) {
+          console.error("Failed to load salon:", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Failed to load salon:', error);
-      } finally {
-        setLoading(false);
       }
-    }
-    loadSalon();
-  }, [salonId]);
-  
+      loadSalon();
+    },
+    [salonId]
+  );
+
   // Calculate totals
-  var totalDuration = selectedServices.reduce(function(sum, s) {
+  var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
     return sum + (s.duration || 0);
-  }, 0);
-  
-  var totalPrice = selectedServices.reduce(function(sum, s) {
+  }, 0) : 0;
+
+  var totalPrice = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
     return sum + parseFloat(s.price || 0);
-  }, 0);
-  
+  }, 0) : 0;
+
   function handleNext() {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   }
-  
+
   function handleBack() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   }
-  
+
   function canProceed() {
     switch (currentStep) {
-      case 0: return selectedServices.length > 0;
-      case 1: return true; // Staff is optional
-      case 2: return selectedDate && selectedTime;
-      case 3: return clientDetails.firstName && clientDetails.email && clientDetails.phone;
-      default: return true;
+      case 0:
+        return selectedServices && Array.isArray(selectedServices) && selectedServices.length > 0;
+      case 1:
+        return true; // Staff is optional
+      case 2:
+        return selectedDate && selectedTime;
+      case 3:
+        return isAuthenticated; // Must be logged in
+      default:
+        return true;
     }
   }
-  
+
   async function handleConfirmBooking() {
+    if (!isAuthenticated || !user) {
+      alert("Please sign in to complete your booking.");
+      return;
+    }
+
     try {
       // Parse the selected time to get startTime and staffId
       // Format: "2024-01-15T10:00:00.000Z-123" (ISO time + staffId)
-      var timeParts = selectedTime.split('-');
+      var timeParts = selectedTime.split("-");
       var staffIdFromSlot = timeParts.pop();
-      var startTime = timeParts.join('-');
-      
-      var res = await fetch('/api/widget/' + salonId + '/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      var startTime = timeParts.join("-");
+
+      // Get token for authenticated request
+      var token = localStorage.getItem("auth_token");
+
+      var res = await fetch("/api/widget/" + salonId + "/book", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? "Bearer " + token : "",
+        },
         body: JSON.stringify({
           serviceId: selectedServices[0]?.id, // Primary service
           staffId: selectedStaff?.id || parseInt(staffIdFromSlot),
           startTime: startTime,
-          firstName: clientDetails.firstName,
-          lastName: clientDetails.lastName,
-          email: clientDetails.email,
-          phone: clientDetails.phone,
-          notes: clientDetails.notes,
+          notes: bookingNotes,
         }),
       });
-      
+
       if (res.ok) {
         var result = await res.json();
         setBookingResult(result.data);
         setBookingComplete(true);
       } else {
         var errorData = await res.json();
-        alert(errorData.error || 'Booking failed. Please try again.');
+        alert(errorData.error || "Booking failed. Please try again.");
       }
     } catch (error) {
-      console.error('Booking failed:', error);
-      alert('Booking failed. Please try again.');
+      console.error("Booking failed:", error);
+      alert("Booking failed. Please try again.");
     }
   }
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -154,7 +167,7 @@ export default function BookingPage({ params }) {
       </div>
     );
   }
-  
+
   if (!salon) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -169,25 +182,25 @@ export default function BookingPage({ params }) {
       </div>
     );
   }
-  
+
   if (bookingComplete) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
-          <BookingConfirmation 
+          <BookingConfirmation
             salon={salon}
             booking={bookingResult}
             selectedServices={selectedServices}
             selectedStaff={selectedStaff}
             selectedDate={selectedDate}
             selectedTime={selectedTime}
-            clientDetails={clientDetails}
+            user={user}
           />
         </div>
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -195,7 +208,11 @@ export default function BookingPage({ params }) {
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             {salon.logo ? (
-              <img src={salon.logo} alt={salon.name} className="h-10 w-10 rounded-full object-cover" />
+              <img
+                src={salon.logo}
+                alt={salon.name}
+                className="h-10 w-10 rounded-full object-cover"
+              />
             ) : (
               <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
                 {salon.name?.charAt(0)}
@@ -221,37 +238,51 @@ export default function BookingPage({ params }) {
           </div>
         </div>
       </header>
-      
+
       {/* Progress Steps */}
       <div className="bg-white border-b">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            {STEPS.map(function(step, index) {
+            {STEPS.map(function (step, index) {
               var isActive = index === currentStep;
               var isCompleted = index < currentStep;
               var Icon = step.icon;
-              
+
               return (
                 <div key={step.id} className="flex items-center">
-                  <div className={
-                    'flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ' +
-                    (isCompleted ? 'bg-primary text-white' : 
-                     isActive ? 'bg-primary text-white' : 
-                     'bg-gray-100 text-gray-400')
-                  }>
-                    {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  <div
+                    className={
+                      "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors " +
+                      (isCompleted
+                        ? "bg-primary text-white"
+                        : isActive
+                        ? "bg-primary text-white"
+                        : "bg-gray-100 text-gray-400")
+                    }
+                  >
+                    {isCompleted ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Icon className="h-4 w-4" />
+                    )}
                   </div>
-                  <span className={
-                    'hidden sm:block ml-2 text-sm ' +
-                    (isActive ? 'text-foreground font-medium' : 'text-muted-foreground')
-                  }>
+                  <span
+                    className={
+                      "hidden sm:block ml-2 text-sm " +
+                      (isActive
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground")
+                    }
+                  >
                     {step.label}
                   </span>
                   {index < STEPS.length - 1 && (
-                    <div className={
-                      'hidden sm:block w-12 h-0.5 mx-2 ' +
-                      (isCompleted ? 'bg-primary' : 'bg-gray-200')
-                    } />
+                    <div
+                      className={
+                        "hidden sm:block w-12 h-0.5 mx-2 " +
+                        (isCompleted ? "bg-primary" : "bg-gray-200")
+                      }
+                    />
                   )}
                 </div>
               );
@@ -259,7 +290,7 @@ export default function BookingPage({ params }) {
           </div>
         </div>
       </div>
-      
+
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="grid gap-6 lg:grid-cols-3">
@@ -272,16 +303,16 @@ export default function BookingPage({ params }) {
                 onSelect={setSelectedServices}
               />
             )}
-            
+
             {currentStep === 1 && (
               <StaffSelection
                 salonId={salonId}
-                services={selectedServices}
+                selectedServices={selectedServices}
                 selected={selectedStaff}
                 onSelect={setSelectedStaff}
               />
             )}
-            
+
             {currentStep === 2 && (
               <DateTimeSelection
                 salonId={salonId}
@@ -293,14 +324,15 @@ export default function BookingPage({ params }) {
                 onTimeSelect={setSelectedTime}
               />
             )}
-            
+
             {currentStep === 3 && (
-              <ClientDetails
-                details={clientDetails}
-                onChange={setClientDetails}
+              <BookingAuth
+                onAuthenticated={function () {
+                  /* User just logged in, can proceed */
+                }}
               />
             )}
-            
+
             {currentStep === 4 && (
               <Card>
                 <CardHeader>
@@ -309,50 +341,76 @@ export default function BookingPage({ params }) {
                 <CardContent className="space-y-4">
                   <div>
                     <h4 className="font-medium mb-2">Services</h4>
-                    {selectedServices.map(function(service) {
+                    {selectedServices.map(function (service) {
                       return (
-                        <div key={service.id} className="flex justify-between text-sm py-1">
+                        <div
+                          key={service.id}
+                          className="flex justify-between text-sm py-1"
+                        >
                           <span>{service.name}</span>
                           <span>${parseFloat(service.price).toFixed(2)}</span>
                         </div>
                       );
                     })}
                   </div>
-                  
+
                   {selectedStaff && (
                     <div>
                       <h4 className="font-medium mb-1">Staff</h4>
-                      <p className="text-sm text-muted-foreground">{selectedStaff.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedStaff.name}
+                      </p>
                     </div>
                   )}
-                  
+
                   <div>
                     <h4 className="font-medium mb-1">Date & Time</h4>
                     <p className="text-sm text-muted-foreground">
                       {selectedDate} at {selectedTime}
                     </p>
                   </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-1">Contact</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {clientDetails.firstName} {clientDetails.lastName}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{clientDetails.email}</p>
-                    <p className="text-sm text-muted-foreground">{clientDetails.phone}</p>
-                  </div>
-                  
-                  {clientDetails.notes && (
+
+                  {user && (
                     <div>
-                      <h4 className="font-medium mb-1">Notes</h4>
-                      <p className="text-sm text-muted-foreground">{clientDetails.notes}</p>
+                      <h4 className="font-medium mb-1">Contact</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {user.firstName || user.first_name}{" "}
+                        {user.lastName || user.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {user.email}
+                      </p>
+                      {user.phone && (
+                        <p className="text-sm text-muted-foreground">
+                          {user.phone}
+                        </p>
+                      )}
                     </div>
                   )}
+
+                  {/* Optional notes */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <label
+                      htmlFor="booking-notes"
+                      className="font-medium text-sm"
+                    >
+                      Additional Notes (Optional)
+                    </label>
+                    <textarea
+                      id="booking-notes"
+                      className="w-full min-h-[80px] p-3 border rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="Any special requests or information?"
+                      value={bookingNotes}
+                      onChange={function (e) {
+                        setBookingNotes(e.target.value);
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             )}
           </div>
-          
+
           {/* Summary Sidebar */}
           <div className="lg:col-span-1">
             <Card className="sticky top-32">
@@ -363,19 +421,26 @@ export default function BookingPage({ params }) {
                 {selectedServices.length > 0 ? (
                   <>
                     <div className="space-y-2">
-                      {selectedServices.map(function(service) {
+                      {selectedServices.map(function (service) {
                         return (
-                          <div key={service.id} className="flex justify-between text-sm">
+                          <div
+                            key={service.id}
+                            className="flex justify-between text-sm"
+                          >
                             <div>
                               <p className="font-medium">{service.name}</p>
-                              <p className="text-muted-foreground">{service.duration} min</p>
+                              <p className="text-muted-foreground">
+                                {service.duration} min
+                              </p>
                             </div>
-                            <p className="font-medium">${parseFloat(service.price).toFixed(2)}</p>
+                            <p className="font-medium">
+                              ${parseFloat(service.price).toFixed(2)}
+                            </p>
                           </div>
                         );
                       })}
                     </div>
-                    
+
                     <div className="border-t pt-4">
                       <div className="flex justify-between text-sm mb-1">
                         <span>Duration</span>
@@ -386,7 +451,7 @@ export default function BookingPage({ params }) {
                         <span>${totalPrice.toFixed(2)}</span>
                       </div>
                     </div>
-                    
+
                     {selectedDate && selectedTime && (
                       <div className="border-t pt-4">
                         <div className="flex items-center gap-2 text-sm">
@@ -409,7 +474,7 @@ export default function BookingPage({ params }) {
             </Card>
           </div>
         </div>
-        
+
         {/* Navigation */}
         <div className="flex justify-between mt-6 pt-6 border-t">
           <Button
@@ -420,7 +485,7 @@ export default function BookingPage({ params }) {
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          
+
           {currentStep < STEPS.length - 1 ? (
             <Button onClick={handleNext} disabled={!canProceed()}>
               Continue

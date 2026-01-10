@@ -53,3 +53,12 @@ export async function requireRole(allowedRoles) {
   }
   return session;
 }
+
+export async function verifyAuth(request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.substring(7);
+  return verifyToken(token);
+}

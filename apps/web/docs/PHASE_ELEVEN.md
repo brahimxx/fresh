@@ -7,16 +7,21 @@ This phase implements a public-facing booking widget that allows clients to book
 ## Components Created
 
 ### Booking Flow Page
+
 **Location:** `src/app/book/[salonId]/page.js`
 
 A 5-step booking wizard:
+
 1. **Services** - Select one or more services
 2. **Staff** - Choose a specific staff member or "Any Available"
 3. **Date & Time** - Pick appointment date and time slot
-4. **Details** - Enter client contact information
+4. **Sign In** - Login or create account (required)
 5. **Confirm** - Review and confirm booking
 
+> **Note:** Authentication is required to complete a booking. This follows the Fresha model where customers must sign in at checkout.
+
 Features:
+
 - Progress indicator with icons
 - Salon header with logo, name, rating, location
 - Booking summary sidebar showing selected services and total
@@ -24,6 +29,7 @@ Features:
 - Mobile-responsive design
 
 ### Service Selection Component
+
 **Location:** `src/components/booking-widget/service-selection.jsx`
 
 - Fetches services from `/api/widget/[salonId]/services`
@@ -34,6 +40,7 @@ Features:
 - Selected state with checkmark indicator
 
 ### Staff Selection Component
+
 **Location:** `src/components/booking-widget/staff-selection.jsx`
 
 - Fetches staff from `/api/widget/[salonId]/staff`
@@ -46,6 +53,7 @@ Features:
   - Specialties badges
 
 ### Date/Time Selection Component
+
 **Location:** `src/components/booking-widget/datetime-selection.jsx`
 
 - Interactive calendar for date selection
@@ -58,27 +66,49 @@ Features:
   - Evening (after 5 PM)
 - Shows total duration badge
 
-### Client Details Form
-**Location:** `src/components/booking-widget/client-details.jsx`
+### Booking Authentication
 
-Fields:
-- First Name (required)
-- Last Name (required)
-- Email (required)
-- Phone (required)
-- Additional Notes (optional)
-- Marketing consent checkbox
-- Terms acceptance checkbox (required)
+**Location:** `src/components/booking-widget/booking-auth.jsx`
+
+Authentication component that replaces guest checkout:
+
+**For unauthenticated users:**
+
+- Tabbed interface with Login / Create Account options
+- Login form with email and password
+- Registration form with:
+  - First Name, Last Name
+  - Email, Phone
+  - Password with requirements hint
+  - Confirm Password
+- Inline form validation
+- Password visibility toggle
+- Loading states during submission
+
+**For authenticated users:**
+
+- Displays user info (name, email, phone)
+- Verified badge
+- Confirmation message
 
 Features:
-- Input icons
-- Field validation with error messages
-- Helper text
+
+- Uses AuthProvider for login/register
+- No page redirect - stays in booking flow
+- Immediate progression after authentication
+
+### Client Details Form (Legacy)
+
+**Location:** `src/components/booking-widget/client-details.jsx`
+
+> **Deprecated:** This component is no longer used in the booking flow. Authentication is now required via `booking-auth.jsx`.
 
 ### Booking Confirmation
+
 **Location:** `src/components/booking-widget/booking-confirmation.jsx`
 
 Success page showing:
+
 - Confirmation checkmark
 - Booking reference number
 - Email confirmation notice
@@ -96,39 +126,57 @@ Success page showing:
 ## API Endpoints Used
 
 ### GET `/api/widget/[salonId]`
+
 Returns salon public information including:
+
 - Name, description, logo
 - Contact info
 - Business hours
 - Widget settings
 
 ### GET `/api/widget/[salonId]/services`
+
 Returns:
+
 - Service categories
 - Active services with price and duration
 
 ### GET `/api/widget/[salonId]/staff`
+
 Query params: `services` (comma-separated IDs)
 Returns staff who can perform selected services with:
+
 - Name, title, avatar
 - Rating and review count
 - Specialties
 
 ### GET `/api/widget/[salonId]/availability`
+
 Query params: `date`, `serviceId`, `staffId` (optional)
 Returns available time slots for the given date
 
 ### POST `/api/widget/[salonId]/book`
-Creates a new booking with:
+
+**Requires Authentication** ✓
+
+Creates a new booking using the authenticated user's account:
+
 - `serviceId` - Primary service
 - `staffId` - Selected or assigned staff
 - `startTime` - ISO datetime
-- `firstName`, `lastName`, `email`, `phone`, `notes`
+- `notes` - Optional booking notes
+
+> Client info (name, email, phone) is retrieved from the authenticated user's profile.
 
 Returns:
+
 - Booking ID
 - Confirmation message
 - Booking details
+
+Error responses:
+
+- 401 Unauthorized - User must sign in
 
 ## URL Structure
 
@@ -141,6 +189,7 @@ Example: `https://yourdomain.com/book/123`
 **Location:** `src/app/book/layout.js`
 
 Minimal layout for public booking pages:
+
 - No sidebar or navigation
 - Clean, focused experience
 - QueryProvider for data fetching
@@ -168,6 +217,7 @@ Minimal layout for public booking pages:
 3. **Waitlist** - Join waitlist when no slots available
 4. **Deposit/Prepayment** - Collect payment during booking
 5. **SMS Reminders** - Opt-in for SMS notifications
-6. **Social Login** - Quick registration via Google/Facebook
+6. **Social Login** - Quick registration via Google/Facebook/Apple
 7. **Recurring Bookings** - Schedule repeat appointments
 8. **Gift Card Redemption** - Apply gift cards at checkout
+9. **Remember Me** - Stay logged in for returning customers

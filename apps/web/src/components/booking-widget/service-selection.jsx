@@ -21,8 +21,11 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
         var res = await fetch('/api/widget/' + salonId + '/services');
         if (res.ok) {
           var data = await res.json();
+          console.log('Loaded services:', data.data.services);
           setServices(data.data.services || []);
           setCategories(data.data.categories || []);
+        } else {
+          console.error('Service API error:', res.status, await res.text());
         }
       } catch (error) {
         console.error('Failed to load services:', error);
@@ -35,11 +38,14 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
   
   function toggleService(service) {
     var isSelected = selected.some(function(s) { return s.id === service.id; });
+    let newSelected;
     if (isSelected) {
-      onSelect(selected.filter(function(s) { return s.id !== service.id; }));
+      newSelected = selected.filter(function(s) { return s.id !== service.id; });
     } else {
-      onSelect([...selected, service]);
+      newSelected = [...selected, service];
     }
+    console.log('Service selection changed:', newSelected);
+    onSelect(newSelected);
   }
   
   function isSelected(serviceId) {
@@ -47,13 +53,13 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
   }
   
   // Filter services
-  var filteredServices = services.filter(function(service) {
+  var filteredServices = (services && Array.isArray(services)) ? services.filter(function(service) {
     var matchesSearch = !search || 
       service.name.toLowerCase().includes(search.toLowerCase()) ||
       service.description?.toLowerCase().includes(search.toLowerCase());
     var matchesCategory = !activeCategory || service.category_id === activeCategory;
     return matchesSearch && matchesCategory;
-  });
+  }) : [];
   
   // Group by category
   var groupedServices = {};

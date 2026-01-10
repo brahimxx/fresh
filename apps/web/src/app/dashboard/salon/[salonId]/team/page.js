@@ -167,6 +167,7 @@ export default function TeamPage({ params }) {
                   {members.map(function(member) {
                     var colorIndex = member.id % STAFF_COLORS.length;
                     var colorClass = STAFF_COLORS[colorIndex];
+                    var memberName = `${member.firstName} ${member.lastName}`;
                     
                     return (
                       <div key={member.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -174,11 +175,11 @@ export default function TeamPage({ params }) {
                           <div className="flex items-center gap-3">
                             <Avatar className="h-12 w-12">
                               <AvatarFallback className={colorClass.light + ' ' + colorClass.text}>
-                                {getInitials(member.name)}
+                                {getInitials(memberName)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <h3 className="font-medium">{member.name}</h3>
+                              <h3 className="font-medium">{memberName}</h3>
                               <Badge variant="outline" className="text-xs mt-1">
                                 {getRoleLabel(member.role)}
                               </Badge>

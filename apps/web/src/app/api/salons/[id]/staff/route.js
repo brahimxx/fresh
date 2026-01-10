@@ -25,13 +25,19 @@ export async function GET(request, { params }) {
               u.first_name, u.last_name, u.email, u.phone
        FROM staff st
        JOIN users u ON u.id = st.user_id
-       WHERE st.salon_id = ?
+       WHERE st.salon_id = ? AND st.is_active = 1
        ORDER BY st.role DESC, u.first_name`,
       [id]
     );
 
-    return success({
-      staff: staff.map((s) => ({
+    // Get service IDs for each staff member
+    const staffWithServices = await Promise.all(staff.map(async (s) => {
+      const serviceIds = await query(
+        `SELECT service_id FROM service_staff WHERE staff_id = ?`,
+        [s.id]
+      );
+      
+      return {
         id: s.id,
         userId: s.user_id,
         firstName: s.first_name,
@@ -40,7 +46,12 @@ export async function GET(request, { params }) {
         phone: s.phone,
         role: s.role,
         isActive: s.is_active,
-      })),
+        service_ids: serviceIds.map(sid => sid.service_id)
+      };
+    }));
+
+    return success({
+      staff: staffWithServices,
     });
   } catch (err) {
     console.error('Get salon staff error:', err);

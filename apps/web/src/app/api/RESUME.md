@@ -300,13 +300,15 @@ See `/database/migrations.sql` for complete DDL. Includes:
 | POST | `/locations/transfer-staff` | Transfer staff between locations | Yes |
 | POST | `/locations/copy-services` | Copy services to another location | Yes |
 
-### Widget (Public) (`/api/widget/`)
+### Widget (`/api/widget/`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/widget/[salonId]` | Get widget config | No |
 | GET | `/widget/[salonId]/availability` | Get available slots | No |
-| POST | `/widget/[salonId]/book` | Create booking | No |
+| POST | `/widget/[salonId]/book` | Create booking | Yes (client) |
+
+> **Note:** Booking creation now requires authentication. Customers must sign in or create an account before completing their booking (similar to Fresha).
 
 ### Admin (`/api/admin/`)
 

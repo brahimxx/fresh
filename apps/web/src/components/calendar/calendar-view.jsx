@@ -77,11 +77,11 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   
   // Convert bookings to calendar events
   var events = useMemo(function() {
-    if (!bookings) return [];
+    if (!bookings || !Array.isArray(bookings)) return [];
     
     return bookings
       .filter(function(booking) {
-        if (selectedStaff.length === 0) return true;
+        if (!selectedStaff || selectedStaff.length === 0) return true;
         return selectedStaff.includes(booking.staff_id);
       })
       .map(function(booking) {
@@ -208,14 +208,14 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm">
                 <Filter className="h-4 w-4 mr-2" />
-                Staff {selectedStaff.length > 0 && '(' + selectedStaff.length + ')'}
+                Staff {(selectedStaff && selectedStaff.length > 0) && '(' + selectedStaff.length + ')'}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64" align="end">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Filter by Staff</span>
-                  {selectedStaff.length > 0 && (
+                  {(selectedStaff && selectedStaff.length > 0) && (
                     <Button variant="ghost" size="sm" onClick={clearStaffFilter}>
                       Clear
                     </Button>
@@ -223,13 +223,13 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                 </div>
                 <ScrollArea className="h-48">
                   <div className="space-y-2">
-                    {Array.isArray(staff) && staff.map(function(member, index) {
+                    {staff && Array.isArray(staff) && staff.map(function(member, index) {
                       var color = getStaffColor(index);
                       return (
                         <div key={member.id} className="flex items-center gap-2">
                           <Checkbox
                             id={'staff-' + member.id}
-                            checked={selectedStaff.includes(member.id)}
+                            checked={selectedStaff && selectedStaff.includes(member.id)}
                             onCheckedChange={function() { toggleStaffFilter(member.id); }}
                           />
                           <div

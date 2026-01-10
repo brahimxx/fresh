@@ -1,33 +1,33 @@
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import { verifyAuth } from '@/lib/auth';
-import { successResponse, errorResponse } from '@/lib/response';
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
+import { verifyAuth } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/response";
 
 // GET /api/waitlist - List all waitlist entries for the salon
 export async function GET(request) {
   try {
     const auth = await verifyAuth(request);
     if (!auth) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse("Unauthorized", 401);
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 50;
+    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit")) || 50;
     const offset = (page - 1) * limit;
-    const status = searchParams.get('status');
-    const date = searchParams.get('date');
+    const status = searchParams.get("status");
+    const date = searchParams.get("date");
 
-    let whereClause = 'WHERE w.salon_id = ?';
+    let whereClause = "WHERE w.salon_id = ?";
     const params = [auth.salonId];
 
     if (status) {
-      whereClause += ' AND w.status = ?';
+      whereClause += " AND w.status = ?";
       params.push(status);
     }
 
     if (date) {
-      whereClause += ' AND w.preferred_date = ?';
+      whereClause += " AND w.preferred_date = ?";
       params.push(date);
     }
 
@@ -65,12 +65,12 @@ export async function GET(request) {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Error fetching waitlist:', error);
-    return errorResponse('Failed to fetch waitlist', 500);
+    console.error("Error fetching waitlist:", error);
+    return errorResponse("Failed to fetch waitlist", 500);
   }
 }
 
@@ -79,7 +79,7 @@ export async function POST(request) {
   try {
     const auth = await verifyAuth(request);
     if (!auth) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse("Unauthorized", 401);
     }
 
     const body = await request.json();
@@ -91,22 +91,28 @@ export async function POST(request) {
       preferred_time_start,
       preferred_time_end,
       notes,
-      status = 'pending'
+      status = "pending",
     } = body;
 
     // Validation
     if (!client_id) {
-      return errorResponse('Client is required', 400);
+      return errorResponse("Client is required", 400);
     }
 
     if (!preferred_date) {
-      return errorResponse('Preferred date is required', 400);
+      return errorResponse("Preferred date is required", 400);
     }
 
     // Validate status
-    const validStatuses = ['pending', 'notified', 'booked', 'expired', 'cancelled'];
+    const validStatuses = [
+      "pending",
+      "notified",
+      "booked",
+      "expired",
+      "cancelled",
+    ];
     if (!validStatuses.includes(status)) {
-      return errorResponse('Invalid status', 400);
+      return errorResponse("Invalid status", 400);
     }
 
     const result = await query(
@@ -121,7 +127,7 @@ export async function POST(request) {
         preferred_time_start || null,
         preferred_time_end || null,
         notes || null,
-        status
+        status,
       ]
     );
 
@@ -144,7 +150,7 @@ export async function POST(request) {
 
     return successResponse({ waitlistEntry: newEntry[0] }, 201);
   } catch (error) {
-    console.error('Error adding to waitlist:', error);
-    return errorResponse('Failed to add to waitlist', 500);
+    console.error("Error adding to waitlist:", error);
+    return errorResponse("Failed to add to waitlist", 500);
   }
 }

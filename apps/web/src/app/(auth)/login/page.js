@@ -43,14 +43,15 @@ export default function LoginPage() {
       const response = await login(data.email, data.password);
       toast.success('Welcome back!');
       
-      // Redirect to the appropriate dashboard
-      // If user has salons, redirect to the first one
-      if (response.user?.salons?.length > 0) {
-        router.push(`/salon/${response.user.salons[0].id}`);
-      } else if (response.user?.role === 'admin') {
-        router.push('/admin');
+      // Check if onboarding is completed
+      const onboardingCompleted = localStorage.getItem('fresh_onboarding_completed');
+      
+      if (!onboardingCompleted || onboardingCompleted !== 'true') {
+        // Redirect to onboarding if not completed
+        router.push('/onboarding');
       } else {
-        router.push('/');
+        // Redirect to dashboard
+        router.push('/dashboard');
       }
     } catch (error) {
       toast.error(error.message || 'Invalid email or password');

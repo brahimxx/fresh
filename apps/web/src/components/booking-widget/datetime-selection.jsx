@@ -23,19 +23,19 @@ export function DateTimeSelection({
   var [currentMonth, setCurrentMonth] = useState(new Date());
   
   // Calculate total duration
-  var totalDuration = selectedServices.reduce(function(sum, s) {
+  var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function(sum, s) {
     return sum + (s.duration || 30);
-  }, 0);
+  }, 0) : 0;
   
   // Load slots when date is selected
   useEffect(function() {
-    if (!selectedDate || selectedServices.length === 0) return;
+    if (!selectedDate || !selectedServices || !Array.isArray(selectedServices) || selectedServices.length === 0) return;
     
     async function loadSlots() {
       setLoadingSlots(true);
       try {
         var dateStr = selectedDate.toISOString().slice(0, 10);
-        var serviceId = selectedServices[0].id; // Primary service
+        var serviceId = selectedServices && selectedServices[0] ? selectedServices[0].id : '';
         var staffId = selectedStaff?.id || '';
         
         var url = '/api/widget/' + salonId + '/availability?date=' + dateStr + 
