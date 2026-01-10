@@ -80,11 +80,11 @@ export function ProductFormDialog({
           description: product.description || '',
           brand: product.brand || '',
           sku: product.sku || '',
-          category: product.category || '',
+          category: product.category || product.category_id || '',
           price: product.price || 0,
-          cost_price: product.cost_price || 0,
-          stock_quantity: product.stock_quantity || 0,
-          low_stock_threshold: product.low_stock_threshold || 5,
+          cost_price: product.cost_price || product.costPrice || 0,
+          stock_quantity: product.stock_quantity || product.stockQuantity || 0,
+          low_stock_threshold: product.low_stock_threshold || product.lowStockThreshold || 5,
         });
       } else {
         form.reset({
@@ -100,7 +100,7 @@ export function ProductFormDialog({
         });
       }
     }
-  }, [open, product, form]);
+  }, [open, product]);
   
   function onSubmit(data) {
     var payload = {

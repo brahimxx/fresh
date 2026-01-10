@@ -99,7 +99,7 @@ export default function ClientsPage({ params }) {
   
   function handleDeleteConfirm() {
     if (deleteClient) {
-      deleteClientMutation.mutate(deleteClient.id, {
+      deleteClientMutation.mutate({ id: deleteClient.id, salonId: salonId }, {
         onSuccess: function() {
           setDeleteClient(null);
         },

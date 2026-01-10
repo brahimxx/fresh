@@ -76,7 +76,7 @@ export function ServiceFormDialog({
       description: '',
       duration: 60,
       price: 0,
-      category_id: '',
+      category_id: 'none',
       buffer_before: 0,
       buffer_after: 0,
     },
@@ -89,10 +89,10 @@ export function ServiceFormDialog({
         form.reset({
           name: service.name || '',
           description: service.description || '',
-          duration: service.duration || 60,
+          duration: service.duration || service.duration_minutes || 60,
           price: service.price || 0,
-          category_id: service.category_id ? String(service.category_id) : '',
-          buffer_before: service.buffer_before || 0,
+          category_id: (service.category_id || service.categoryId) ? String(service.category_id || service.categoryId) : 'none',
+          buffer_before: service.buffer_before || service.bufferTime || service.buffer_time_minutes || 0,
           buffer_after: service.buffer_after || 0,
         });
       } else {
@@ -101,19 +101,19 @@ export function ServiceFormDialog({
           description: '',
           duration: 60,
           price: 0,
-          category_id: categoryId ? String(categoryId) : '',
+          category_id: categoryId ? String(categoryId) : 'none',
           buffer_before: 0,
           buffer_after: 0,
         });
       }
     }
-  }, [open, service, categoryId, form]);
+  }, [open, service, categoryId]);
   
   function onSubmit(data) {
     var payload = {
       ...data,
       salon_id: salonId,
-      category_id: data.category_id ? Number(data.category_id) : null,
+      category_id: data.category_id && data.category_id !== 'none' ? Number(data.category_id) : null,
     };
     
     if (isEditing) {
@@ -202,7 +202,7 @@ export function ServiceFormDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">No Category</SelectItem>
+                        <SelectItem value="none">No Category</SelectItem>
                         {categories.map(function(cat) {
                           return (
                             <SelectItem key={cat.id} value={String(cat.id)}>

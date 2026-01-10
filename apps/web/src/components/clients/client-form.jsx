@@ -32,7 +32,7 @@ var clientSchema = z.object({
   last_name: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().optional(),
-  gender: z.enum(['male', 'female', 'other', '']).optional(),
+  gender: z.enum(['male', 'female', 'other', 'none', '']).optional(),
   date_of_birth: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -62,34 +62,36 @@ export function ClientFormDialog({ open, onOpenChange, client, salonId }) {
   });
   
   useEffect(function() {
-    if (client) {
-      form.reset({
-        first_name: client.first_name || '',
-        last_name: client.last_name || '',
-        email: client.email || '',
-        phone: client.phone || '',
-        gender: client.gender || '',
-        date_of_birth: client.date_of_birth || '',
-        address: client.address || '',
-        city: client.city || '',
-        postal_code: client.postal_code || '',
-        notes: client.notes || '',
-      });
-    } else {
-      form.reset({
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        gender: '',
-        date_of_birth: '',
-        address: '',
-        city: '',
-        postal_code: '',
-        notes: '',
-      });
+    if (open) {
+      if (client) {
+        form.reset({
+          first_name: client.first_name || client.firstName || '',
+          last_name: client.last_name || client.lastName || '',
+          email: client.email || '',
+          phone: client.phone || '',
+          gender: client.gender || '',
+          date_of_birth: client.date_of_birth || client.dateOfBirth || '',
+          address: client.address || '',
+          city: client.city || '',
+          postal_code: client.postal_code || client.postalCode || '',
+          notes: client.notes || '',
+        });
+      } else {
+        form.reset({
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+          gender: '',
+          date_of_birth: '',
+          address: '',
+          city: '',
+          postal_code: '',
+          notes: '',
+        });
+      }
     }
-  }, [client, form]);
+  }, [open, client]);
   
   function onSubmit(data) {
     var payload = {
@@ -97,9 +99,9 @@ export function ClientFormDialog({ open, onOpenChange, client, salonId }) {
       salon_id: salonId,
     };
     
-    // Remove empty strings
+    // Remove empty strings and handle 'none' gender
     Object.keys(payload).forEach(function(key) {
-      if (payload[key] === '') {
+      if (payload[key] === '' || payload[key] === 'none') {
         delete payload[key];
       }
     });
@@ -192,13 +194,14 @@ export function ClientFormDialog({ open, onOpenChange, client, salonId }) {
               <div className="space-y-2">
                 <Label>Gender</Label>
                 <Select
-                  value={form.watch('gender')}
+                  value={form.watch('gender') || 'none'}
                   onValueChange={function(value) { form.setValue('gender', value); }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Not specified</SelectItem>
                     <SelectItem value="male">Male</SelectItem>
                     <SelectItem value="female">Female</SelectItem>
                     <SelectItem value="other">Other</SelectItem>

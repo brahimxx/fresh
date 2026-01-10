@@ -115,7 +115,7 @@ export function BookingFormDialog({ open, onOpenChange, initialDate }) {
       setClientSearch('');
       setShowNewClient(false);
     }
-  }, [open, initialDate, form]);
+  }, [open, initialDate]);
   
   function handleClientSelect(client) {
     setSelectedClient(client);

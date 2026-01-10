@@ -66,28 +66,30 @@ export function PackageForm({ open, onOpenChange, salonId, pkg, onSuccess }) {
   
   // Reset form when pkg changes
   useEffect(function() {
-    if (pkg) {
-      form.reset({
-        name: pkg.name || '',
-        description: pkg.description || '',
-        price: Number(pkg.price) || 0,
-        original_price: Number(pkg.original_price) || 0,
-        valid_for_days: pkg.valid_for_days || 30,
-        is_active: pkg.is_active !== false,
-      });
-      setSelectedServices(pkg.service_ids || []);
-    } else {
-      form.reset({
-        name: '',
-        description: '',
-        price: 0,
-        original_price: 0,
-        valid_for_days: 30,
-        is_active: true,
-      });
-      setSelectedServices([]);
+    if (open) {
+      if (pkg) {
+        form.reset({
+          name: pkg.name || '',
+          description: pkg.description || '',
+          price: Number(pkg.price || pkg.discounted_price || pkg.discountedPrice) || 0,
+          original_price: Number(pkg.original_price || pkg.originalPrice) || 0,
+          valid_for_days: pkg.valid_for_days || pkg.validForDays || pkg.validity_days || 30,
+          is_active: pkg.is_active !== false && pkg.isActive !== false,
+        });
+        setSelectedServices(pkg.service_ids || pkg.serviceIds || []);
+      } else {
+        form.reset({
+          name: '',
+          description: '',
+          price: 0,
+          original_price: 0,
+          valid_for_days: 30,
+          is_active: true,
+        });
+        setSelectedServices([]);
+      }
     }
-  }, [pkg, form]);
+  }, [open, pkg]);
   
   // Calculate original price from selected services
   var calculatedOriginalPrice = (services || [])

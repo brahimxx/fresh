@@ -40,7 +40,69 @@ Fresh is a modern, full-featured salon management platform built with Next.js, R
 - **Bug Fixes:** SQL strict mode errors, Playwright locator strictness, validation errors
 - **Onboarding Flow:** Pending full automation of onboarding wizard in E2E tests
 
-## Important Files
+---
+
+## Latest Changes (January 2026)
+
+### Database Changes
+
+**Migration File:** `database/migration_client_fields.sql`
+
+Added columns to `users` table (personal profile info shared across salons):
+| Column | Type | Purpose |
+|--------|------|---------|
+| `gender` | ENUM('male', 'female', 'other') | Client gender |
+| `date_of_birth` | DATE | Client birthday |
+| `address` | VARCHAR(255) | Street address |
+| `city` | VARCHAR(100) | City |
+| `postal_code` | VARCHAR(20) | Postal/ZIP code |
+
+Added column to `salon_clients` table (salon-specific data):
+| Column | Type | Purpose |
+|--------|------|---------|
+| `notes` | TEXT | Private notes each salon keeps about the client |
+
+**Why this split?**
+- Personal info (name, email, address) belongs on `users` → shared when client visits multiple salons
+- Salon-specific notes belong on `salon_clients` → each salon has their own private notes
+
+### Code Changes
+
+**File:** `src/app/api/clients/route.js`
+
+| Change | Description |
+|--------|-------------|
+| GET | Now fetches `notes` from `salon_clients` table via LEFT JOIN |
+| POST | Saves personal fields to `users` table, saves `notes` to `salon_clients` table |
+| POST | If email already exists, updates the existing user's profile instead of failing |
+
+**File:** `src/app/api/clients/[id]/route.js`
+
+| Change | Description |
+|--------|-------------|
+| GET | Returns `notes` from `salon_clients` table (not `users`) |
+| PUT | Updates personal fields on `users` table |
+| PUT | Updates `notes` separately on `salon_clients` table |
+
+### Documentation Added
+
+**File:** `docs/HOW_IT_WORKS.md`
+
+Comprehensive user guide covering:
+- All user types and access levels
+- Complete URL structure
+- User flows (login, registration, dashboard)
+- Client management flows (online booking + walk-in)
+- Detailed dashboard features (all sections)
+- Booking widget 5-step wizard
+- Marketplace features
+- Database relationships diagram
+- Complete API structure (~60+ endpoints)
+- Real-world scenarios
+- FAQ section
+- Status flow diagrams
+
+--- Important Files
 - **src/components/command-palette.jsx**: Keyboard shortcuts, navigation
 - **src/components/onboarding/onboarding-wizard.jsx**: Onboarding flow logic
 - **src/components/help/help-tooltips.jsx**: Contextual help

@@ -71,24 +71,26 @@ export function CampaignForm({ open, onOpenChange, salonId, campaign, onSuccess 
   
   // Reset form when campaign changes
   useEffect(function() {
-    if (campaign) {
-      form.reset({
-        name: campaign.name || '',
-        type: campaign.type || 'email',
-        subject: campaign.subject || '',
-        message: campaign.message || '',
-        audience_type: campaign.audience_type || 'all',
-      });
-    } else {
-      form.reset({
-        name: '',
-        type: 'email',
-        subject: '',
-        message: '',
-        audience_type: 'all',
-      });
+    if (open) {
+      if (campaign) {
+        form.reset({
+          name: campaign.name || '',
+          type: campaign.type || 'email',
+          subject: campaign.subject || '',
+          message: campaign.message || campaign.content || '',
+          audience_type: campaign.audience_type || campaign.audienceType || campaign.target_audience || 'all',
+        });
+      } else {
+        form.reset({
+          name: '',
+          type: 'email',
+          subject: '',
+          message: '',
+          audience_type: 'all',
+        });
+      }
     }
-  }, [campaign, form]);
+  }, [open, campaign]);
   
   function onSubmit(data) {
     var payload = {

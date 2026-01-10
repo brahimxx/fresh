@@ -1,11 +1,11 @@
-import mysql from 'mysql2/promise';
+import mysql from "mysql2/promise";
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'fresh_db',
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "3306"),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "root",
+  database: process.env.DB_NAME || "fresh",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -14,7 +14,9 @@ const pool = mysql.createPool({
 export default pool;
 
 export async function query(sql, params = []) {
-  const [results] = await pool.execute(sql, params);
+  // Use pool.query instead of pool.execute for better type coercion
+  // (execute has strict type requirements for LIMIT/OFFSET parameters)
+  const [results] = await pool.query(sql, params);
   return results;
 }
 

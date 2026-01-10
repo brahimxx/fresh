@@ -84,32 +84,34 @@ export function DiscountForm({ open, onOpenChange, salonId, discount, onSuccess 
   
   // Reset form when discount changes
   useEffect(function() {
-    if (discount) {
-      form.reset({
-        code: discount.code || '',
-        name: discount.name || '',
-        type: discount.type || 'percentage',
-        value: Number(discount.value) || 10,
-        min_purchase: Number(discount.min_purchase) || 0,
-        max_uses: discount.max_uses || null,
-        start_date: discount.start_date ? new Date(discount.start_date) : null,
-        end_date: discount.end_date ? new Date(discount.end_date) : null,
-        is_active: discount.is_active !== false,
-      });
-    } else {
-      form.reset({
-        code: '',
-        name: '',
-        type: 'percentage',
-        value: 10,
-        min_purchase: 0,
-        max_uses: null,
-        start_date: null,
-        end_date: null,
-        is_active: true,
-      });
+    if (open) {
+      if (discount) {
+        form.reset({
+          code: discount.code || '',
+          name: discount.name || '',
+          type: discount.type || 'percentage',
+          value: Number(discount.value) || 10,
+          min_purchase: Number(discount.min_purchase || discount.minPurchase) || 0,
+          max_uses: discount.max_uses || discount.maxUses || null,
+          start_date: discount.start_date || discount.startDate ? new Date(discount.start_date || discount.startDate) : null,
+          end_date: discount.end_date || discount.endDate ? new Date(discount.end_date || discount.endDate) : null,
+          is_active: discount.is_active !== false && discount.isActive !== false,
+        });
+      } else {
+        form.reset({
+          code: '',
+          name: '',
+          type: 'percentage',
+          value: 10,
+          min_purchase: 0,
+          max_uses: null,
+          start_date: null,
+          end_date: null,
+          is_active: true,
+        });
+      }
     }
-  }, [discount, form]);
+  }, [open, discount]);
   
   function handleGenerateCode() {
     var code = generateDiscountCode();

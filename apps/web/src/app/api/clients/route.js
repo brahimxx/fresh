@@ -20,10 +20,21 @@ export async function POST(request) {
     const session = await requireAuth();
 
     const body = await request.json();
-    const { salonId, firstName, lastName, email, phone } = body;
+    // Handle both camelCase and snake_case field names
+    const salonId = body.salonId || body.salon_id;
+    const firstName = body.firstName || body.first_name;
+    const lastName = body.lastName || body.last_name;
+    const email = body.email;
+    const phone = body.phone;
+    const gender = body.gender;
+    const dateOfBirth = body.dateOfBirth || body.date_of_birth;
+    const address = body.address;
+    const city = body.city;
+    const postalCode = body.postalCode || body.postal_code;
+    const notes = body.notes;
 
-    if (!salonId || !firstName || !lastName) {
-      return error('Salon ID, first name, and last name are required');
+    if (!salonId || !firstName) {
+      return error('Salon ID and first name are required', 400);
     }
 
     const hasAccess = await checkSalonAccess(salonId, session.userId, session.role);
@@ -37,15 +48,32 @@ export async function POST(request) {
       const existingUser = await getOne('SELECT id FROM users WHERE email = ?', [email]);
       if (existingUser) {
         userId = existingUser.id;
+        // Update existing user's profile info
+        await query(
+          `UPDATE users SET 
+            first_name = COALESCE(?, first_name),
+            last_name = COALESCE(?, last_name),
+            phone = COALESCE(?, phone),
+            gender = COALESCE(?, gender),
+            date_of_birth = COALESCE(?, date_of_birth),
+            address = COALESCE(?, address),
+            city = COALESCE(?, city),
+            postal_code = COALESCE(?, postal_code),
+            updated_at = NOW()
+          WHERE id = ?`,
+          [firstName, lastName || null, phone || null, gender || null, dateOfBirth || null, address || null, city || null, postalCode || null, userId]
+        );
       }
     }
 
     // Create new user if not exists
     if (!userId) {
+      // Generate placeholder email if none provided
+      const userEmail = email || `client_${Date.now()}_${Math.random().toString(36).slice(-4)}@placeholder.local`;
       const result = await query(
-        `INSERT INTO users (email, phone, first_name, last_name, role, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'client', NOW(), NOW())`,
-        [email || null, phone || null, firstName, lastName]
+        `INSERT INTO users (email, phone, first_name, last_name, gender, date_of_birth, address, city, postal_code, role, password_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'client', '', NOW(), NOW())`,
+        [userEmail, phone || null, firstName, lastName || null, gender || null, dateOfBirth || null, address || null, city || null, postalCode || null]
       );
       userId = result.insertId;
     }
@@ -58,8 +86,8 @@ export async function POST(request) {
 
     if (!existingClient) {
       await query(
-        'INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits) VALUES (?, ?, NOW(), NOW(), 0)',
-        [salonId, userId]
+        'INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits, notes) VALUES (?, ?, NOW(), NOW(), 0, ?)',
+        [salonId, userId, notes || null]
       );
     }
 
@@ -101,7 +129,7 @@ export async function GET(request) {
     const offset = (page - 1) * limit;
 
     let sql = `
-      SELECT sc.*, u.first_name, u.last_name, u.email, u.phone
+      SELECT sc.*, u.first_name, u.last_name, u.email, u.phone, u.gender, u.date_of_birth, u.address, u.city, u.postal_code
       FROM salon_clients sc
       JOIN users u ON u.id = sc.client_id
       WHERE sc.salon_id = ?
@@ -130,6 +158,12 @@ export async function GET(request) {
         lastName: c.last_name,
         email: c.email,
         phone: c.phone,
+        gender: c.gender,
+        dateOfBirth: c.date_of_birth,
+        address: c.address,
+        city: c.city,
+        postalCode: c.postal_code,
+        notes: c.notes,
         firstVisitDate: c.first_visit_date,
         lastVisitDate: c.last_visit_date,
         totalVisits: c.total_visits,

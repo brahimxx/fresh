@@ -65,7 +65,7 @@ export function CategoryFormDialog({
         });
       }
     }
-  }, [open, category, form]);
+  }, [open, category]);
   
   function onSubmit(data) {
     var payload = {

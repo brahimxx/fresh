@@ -61,7 +61,7 @@ export default function ClientDetailPage({ params }) {
   var deleteClient = useDeleteClient();
   
   function handleDelete() {
-    deleteClient.mutate(clientId, {
+    deleteClient.mutate({ id: clientId, salonId: salonId }, {
       onSuccess: function() {
         router.push('../clients');
       },

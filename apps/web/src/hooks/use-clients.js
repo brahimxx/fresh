@@ -19,7 +19,10 @@ export function useClientSearch(query, options) {
     queryKey: clientKeys.search(query),
     queryFn: function() { return api.get('/clients', { search: query, limit: 10 }); },
     enabled: !!(query && query.length >= 2),
-    select: function(response) { return response.data || []; },
+    select: function(response) { 
+      var responseData = response.data || response;
+      return responseData.clients || responseData.data || []; 
+    },
     ...options,
   });
 }
@@ -31,9 +34,11 @@ export function useClients(filters, options) {
     queryKey: clientKeys.list(filters),
     queryFn: function() { return api.get('/clients', filters); },
     select: function(response) {
+      // API returns { data: { clients: [...], pagination: {...} } }
+      var responseData = response.data || response;
       return {
-        data: response.data || [],
-        pagination: response.pagination,
+        data: responseData.clients || responseData.data || [],
+        pagination: responseData.pagination,
       };
     },
     ...options,
@@ -86,13 +91,19 @@ export function useUpdateClient() {
 export function useDeleteClient() {
   var queryClient = useQueryClient();
   return useMutation({
-    mutationFn: function(id) { return api.delete('/clients/' + id); },
+    mutationFn: function(params) {
+      var id = params.id || params;
+      var salonId = params.salonId || params.salon_id;
+      var url = '/clients/' + id;
+      if (salonId) url += '?salon_id=' + salonId;
+      return api.delete(url);
+    },
     onSuccess: function() {
       queryClient.invalidateQueries({ queryKey: clientKeys.all });
-      toast.success('Client deleted successfully');
+      toast.success('Client removed successfully');
     },
     onError: function(error) {
-      toast.error(error.message || 'Failed to delete client');
+      toast.error(error.message || 'Failed to remove client');
     },
   });
 }

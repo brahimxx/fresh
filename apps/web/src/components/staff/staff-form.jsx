@@ -70,8 +70,10 @@ export function StaffFormDialog({
   useEffect(function() {
     if (open) {
       if (staff) {
+        // Handle both formats - API returns firstName/lastName, form uses name
+        var staffName = staff.name || ((staff.firstName || staff.first_name || '') + ' ' + (staff.lastName || staff.last_name || '')).trim();
         form.reset({
-          name: staff.name || '',
+          name: staffName,
           email: staff.email || '',
           phone: staff.phone || '',
           role: staff.role || 'staff',
@@ -89,7 +91,7 @@ export function StaffFormDialog({
         });
       }
     }
-  }, [open, staff, form]);
+  }, [open, staff]);
   
   function onSubmit(data) {
     var payload = {

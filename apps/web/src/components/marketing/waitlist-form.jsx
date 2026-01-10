@@ -83,7 +83,7 @@ export function WaitlistForm({ open, onOpenChange, salonId, onSuccess }) {
         notes: '',
       });
     }
-  }, [open, form]);
+  }, [open]);
   
   // Auto-fill client details when selecting existing client
   var clientId = form.watch('client_id');
