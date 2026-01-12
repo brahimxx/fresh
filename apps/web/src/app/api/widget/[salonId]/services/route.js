@@ -5,16 +5,16 @@ import { success, error, notFound } from '@/lib/response';
 export async function GET(request, { params }) {
   try {
     const { salonId } = await params;
-    
+
     // Get categories
     const categories = await query(
-      `SELECT id, name, description, display_order
+      `SELECT id, name, display_order
        FROM service_categories 
        WHERE salon_id = ? 
        ORDER BY display_order, name`,
       [salonId]
     );
-    
+
     // Get active services
     const services = await query(
       `SELECT 
@@ -26,12 +26,12 @@ export async function GET(request, { params }) {
        ORDER BY sc.display_order, s.name`,
       [salonId]
     );
-    
+
     return success({
       categories: categories,
       services: services
     });
-    
+
   } catch (err) {
     console.error('Widget services error:', err);
     return error('Failed to load services', 500);

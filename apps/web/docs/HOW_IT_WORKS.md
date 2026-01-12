@@ -47,7 +47,7 @@ Fresh is a **salon booking platform** (like Fresha or Planity) with 3 main parts
    • Date & Time from available slots
          ↓
 4. Signs in or creates account:
-   • Login with existing account, OR
+   • Choose role: Customer (e.g., booking an appointment)
    • Register with: name, email, phone, password
          ↓
 5. Reviews and confirms booking
@@ -64,7 +64,7 @@ Fresh is a **salon booking platform** (like Fresha or Planity) with 3 main parts
 **Database result:**
 
 ```
-users table:           { id: 100, email: "customer@email.com", role: "client" }
+users table:           { id: 100, email: "customer@email.com", role: "client", country: "" }
 salon_clients table:   { salon_id: 1, client_id: 100, total_visits: 1 }
 bookings table:        { id: 500, salon_id: 1, client_id: 100, status: "confirmed" }
 ```
@@ -114,7 +114,7 @@ salon_clients table:   { salon_id: 1, client_id: 101, notes: "Prefers natural pr
 └─────────────────────────────────────────────────────────────────┘
 
 1. Jane already visited Salon A
-   users:          { id: 100, email: "jane@email.com" }
+   users:          { id: 100, email: "jane@email.com", country: "" }
    salon_clients:  { salon_id: 1 (Salon A), client_id: 100 }
          ↓
 2. Jane finds Salon B on marketplace
@@ -126,7 +126,7 @@ salon_clients table:   { salon_id: 1, client_id: 101, notes: "Prefers natural pr
 5. Creates NEW salon_clients entry for Salon B
          ↓
 Result:
-   users:          { id: 100, email: "jane@email.com" }  ← Same user
+   users:          { id: 100, email: "jane@email.com", country: "" }  ← Same user
    salon_clients:  { salon_id: 1, client_id: 100, notes: "Salon A notes" }
    salon_clients:  { salon_id: 2, client_id: 100, notes: "Salon B notes" }
 ```
@@ -567,6 +567,7 @@ The marketplace is the **public discovery platform** for customers.
                      │ end_time         │
                      │ status           │
                      │ total_price      │
+                     │ country          │
                      └──────────────────┘
 ```
 
@@ -584,13 +585,17 @@ The marketplace is the **public discovery platform** for customers.
 
 ### Scenario A: New Salon Onboarding
 
-1. Owner registers account → `users` table (role: owner)
-2. Owner creates salon → `salons` table
-3. Owner adds services → `services` table
-4. Owner adds staff → `staff` table + `users` table
-5. Owner sets working hours → `working_hours` table
-6. Owner enables online booking → widget is live
-7. Customers start booking online
+1. Owner registers account via `/register?type=professional`
+   • Must select their **Business Country** during registration.
+2. System creates user → `users` table (role: owner, country: "DZ")
+3. Owner starts onboarding → `/onboarding`
+   • **Step 2 (Salon Details)**: Country is auto-filled from user profile.
+4. Owner creates salon → `salons` table (country: "DZ" pre-filled)
+5. Owner adds services → `services` table
+6. Owner adds staff → `staff` table + `users` table
+7. Owner sets working hours → `working_hours` table
+8. Owner enables online booking → widget is live
+9. Customers start booking online
 
 ### Scenario B: Customer Lifecycle
 
@@ -663,12 +668,12 @@ All API routes are in `/src/app/api/`. Here's the complete list:
 
 | Route                       | Methods | Description             |
 | --------------------------- | ------- | ----------------------- |
-| `/api/auth/register`        | POST    | Create new user account |
-| `/api/auth/login`           | POST    | Login and get token     |
-| `/api/auth/logout`          | POST    | End session             |
-| `/api/auth/forgot-password` | POST    | Request password reset  |
-| `/api/auth/reset-password`  | POST    | Set new password        |
-| `/api/auth/me`              | GET     | Get current user info   |
+| `/api/auth/register`        | POST    | Create new account (supports role & country) |
+| `/api/auth/login`           | POST    | Login and get token (returns user details)  |
+| `/api/auth/logout`          | POST    | End session                                 |
+| `/api/auth/forgot-password` | POST    | Request password reset                      |
+| `/api/auth/reset-password`  | POST    | Set new password                            |
+| `/api/auth/me`              | GET     | Get current user (includes role & country)  |
 
 ### Salons
 

@@ -76,18 +76,17 @@ export async function GET(request, { params }) {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
-        description: c.description,
       })),
       services: widgetSettings.show_services
         ? services.map((s) => ({
-            id: s.id,
-            name: s.name,
-            description: s.description,
-            categoryId: s.category_id,
-            categoryName: s.category_name,
-            duration: s.duration_minutes,
-            price: widgetSettings.show_prices ? parseFloat(s.price) : null,
-          }))
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          categoryId: s.category_id,
+          categoryName: s.category_name,
+          duration: s.duration_minutes,
+          price: widgetSettings.show_prices ? parseFloat(s.price) : null,
+        }))
         : [],
       staff: staff.map((s) => ({
         id: s.id,

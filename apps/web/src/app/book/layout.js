@@ -13,10 +13,8 @@ export const metadata = {
 
 export default function BookingLayout({ children }) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} antialiased bg-gray-50 min-h-screen`}>
-        {children}
-      </body>
-    </html>
+    <div className="min-h-screen bg-background text-foreground">
+      {children}
+    </div>
   );
 }

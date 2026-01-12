@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 export function success(data, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
@@ -20,18 +20,18 @@ export function noContent() {
   return new NextResponse(null, { status: 204 });
 }
 
-export function unauthorized(message = 'Unauthorized') {
+export function unauthorized(message = "Unauthorized") {
   return error(message, 401);
 }
 
-export function forbidden(message = 'Forbidden') {
+export function forbidden(message = "Forbidden") {
   return error(message, 403);
 }
 
-export function notFound(message = 'Not found') {
+export function notFound(message = "Not found") {
   return error(message, 404);
 }
 
-export function serverError(message = 'Internal server error') {
+export function serverError(message = "Internal server error") {
   return error(message, 500);
 }

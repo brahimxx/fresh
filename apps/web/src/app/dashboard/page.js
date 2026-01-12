@@ -1,14 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/providers/auth-provider';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api-client';
-import { Loader2, Building2, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Header } from '@/components/layout/header';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/providers/auth-provider";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api-client";
+import { Loader2, Building2, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Header } from "@/components/layout/header";
 
 export default function DashboardIndexPage() {
   const router = useRouter();
@@ -16,11 +22,13 @@ export default function DashboardIndexPage() {
 
   // Check if onboarding is completed
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const onboardingCompleted = localStorage.getItem('fresh_onboarding_completed');
-      if (!onboardingCompleted || onboardingCompleted !== 'true') {
+    if (typeof window !== "undefined") {
+      const onboardingCompleted = localStorage.getItem(
+        "fresh_onboarding_completed"
+      );
+      if (!onboardingCompleted || onboardingCompleted !== "true") {
         // Redirect to onboarding if not completed
-        router.replace('/onboarding');
+        router.replace("/onboarding");
         return;
       }
     }
@@ -28,8 +36,8 @@ export default function DashboardIndexPage() {
 
   // Fetch user's salons to redirect to the first one
   const { data: salons, isLoading } = useQuery({
-    queryKey: ['user-salons', user?.id],
-    queryFn: () => api.get('/salons'),
+    queryKey: ["user-salons", user?.id],
+    queryFn: () => api.get("/salons"),
     enabled: !!user?.id,
     select: (response) => response.data?.salons || [],
   });
@@ -62,11 +70,12 @@ export default function DashboardIndexPage() {
               </div>
               <CardTitle className="text-2xl">Welcome to Fresh!</CardTitle>
               <CardDescription>
-                Create your first salon to get started with managing appointments, clients, and more.
+                Create your first salon to get started with managing
+                appointments, clients, and more.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <Button onClick={() => router.push('/dashboard/locations/new')}>
+              <Button onClick={() => router.push("/dashboard/locations/new")}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Your Salon
               </Button>

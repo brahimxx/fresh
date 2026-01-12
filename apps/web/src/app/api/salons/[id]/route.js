@@ -81,11 +81,11 @@ export async function GET(request, { params }) {
       createdAt: salon.created_at,
       settings: settings
         ? {
-            cancellationPolicyHours: settings.cancellation_policy_hours,
-            noShowFee: settings.no_show_fee,
-            depositRequired: settings.deposit_required,
-            depositPercentage: settings.deposit_percentage,
-          }
+          cancellationPolicyHours: settings.cancellation_policy_hours,
+          noShowFee: settings.no_show_fee,
+          depositRequired: settings.deposit_required,
+          depositPercentage: settings.deposit_percentage,
+        }
         : null,
       photos: photos.map((p) => ({
         id: p.id,
@@ -95,7 +95,7 @@ export async function GET(request, { params }) {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
-        services: c.services ? JSON.parse(c.services).filter((s) => s.id !== null) : [],
+        services: (typeof c.services === 'string' ? JSON.parse(c.services) : c.services || []).filter((s) => s.id !== null),
       })),
       staff: staff.map((s) => ({
         id: s.id,

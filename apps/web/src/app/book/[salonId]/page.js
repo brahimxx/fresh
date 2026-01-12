@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -42,6 +43,7 @@ export default function BookingPage({ params }) {
 
   var [salon, setSalon] = useState(null);
   var [loading, setLoading] = useState(true);
+  var [errorMsg, setErrorMsg] = useState(null);
   var [currentStep, setCurrentStep] = useState(0);
 
   // Auth
@@ -62,12 +64,16 @@ export default function BookingPage({ params }) {
       async function loadSalon() {
         try {
           var res = await fetch("/api/widget/" + salonId);
+          var data = await res.json();
           if (res.ok) {
-            var data = await res.json();
-            setSalon(data.data);
+            setSalon(data.data.salon);
+            // We might need settings too later, but for now salon info is primary
+          } else {
+            setErrorMsg(data.error || "Failed to load salon");
           }
         } catch (error) {
           console.error("Failed to load salon:", error);
+          setErrorMsg("Failed to connect to the booking service");
         } finally {
           setLoading(false);
         }
@@ -168,15 +174,24 @@ export default function BookingPage({ params }) {
     );
   }
 
-  if (!salon) {
+  if (errorMsg || !salon) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md">
+        <Card className="max-w-md w-full mx-4">
           <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-semibold mb-2">Salon Not Found</h2>
-            <p className="text-muted-foreground">
-              This booking page is not available.
+            <h2 className="text-xl font-bold mb-2 text-destructive">
+              {errorMsg === "Salon not found" ? "Salon Not Found" : "Booking Unavailable"}
+            </h2>
+            <p className="text-muted-foreground font-medium">
+              {errorMsg || "This booking page is not available at the moment."}
             </p>
+            <Button
+              variant="outline"
+              className="mt-6 w-full rounded-xl"
+              onClick={() => window.location.href = '/'}
+            >
+              Back to Marketplace
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -185,7 +200,7 @@ export default function BookingPage({ params }) {
 
   if (bookingComplete) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <BookingConfirmation
             salon={salon}
@@ -204,35 +219,44 @@ export default function BookingPage({ params }) {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10">
+      <header className="bg-background border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            {salon.logo ? (
-              <img
-                src={salon.logo}
-                alt={salon.name}
-                className="h-10 w-10 rounded-full object-cover"
-              />
-            ) : (
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                {salon.name?.charAt(0)}
-              </div>
-            )}
-            <div>
-              <h1 className="font-semibold">{salon.name}</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {salon.rating && (
-                  <span className="flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {salon.rating}
-                  </span>
+            <Link href={'/salon/' + salonId}>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div className="flex-1">
+              <div className="flex items-center gap-4">
+                {salon.logo ? (
+                  <img
+                    src={salon.logo}
+                    alt={salon.name}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                    {salon.name?.charAt(0)}
+                  </div>
                 )}
-                {salon.city && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {salon.city}
-                  </span>
-                )}
+                <div>
+                  <h1 className="font-semibold">{salon.name}</h1>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {salon.rating && (
+                      <span className="flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        {salon.rating}
+                      </span>
+                    )}
+                    {salon.city && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {salon.city}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -240,7 +264,7 @@ export default function BookingPage({ params }) {
       </header>
 
       {/* Progress Steps */}
-      <div className="bg-white border-b">
+      <div className="bg-background border-b">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {STEPS.map(function (step, index) {
@@ -254,10 +278,10 @@ export default function BookingPage({ params }) {
                     className={
                       "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors " +
                       (isCompleted
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-primary-foreground"
                         : isActive
-                        ? "bg-primary text-white"
-                        : "bg-gray-100 text-gray-400")
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground")
                     }
                   >
                     {isCompleted ? (
@@ -280,7 +304,7 @@ export default function BookingPage({ params }) {
                     <div
                       className={
                         "hidden sm:block w-12 h-0.5 mx-2 " +
-                        (isCompleted ? "bg-primary" : "bg-gray-200")
+                        (isCompleted ? "bg-primary" : "bg-muted")
                       }
                     />
                   )}

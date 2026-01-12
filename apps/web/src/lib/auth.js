@@ -1,9 +1,9 @@
-import { SignJWT, jwtVerify } from 'jose';
-import bcrypt from 'bcryptjs';
-import { cookies } from 'next/headers';
+import { SignJWT, jwtVerify } from "jose";
+import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+  process.env.JWT_SECRET || "your-secret-key-change-in-production"
 );
 
 export async function hashPassword(password) {
@@ -16,9 +16,9 @@ export async function verifyPassword(password, hashedPassword) {
 
 export async function createToken(payload) {
   return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime("7d")
     .sign(JWT_SECRET);
 }
 
@@ -33,7 +33,7 @@ export async function verifyToken(token) {
 
 export async function getSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
+  const token = cookieStore.get("token")?.value;
   if (!token) return null;
   return verifyToken(token);
 }
@@ -41,7 +41,7 @@ export async function getSession() {
 export async function requireAuth() {
   const session = await getSession();
   if (!session) {
-    throw new Error('Unauthorized');
+    throw new Error("Unauthorized");
   }
   return session;
 }
@@ -49,14 +49,14 @@ export async function requireAuth() {
 export async function requireRole(allowedRoles) {
   const session = await requireAuth();
   if (!allowedRoles.includes(session.role)) {
-    throw new Error('Forbidden');
+    throw new Error("Forbidden");
   }
   return session;
 }
 
 export async function verifyAuth(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
   const token = authHeader.substring(7);

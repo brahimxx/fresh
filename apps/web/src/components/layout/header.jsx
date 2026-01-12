@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Bell, Search, ChevronDown, Building2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Bell, Search, ChevronDown, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,18 +11,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/providers/auth-provider';
-import { useSalon } from '@/providers/salon-provider';
-import Link from 'next/link';
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/providers/auth-provider";
+import { useSalon } from "@/providers/salon-provider";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import Link from "next/link";
 
 export function Header() {
   const { user, logout } = useAuth();
   const { salon } = useSalon();
 
   const initials = user
-    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'
-    : 'U';
+    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""
+      }`.toUpperCase() || "U"
+    : "U";
 
   return (
     <header className="h-16 border-b border-border bg-background px-6 flex items-center justify-between sticky top-0 z-10">
@@ -65,6 +67,9 @@ export function Header() {
           </DropdownMenu>
         )}
 
+        {/* Theme Toggle */}
+        <ThemeToggle />
+
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
@@ -88,7 +93,9 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col">
-                <span>{user?.first_name} {user?.last_name}</span>
+                <span>
+                  {user?.first_name} {user?.last_name}
+                </span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {user?.email}
                 </span>

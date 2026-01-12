@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     const user = await getOne(
-      'SELECT id, email, phone, first_name, last_name, role, created_at FROM users WHERE id = ?',
+      'SELECT id, email, phone, first_name, last_name, role, country, created_at FROM users WHERE id = ?',
       [session.userId]
     );
 
@@ -26,6 +26,7 @@ export async function GET() {
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role,
+      country: user.country,
       createdAt: user.created_at,
     });
   } catch (err) {

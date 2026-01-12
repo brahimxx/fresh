@@ -1,7 +1,17 @@
-import { query, getOne, transaction } from '@/lib/db';
-import { getSession, requireAuth } from '@/lib/auth';
-import { success, error, created, unauthorized, forbidden } from '@/lib/response';
-import { validate, createBookingSchema, formatValidationErrors } from '@/lib/validate';
+import { query, getOne, transaction } from "@/lib/db";
+import { getSession, requireAuth } from "@/lib/auth";
+import {
+  success,
+  error,
+  created,
+  unauthorized,
+  forbidden,
+} from "@/lib/response";
+import {
+  validate,
+  createBookingSchema,
+  formatValidationErrors,
+} from "@/lib/validate";
 
 // GET /api/bookings - Get bookings (filtered by user role)
 export async function GET(request) {
@@ -9,13 +19,13 @@ export async function GET(request) {
     const session = await requireAuth();
     const { searchParams } = new URL(request.url);
 
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const salonId = searchParams.get('salonId');
-    const staffId = searchParams.get('staffId');
-    const status = searchParams.get('status');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const salonId = searchParams.get("salonId");
+    const staffId = searchParams.get("staffId");
+    const status = searchParams.get("status");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
     const offset = (page - 1) * limit;
 
     let sql = `
@@ -33,44 +43,44 @@ export async function GET(request) {
     const params = [];
 
     // Role-based filtering
-    if (session.role === 'client') {
-      sql += ' AND b.client_id = ?';
+    if (session.role === "client") {
+      sql += " AND b.client_id = ?";
       params.push(session.userId);
-    } else if (session.role === 'owner') {
-      sql += ' AND s.owner_id = ?';
+    } else if (session.role === "owner") {
+      sql += " AND s.owner_id = ?";
       params.push(session.userId);
-    } else if (session.role === 'staff') {
+    } else if (session.role === "staff") {
       // Staff can see bookings assigned to them
-      sql += ' AND st.user_id = ?';
+      sql += " AND st.user_id = ?";
       params.push(session.userId);
     }
 
     if (salonId) {
-      sql += ' AND b.salon_id = ?';
+      sql += " AND b.salon_id = ?";
       params.push(salonId);
     }
 
     if (staffId) {
-      sql += ' AND b.staff_id = ?';
+      sql += " AND b.staff_id = ?";
       params.push(staffId);
     }
 
     if (status) {
-      sql += ' AND b.status = ?';
+      sql += " AND b.status = ?";
       params.push(status);
     }
 
     if (startDate) {
-      sql += ' AND b.start_datetime >= ?';
+      sql += " AND b.start_datetime >= ?";
       params.push(startDate);
     }
 
     if (endDate) {
-      sql += ' AND b.end_datetime <= ?';
+      sql += " AND b.end_datetime <= ?";
       params.push(endDate);
     }
 
-    sql += ' ORDER BY b.start_datetime DESC LIMIT ? OFFSET ?';
+    sql += " ORDER BY b.start_datetime DESC LIMIT ? OFFSET ?";
     params.push(limit, offset);
 
     const bookings = await query(sql, params);
@@ -83,7 +93,7 @@ export async function GET(request) {
         `SELECT bs.*, sv.name as service_name
          FROM booking_services bs
          JOIN services sv ON sv.id = bs.service_id
-         WHERE bs.booking_id IN (${bookingIds.map(() => '?').join(',')})`,
+         WHERE bs.booking_id IN (${bookingIds.map(() => "?").join(",")})`,
         bookingIds
       );
     }
@@ -123,9 +133,9 @@ export async function GET(request) {
 
     return success({ bookings: result });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    console.error('Get bookings error:', err);
-    return error('Failed to get bookings', 500);
+    if (err.message === "Unauthorized") return unauthorized();
+    console.error("Get bookings error:", err);
+    return error("Failed to get bookings", 500);
   }
 }
 
@@ -135,31 +145,48 @@ export async function POST(request) {
     const session = await requireAuth();
 
     const body = await request.json();
-    
+
     // Validate input
     const validation = validate(createBookingSchema, body);
     if (!validation.success) {
       return error(formatValidationErrors(validation.errors));
     }
-    
-    const { salonId, clientId, staffId, serviceIds, startDatetime, endDatetime, notes, source } = validation.data;
+
+    const {
+      salonId,
+      clientId,
+      staffId,
+      serviceIds,
+      startDatetime,
+      endDatetime,
+      notes,
+      source,
+    } = validation.data;
 
     // Get services to calculate total duration and price
     if (serviceIds.length === 0) {
-      return error('At least one service is required');
+      return error("At least one service is required");
     }
-    
+
     const services = await query(
-      `SELECT id, name, duration_minutes, price FROM services WHERE id IN (${serviceIds.map(() => '?').join(',')}) AND salon_id = ? AND is_active = 1`,
+      `SELECT id, name, duration_minutes, price FROM services WHERE id IN (${serviceIds
+        .map(() => "?")
+        .join(",")}) AND salon_id = ? AND is_active = 1`,
       [...serviceIds, salonId]
     );
 
     if (services.length !== serviceIds.length) {
-      return error('One or more services not found or inactive');
+      return error("One or more services not found or inactive");
     }
 
-    const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
-    const totalPrice = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
+    const totalDuration = services.reduce(
+      (sum, s) => sum + s.duration_minutes,
+      0
+    );
+    const totalPrice = services.reduce(
+      (sum, s) => sum + parseFloat(s.price),
+      0
+    );
 
     // Use provided end datetime or calculate from services
     const startDate = new Date(startDatetime);
@@ -169,8 +196,14 @@ export async function POST(request) {
     } else {
       endDate = new Date(startDate.getTime() + totalDuration * 60000);
     }
-    const endDatetimeFormatted = endDate.toISOString().slice(0, 19).replace('T', ' ');
-    const startDatetimeFormatted = startDate.toISOString().slice(0, 19).replace('T', ' ');
+    const endDatetimeFormatted = endDate
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    const startDatetimeFormatted = startDate
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
 
     // Check staff working hours (outside transaction for faster fail)
     const dayOfWeek = startDate.getDay();
@@ -178,22 +211,22 @@ export async function POST(request) {
     const endTimeStr = endDate.toTimeString().slice(0, 8);
 
     const workingHours = await getOne(
-      'SELECT * FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?',
+      "SELECT * FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?",
       [staffId, dayOfWeek, timeStr, endTimeStr]
     );
 
     if (!workingHours) {
-      return error('Staff is not working at this time', 409);
+      return error("Staff is not working at this time", 409);
     }
 
     // Check for time off (outside transaction for faster fail)
     const timeOff = await getOne(
-      'SELECT id FROM staff_time_off WHERE staff_id = ? AND start_datetime <= ? AND end_datetime >= ?',
+      "SELECT id FROM staff_time_off WHERE staff_id = ? AND start_datetime <= ? AND end_datetime >= ?",
       [staffId, startDatetimeFormatted, startDatetimeFormatted]
     );
 
     if (timeOff) {
-      return error('Staff is on time off', 409);
+      return error("Staff is on time off", 409);
     }
 
     // Create booking in transaction with row locking to prevent race conditions
@@ -209,43 +242,56 @@ export async function POST(request) {
       );
 
       if (conflicts.length > 0) {
-        throw new Error('CONFLICT: Staff is not available at this time');
+        throw new Error("CONFLICT: Staff is not available at this time");
       }
 
       // Insert the booking
       const [bookingResult] = await conn.execute(
         `INSERT INTO bookings (salon_id, client_id, staff_id, start_datetime, end_datetime, status, source, notes, created_at)
          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NOW())`,
-        [salonId, clientId, staffId, startDatetimeFormatted, endDatetimeFormatted, source, notes || null]
+        [
+          salonId,
+          clientId,
+          staffId,
+          startDatetimeFormatted,
+          endDatetimeFormatted,
+          source,
+          notes || null,
+        ]
       );
 
       const bookingId = bookingResult.insertId;
 
       // Add booking services (batch insert for performance)
-      const serviceValues = services.map(s => [bookingId, s.id, s.price, s.duration_minutes]);
+      const serviceValues = services.map((s) => [
+        bookingId,
+        s.id,
+        s.price,
+        s.duration_minutes,
+      ]);
       for (const values of serviceValues) {
         await conn.execute(
-          'INSERT INTO booking_services (booking_id, service_id, price, duration_minutes) VALUES (?, ?, ?, ?)',
+          "INSERT INTO booking_services (booking_id, service_id, price, duration_minutes) VALUES (?, ?, ?, ?)",
           values
         );
       }
 
       // Update or create salon_clients record
       const [existingClient] = await conn.execute(
-        'SELECT salon_id FROM salon_clients WHERE salon_id = ? AND client_id = ?',
+        "SELECT salon_id FROM salon_clients WHERE salon_id = ? AND client_id = ?",
         [salonId, clientId]
       );
 
       const isNewClient = existingClient.length === 0;
-      
+
       if (isNewClient) {
         await conn.execute(
-          'INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits) VALUES (?, ?, NOW(), NOW(), 1)',
+          "INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits) VALUES (?, ?, NOW(), NOW(), 1)",
           [salonId, clientId]
         );
 
         // If marketplace booking and new client, create platform fee
-        if (source === 'marketplace') {
+        if (source === "marketplace") {
           await conn.execute(
             "INSERT INTO platform_fees (booking_id, salon_id, type, amount, is_paid) VALUES (?, ?, 'new_client', ?, 0)",
             [bookingId, salonId, totalPrice * 0.2]
@@ -253,7 +299,7 @@ export async function POST(request) {
         }
       } else {
         await conn.execute(
-          'UPDATE salon_clients SET last_visit_date = NOW(), total_visits = total_visits + 1 WHERE salon_id = ? AND client_id = ?',
+          "UPDATE salon_clients SET last_visit_date = NOW(), total_visits = total_visits + 1 WHERE salon_id = ? AND client_id = ?",
           [salonId, clientId]
         );
       }
@@ -268,7 +314,7 @@ export async function POST(request) {
       staffId,
       startDatetime: startDatetimeFormatted,
       endDatetime: endDatetimeFormatted,
-      status: 'pending',
+      status: "pending",
       source,
       totalDuration,
       totalPrice,
@@ -281,11 +327,11 @@ export async function POST(request) {
       })),
     });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    if (err.message.startsWith('CONFLICT:')) {
-      return error(err.message.replace('CONFLICT: ', ''), 409);
+    if (err.message === "Unauthorized") return unauthorized();
+    if (err.message.startsWith("CONFLICT:")) {
+      return error(err.message.replace("CONFLICT: ", ""), 409);
     }
-    console.error('Create booking error:', err);
-    return error('Failed to create booking', 500);
+    console.error("Create booking error:", err);
+    return error("Failed to create booking", 500);
   }
 }

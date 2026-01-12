@@ -14,8 +14,11 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login');
+    } else if (!loading && isAuthenticated && user?.role === 'client') {
+      // Clients should not be in the management dashboard
+      router.push('/');
     }
-  }, [loading, isAuthenticated, router]);
+  }, [loading, isAuthenticated, user, router]);
 
   if (loading) {
     return (

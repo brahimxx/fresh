@@ -134,7 +134,7 @@ export function BookingAuth({ onAuthenticated }) {
               <CardTitle>Your Details</CardTitle>
               <CardDescription>Logged in as</CardDescription>
             </div>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
+            <Badge variant="secondary" className="bg-green-500/10 text-green-500">
               <Check className="h-3 w-3 mr-1" />
               Verified
             </Badge>

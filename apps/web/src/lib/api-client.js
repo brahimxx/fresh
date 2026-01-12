@@ -3,7 +3,7 @@
  * Handles all HTTP requests with authentication
  */
 
-const API_BASE = '/api';
+const API_BASE = "/api";
 
 class ApiClient {
   constructor() {
@@ -12,31 +12,31 @@ class ApiClient {
 
   setToken(token) {
     this.token = token;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('fresh_token', token);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fresh_token", token);
     }
   }
 
   getToken() {
     if (this.token) return this.token;
-    if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('fresh_token');
+    if (typeof window !== "undefined") {
+      this.token = localStorage.getItem("fresh_token");
     }
     return this.token;
   }
 
   clearToken() {
     this.token = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('fresh_token');
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fresh_token");
     }
   }
 
   async request(endpoint, options = {}) {
     const token = this.getToken();
-    
+
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     };
@@ -44,14 +44,14 @@ class ApiClient {
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
-      credentials: 'include',
+      credentials: "include",
     });
 
     // Handle 401 Unauthorized - clear token and redirect
     if (response.status === 401) {
       this.clearToken();
-      if (typeof window !== 'undefined' && !endpoint.includes('/auth/')) {
-        window.location.href = '/login';
+      if (typeof window !== "undefined" && !endpoint.includes("/auth/")) {
+        window.location.href = "/login";
       }
     }
 
@@ -59,7 +59,7 @@ class ApiClient {
 
     if (!response.ok) {
       // Handle both { error: "message" } and { message: "message" } formats
-      const errorMessage = data.error || data.message || 'Request failed';
+      const errorMessage = data.error || data.message || "Request failed";
       const error = new Error(errorMessage);
       error.status = response.status;
       error.data = data;
@@ -72,7 +72,7 @@ class ApiClient {
   get(endpoint, params = {}) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
+      if (value !== undefined && value !== null && value !== "") {
         searchParams.append(key, value);
       }
     });
@@ -83,28 +83,28 @@ class ApiClient {
 
   post(endpoint, data) {
     return this.request(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   put(endpoint, data) {
     return this.request(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
   patch(endpoint, data) {
     return this.request(endpoint, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
   delete(endpoint) {
     return this.request(endpoint, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 }

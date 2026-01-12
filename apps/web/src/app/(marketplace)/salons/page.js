@@ -3,11 +3,11 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  Search, 
-  MapPin, 
-  Star, 
-  Filter, 
+import {
+  Search,
+  MapPin,
+  Star,
+  Filter,
   SlidersHorizontal,
   ChevronDown,
   X,
@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
 var CATEGORIES = [
   { id: 'hair', name: 'Hair Salons' },
@@ -66,11 +67,11 @@ var SORT_OPTIONS = [
 function SalonSearchContent() {
   var searchParams = useSearchParams();
   var router = useRouter();
-  
+
   var [salons, setSalons] = useState([]);
   var [loading, setLoading] = useState(true);
   var [viewMode, setViewMode] = useState('grid');
-  
+
   // Filter states
   var [query, setQuery] = useState(searchParams.get('q') || '');
   var [location, setLocation] = useState(searchParams.get('location') || '');
@@ -81,9 +82,9 @@ function SalonSearchContent() {
   var [minRating, setMinRating] = useState(null);
   var [sortBy, setSortBy] = useState('recommended');
   var [openNow, setOpenNow] = useState(false);
-  
+
   // Load salons
-  useEffect(function() {
+  useEffect(function () {
     async function loadSalons() {
       setLoading(true);
       try {
@@ -95,7 +96,7 @@ function SalonSearchContent() {
         if (minRating) params.append('minRating', minRating);
         if (openNow) params.append('openNow', 'true');
         params.append('sort', sortBy);
-        
+
         var res = await fetch('/api/marketplace/salons?' + params.toString());
         if (res.ok) {
           var data = await res.json();
@@ -109,34 +110,35 @@ function SalonSearchContent() {
     }
     loadSalons();
   }, [query, location, selectedCategories, selectedPrices, minRating, sortBy, openNow]);
-  
+
   function toggleCategory(catId) {
     if (selectedCategories.includes(catId)) {
-      setSelectedCategories(selectedCategories.filter(function(c) { return c !== catId; }));
+      setSelectedCategories(selectedCategories.filter(function (c) { return c !== catId; }));
     } else {
       setSelectedCategories([...selectedCategories, catId]);
     }
   }
-  
+
   function togglePrice(priceId) {
     if (selectedPrices.includes(priceId)) {
-      setSelectedPrices(selectedPrices.filter(function(p) { return p !== priceId; }));
+      setSelectedPrices(selectedPrices.filter(function (p) { return p !== priceId; }));
     } else {
       setSelectedPrices([...selectedPrices, priceId]);
     }
   }
-  
+
   function clearFilters() {
     setSelectedCategories([]);
     setSelectedPrices([]);
     setMinRating(null);
     setOpenNow(false);
   }
-  
+
   var activeFilterCount = selectedCategories.length + selectedPrices.length + (minRating ? 1 : 0) + (openNow ? 1 : 0);
-  
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Breadcrumbs className="mb-6" />
       {/* Search Header */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row gap-4 mb-4">
@@ -145,7 +147,7 @@ function SalonSearchContent() {
             <Input
               placeholder="Search services or salons..."
               value={query}
-              onChange={function(e) { setQuery(e.target.value); }}
+              onChange={function (e) { setQuery(e.target.value); }}
               className="pl-10"
             />
           </div>
@@ -154,12 +156,12 @@ function SalonSearchContent() {
             <Input
               placeholder="Location"
               value={location}
-              onChange={function(e) { setLocation(e.target.value); }}
+              onChange={function (e) { setLocation(e.target.value); }}
               className="pl-10"
             />
           </div>
         </div>
-        
+
         {/* Filter Bar */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* Mobile Filter Button */}
@@ -182,13 +184,13 @@ function SalonSearchContent() {
                 <div>
                   <h4 className="font-medium mb-3">Category</h4>
                   <div className="space-y-2">
-                    {CATEGORIES.map(function(cat) {
+                    {CATEGORIES.map(function (cat) {
                       return (
                         <div key={cat.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={'mob-cat-' + cat.id}
                             checked={selectedCategories.includes(cat.id)}
-                            onCheckedChange={function() { toggleCategory(cat.id); }}
+                            onCheckedChange={function () { toggleCategory(cat.id); }}
                           />
                           <Label htmlFor={'mob-cat-' + cat.id}>{cat.name}</Label>
                         </div>
@@ -196,18 +198,18 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-                
+
                 {/* Price */}
                 <div>
                   <h4 className="font-medium mb-3">Price Range</h4>
                   <div className="flex gap-2">
-                    {PRICE_RANGES.map(function(price) {
+                    {PRICE_RANGES.map(function (price) {
                       return (
                         <Button
                           key={price.id}
                           variant={selectedPrices.includes(price.id) ? 'default' : 'outline'}
                           size="sm"
-                          onClick={function() { togglePrice(price.id); }}
+                          onClick={function () { togglePrice(price.id); }}
                         >
                           {price.label}
                         </Button>
@@ -215,19 +217,19 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-                
+
                 {/* Rating */}
                 <div>
                   <h4 className="font-medium mb-3">Minimum Rating</h4>
                   <div className="flex gap-2">
-                    {[4, 4.5].map(function(rating) {
+                    {[4, 4.5].map(function (rating) {
                       return (
                         <Button
                           key={rating}
                           variant={minRating === rating ? 'default' : 'outline'}
                           size="sm"
                           className="gap-1"
-                          onClick={function() { setMinRating(minRating === rating ? null : rating); }}
+                          onClick={function () { setMinRating(minRating === rating ? null : rating); }}
                         >
                           <Star className="h-3 w-3 fill-current" />
                           {rating}+
@@ -236,59 +238,59 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-                
+
                 {/* Open Now */}
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="mob-open-now"
                     checked={openNow}
-                    onCheckedChange={function(checked) { setOpenNow(checked); }}
+                    onCheckedChange={function (checked) { setOpenNow(checked); }}
                   />
                   <Label htmlFor="mob-open-now">Open Now</Label>
                 </div>
-                
+
                 <Button variant="outline" onClick={clearFilters} className="w-full">
                   Clear All Filters
                 </Button>
               </div>
             </SheetContent>
           </Sheet>
-          
+
           {/* Desktop Filters */}
           <div className="hidden md:flex items-center gap-2">
-            {CATEGORIES.slice(0, 4).map(function(cat) {
+            {CATEGORIES.slice(0, 4).map(function (cat) {
               return (
                 <Button
                   key={cat.id}
                   variant={selectedCategories.includes(cat.id) ? 'default' : 'outline'}
                   size="sm"
-                  onClick={function() { toggleCategory(cat.id); }}
+                  onClick={function () { toggleCategory(cat.id); }}
                 >
                   {cat.name}
                 </Button>
               );
             })}
-            
+
             <Button
               variant={openNow ? 'default' : 'outline'}
               size="sm"
               className="gap-1"
-              onClick={function() { setOpenNow(!openNow); }}
+              onClick={function () { setOpenNow(!openNow); }}
             >
               <Clock className="h-3 w-3" />
               Open Now
             </Button>
           </div>
-          
+
           <div className="flex-1" />
-          
+
           {/* Sort & View */}
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SORT_OPTIONS.map(function(option) {
+              {SORT_OPTIONS.map(function (option) {
                 return (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -297,13 +299,13 @@ function SalonSearchContent() {
               })}
             </SelectContent>
           </Select>
-          
-          <div className="hidden sm:flex border rounded-lg">
+
+          <div className="hidden sm:flex border border-border rounded-lg">
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size="icon"
               className="h-9 w-9 rounded-r-none"
-              onClick={function() { setViewMode('grid'); }}
+              onClick={function () { setViewMode('grid'); }}
             >
               <Grid className="h-4 w-4" />
             </Button>
@@ -311,25 +313,25 @@ function SalonSearchContent() {
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="icon"
               className="h-9 w-9 rounded-l-none"
-              onClick={function() { setViewMode('list'); }}
+              onClick={function () { setViewMode('list'); }}
             >
               <ListIcon className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        
+
         {/* Active Filters */}
         {activeFilterCount > 0 && (
           <div className="flex items-center gap-2 mt-4 flex-wrap">
             <span className="text-sm text-muted-foreground">Active filters:</span>
-            {selectedCategories.map(function(catId) {
-              var cat = CATEGORIES.find(function(c) { return c.id === catId; });
+            {selectedCategories.map(function (catId) {
+              var cat = CATEGORIES.find(function (c) { return c.id === catId; });
               return (
                 <Badge key={catId} variant="secondary" className="gap-1">
                   {cat?.name}
                   <X
                     className="h-3 w-3 cursor-pointer"
-                    onClick={function() { toggleCategory(catId); }}
+                    onClick={function () { toggleCategory(catId); }}
                   />
                 </Badge>
               );
@@ -339,7 +341,7 @@ function SalonSearchContent() {
                 Open Now
                 <X
                   className="h-3 w-3 cursor-pointer"
-                  onClick={function() { setOpenNow(false); }}
+                  onClick={function () { setOpenNow(false); }}
                 />
               </Badge>
             )}
@@ -349,20 +351,20 @@ function SalonSearchContent() {
           </div>
         )}
       </div>
-      
+
       {/* Results */}
       <div className="mb-4">
         <p className="text-muted-foreground">
           {loading ? 'Searching...' : salons.length + ' salons found'}
         </p>
       </div>
-      
+
       {loading ? (
-        <div className={viewMode === 'grid' 
+        <div className={viewMode === 'grid'
           ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
           : 'space-y-4'
         }>
-          {[1, 2, 3, 4, 5, 6].map(function(i) {
+          {[1, 2, 3, 4, 5, 6].map(function (i) {
             return viewMode === 'grid' ? (
               <Card key={i}>
                 <Skeleton className="aspect-[4/3]" />
@@ -389,7 +391,7 @@ function SalonSearchContent() {
           ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
           : 'space-y-4'
         }>
-          {salons.map(function(salon) {
+          {salons.map(function (salon) {
             return viewMode === 'grid' ? (
               <SalonCardGrid key={salon.id} salon={salon} />
             ) : (
@@ -417,7 +419,7 @@ function SalonCardGrid({ salon }) {
   return (
     <Link href={'/salon/' + salon.id}>
       <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group h-full">
-        <div className="aspect-[4/3] overflow-hidden bg-gray-100">
+        <div className="aspect-[4/3] overflow-hidden bg-muted">
           {salon.cover_image_url ? (
             <img
               src={salon.cover_image_url}
@@ -462,7 +464,7 @@ function SalonCardList({ salon }) {
     <Link href={'/salon/' + salon.id}>
       <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
         <div className="flex">
-          <div className="w-48 h-36 shrink-0 overflow-hidden bg-gray-100">
+          <div className="w-48 h-36 shrink-0 overflow-hidden bg-muted">
             {salon.cover_image_url ? (
               <img
                 src={salon.cover_image_url}
@@ -498,7 +500,7 @@ function SalonCardList({ salon }) {
             </div>
             {salon.services_preview && (
               <div className="mt-2 flex gap-1 flex-wrap">
-                {salon.services_preview.slice(0, 3).map(function(service, idx) {
+                {salon.services_preview.slice(0, 3).map(function (service, idx) {
                   return (
                     <Badge key={idx} variant="outline" className="text-xs">
                       {service}
@@ -520,7 +522,7 @@ export default function SalonsPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Skeleton className="h-10 w-full mb-4" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(function(i) {
+          {[1, 2, 3, 4, 5, 6].map(function (i) {
             return (
               <Card key={i}>
                 <Skeleton className="aspect-[4/3]" />

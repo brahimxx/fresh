@@ -21,54 +21,54 @@ export async function GET(request) {
       // Simple query for user salons (embed LIMIT/OFFSET; MySQL doesn't allow binding them)
       const userSql = `SELECT * FROM salons WHERE owner_id = ? ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
       const userSalons = await query(userSql, [Number(session.userId)]);
-        
-        // Get stats and cover images separately
-        for (const salon of userSalons) {
-          // Get rating and review count
-          const [stats] = await query(
-            'SELECT COALESCE(AVG(rating), 0) as avg_rating, COUNT(id) as review_count FROM reviews WHERE salon_id = ?',
-            [salon.id]
-          );
-          salon.avg_rating = stats?.avg_rating || 0;
-          salon.review_count = stats?.review_count || 0;
-          
-          // Get cover image
-          const coverPhoto = await getOne(
-            'SELECT image_url FROM salon_photos WHERE salon_id = ? AND is_cover = 1 LIMIT 1',
-            [salon.id]
-          );
-          salon.cover_image = coverPhoto?.image_url || null;
-        }
-        
-        const [{ total }] = await query(
-          'SELECT COUNT(id) as total FROM salons WHERE owner_id = ?',
-          [session.userId]
+
+      // Get stats and cover images separately
+      for (const salon of userSalons) {
+        // Get rating and review count
+        const [stats] = await query(
+          'SELECT COALESCE(AVG(rating), 0) as avg_rating, COUNT(id) as review_count FROM reviews WHERE salon_id = ?',
+          [salon.id]
         );
-        
-        return success({
-          salons: userSalons.map((salon) => ({
-            id: salon.id,
-            name: salon.name,
-            description: salon.description,
-            phone: salon.phone,
-            email: salon.email,
-            address: salon.address,
-            city: salon.city,
-            country: salon.country,
-            latitude: salon.latitude,
-            longitude: salon.longitude,
-            coverImage: salon.cover_image,
-            avgRating: parseFloat(salon.avg_rating).toFixed(1),
-            reviewCount: salon.review_count,
-            isMarketplaceEnabled: salon.is_marketplace_enabled,
-          })),
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit),
-          },
-        });
+        salon.avg_rating = stats?.avg_rating || 0;
+        salon.review_count = stats?.review_count || 0;
+
+        // Get cover image
+        const coverPhoto = await getOne(
+          'SELECT image_url FROM salon_photos WHERE salon_id = ? AND is_cover = 1 LIMIT 1',
+          [salon.id]
+        );
+        salon.cover_image = coverPhoto?.image_url || null;
+      }
+
+      const [{ total }] = await query(
+        'SELECT COUNT(id) as total FROM salons WHERE owner_id = ?',
+        [session.userId]
+      );
+
+      return success({
+        salons: userSalons.map((salon) => ({
+          id: salon.id,
+          name: salon.name,
+          description: salon.description,
+          phone: salon.phone,
+          email: salon.email,
+          address: salon.address,
+          city: salon.city,
+          country: salon.country,
+          latitude: salon.latitude,
+          longitude: salon.longitude,
+          coverImage: salon.cover_image,
+          avgRating: parseFloat(salon.avg_rating).toFixed(1),
+          reviewCount: salon.review_count,
+          isMarketplaceEnabled: salon.is_marketplace_enabled,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
     }
 
     // Public marketplace search
@@ -117,7 +117,7 @@ export async function GET(request) {
       console.error('Page:', page, 'searchParams:', searchParams.toString());
       throw err;
     }
-    
+
     // Get cover images separately
     for (const salon of salons) {
       const coverPhoto = await getOne(
@@ -208,6 +208,12 @@ export async function POST(request) {
         longitude || null,
         isMarketplaceEnabled,
       ]
+    );
+
+    // Promote user to owner if they are currently a client
+    await query(
+      "UPDATE users SET role = 'owner' WHERE id = ? AND role = 'client'",
+      [session.userId]
     );
 
     // Create default salon settings

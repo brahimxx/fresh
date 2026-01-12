@@ -5,7 +5,7 @@ import { success, error, notFound } from '@/lib/response';
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
-    
+
     // Get salon details
     const salon = await getOne(
       `SELECT 
@@ -21,11 +21,11 @@ export async function GET(request, { params }) {
        GROUP BY s.id`,
       [id]
     );
-    
+
     if (!salon) {
       return notFound('Salon not found');
     }
-    
+
     // Get business hours
     const businessHours = await query(
       `SELECT day_of_week, open_time, close_time, is_closed
@@ -34,21 +34,28 @@ export async function GET(request, { params }) {
        ORDER BY day_of_week`,
       [id]
     );
-    
+
     // Get amenities if available
     const amenities = await query(
       `SELECT name FROM salon_amenities WHERE salon_id = ?`,
       [id]
     );
-    
+
+    // Get gallery if available
+    const gallery = await query(
+      `SELECT image_url FROM salon_gallery WHERE salon_id = ? ORDER BY display_order`,
+      [id]
+    );
+
     return success({
       ...salon,
       rating: salon.rating ? parseFloat(salon.rating) : null,
       review_count: parseInt(salon.review_count) || 0,
       business_hours: businessHours,
-      amenities: amenities.map(a => a.name)
+      amenities: amenities.map(a => a.name),
+      gallery: gallery.map(g => g.image_url)
     });
-    
+
   } catch (err) {
     console.error('Get salon profile error:', err);
     return error('Failed to load salon', 500);

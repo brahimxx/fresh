@@ -1,30 +1,30 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { use } from 'react';
-import { 
-  Plus, 
-  MoreHorizontal, 
-  Pencil, 
-  Trash2, 
+import { useState } from "react";
+import { use } from "react";
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
   Calendar,
   Phone,
   Mail,
   Clock,
-  Briefcase
-} from 'lucide-react';
+  Briefcase,
+} from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,73 +34,89 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
-import { useStaff, useDeleteStaff, STAFF_COLORS, STAFF_ROLES } from '@/hooks/use-staff';
-import { StaffFormDialog } from '@/components/staff/staff-form';
-import { StaffScheduleDialog } from '@/components/staff/staff-schedule';
+import {
+  useStaff,
+  useDeleteStaff,
+  STAFF_COLORS,
+  STAFF_ROLES,
+} from "@/hooks/use-staff";
+import { StaffFormDialog } from "@/components/staff/staff-form";
+import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 
 export default function TeamPage({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
-  
+
   var [staffFormOpen, setStaffFormOpen] = useState(false);
   var [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   var [editStaff, setEditStaff] = useState(null);
   var [scheduleStaff, setScheduleStaff] = useState(null);
   var [deleteStaff, setDeleteStaff] = useState(null);
-  
+
   var { data: staff, isLoading } = useStaff(salonId);
   var deleteStaffMutation = useDeleteStaff();
-  
+
   function getInitials(name) {
-    if (!name) return '?';
-    return name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().slice(0, 2);
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .map(function (n) {
+        return n[0];
+      })
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   }
-  
+
   function getRoleLabel(role) {
-    var found = STAFF_ROLES.find(function(r) { return r.value === role; });
+    var found = STAFF_ROLES.find(function (r) {
+      return r.value === role;
+    });
     return found ? found.label : role;
   }
-  
+
   function handleAddStaff() {
     setEditStaff(null);
     setStaffFormOpen(true);
   }
-  
+
   function handleEditStaff(member) {
     setEditStaff(member);
     setStaffFormOpen(true);
   }
-  
+
   function handleEditSchedule(member) {
     setScheduleStaff(member);
     setScheduleDialogOpen(true);
   }
-  
+
   function handleDeleteConfirm() {
     if (!deleteStaff) return;
-    
+
     deleteStaffMutation.mutate(deleteStaff.id, {
-      onSuccess: function() { setDeleteStaff(null); },
+      onSuccess: function () {
+        setDeleteStaff(null);
+      },
     });
   }
-  
+
   // Group staff by role
   var staffByRole = {};
   if (Array.isArray(staff)) {
-    staff.forEach(function(member) {
-      var role = member.role || 'staff';
+    staff.forEach(function (member) {
+      var role = member.role || "staff";
       if (!staffByRole[role]) {
         staffByRole[role] = [];
       }
       staffByRole[role].push(member);
     });
   }
-  
+
   // Role order for display
-  var roleOrder = ['owner', 'manager', 'staff', 'receptionist'];
-  
+  var roleOrder = ["owner", "manager", "staff", "receptionist"];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -116,7 +132,7 @@ export default function TeamPage({ params }) {
           Add Team Member
         </Button>
       </div>
-      
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border rounded-lg p-4">
@@ -126,23 +142,29 @@ export default function TeamPage({ params }) {
         <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Managers</p>
           <p className="text-2xl font-bold">
-            {staff?.filter(function(s) { return s.role === 'manager' || s.role === 'owner'; }).length || 0}
+            {staff?.filter(function (s) {
+              return s.role === "manager" || s.role === "owner";
+            }).length || 0}
           </p>
         </div>
         <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Service Staff</p>
           <p className="text-2xl font-bold">
-            {staff?.filter(function(s) { return s.role === 'staff'; }).length || 0}
+            {staff?.filter(function (s) {
+              return s.role === "staff";
+            }).length || 0}
           </p>
         </div>
         <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Receptionists</p>
           <p className="text-2xl font-bold">
-            {staff?.filter(function(s) { return s.role === 'receptionist'; }).length || 0}
+            {staff?.filter(function (s) {
+              return s.role === "receptionist";
+            }).length || 0}
           </p>
         </div>
       </div>
-      
+
       {/* Staff List */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -152,29 +174,38 @@ export default function TeamPage({ params }) {
         </div>
       ) : staff && staff.length > 0 ? (
         <div className="space-y-6">
-          {roleOrder.map(function(role) {
+          {roleOrder.map(function (role) {
             var members = staffByRole[role];
             if (!members || members.length === 0) return null;
-            
+
             return (
               <div key={role}>
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Briefcase className="h-4 w-4" />
                   {getRoleLabel(role)}s
-                  <Badge variant="secondary" className="ml-1">{members.length}</Badge>
+                  <Badge variant="secondary" className="ml-1">
+                    {members.length}
+                  </Badge>
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {members.map(function(member) {
+                  {members.map(function (member) {
                     var colorIndex = member.id % STAFF_COLORS.length;
                     var colorClass = STAFF_COLORS[colorIndex];
                     var memberName = `${member.firstName} ${member.lastName}`;
-                    
+
                     return (
-                      <div key={member.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div
+                        key={member.id}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-12 w-12">
-                              <AvatarFallback className={colorClass.light + ' ' + colorClass.text}>
+                              <AvatarFallback
+                                className={
+                                  colorClass.light + " " + colorClass.text
+                                }
+                              >
                                 {getInitials(memberName)}
                               </AvatarFallback>
                             </Avatar>
@@ -187,23 +218,37 @@ export default function TeamPage({ params }) {
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={function() { handleEditStaff(member); }}>
+                              <DropdownMenuItem
+                                onClick={function () {
+                                  handleEditStaff(member);
+                                }}
+                              >
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Edit Profile
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={function() { handleEditSchedule(member); }}>
+                              <DropdownMenuItem
+                                onClick={function () {
+                                  handleEditSchedule(member);
+                                }}
+                              >
                                 <Calendar className="h-4 w-4 mr-2" />
                                 Edit Schedule
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={function() { setDeleteStaff(member); }}
+                                onClick={function () {
+                                  setDeleteStaff(member);
+                                }}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Remove
@@ -211,7 +256,7 @@ export default function TeamPage({ params }) {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                        
+
                         <div className="space-y-2 text-sm text-muted-foreground">
                           {member.email && (
                             <div className="flex items-center gap-2">
@@ -232,16 +277,18 @@ export default function TeamPage({ params }) {
                             </div>
                           )}
                         </div>
-                        
+
                         <div className="mt-4 pt-4 border-t flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Clock className="h-4 w-4" />
                             <span>View Schedule</span>
                           </div>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
-                            onClick={function() { handleEditSchedule(member); }}
+                            onClick={function () {
+                              handleEditSchedule(member);
+                            }}
                           >
                             Edit Hours
                           </Button>
@@ -263,7 +310,7 @@ export default function TeamPage({ params }) {
           </Button>
         </div>
       )}
-      
+
       {/* Staff Form Dialog */}
       <StaffFormDialog
         open={staffFormOpen}
@@ -271,7 +318,7 @@ export default function TeamPage({ params }) {
         staff={editStaff}
         salonId={salonId}
       />
-      
+
       {/* Schedule Dialog */}
       <StaffScheduleDialog
         open={scheduleDialogOpen}
@@ -279,19 +326,25 @@ export default function TeamPage({ params }) {
         staff={scheduleStaff}
         salonId={salonId}
       />
-      
+
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteStaff} onOpenChange={function(open) { if (!open) setDeleteStaff(null); }}>
+      <AlertDialog
+        open={!!deleteStaff}
+        onOpenChange={function (open) {
+          if (!open) setDeleteStaff(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Team Member?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove "{deleteStaff?.name}" from your team. Their future appointments will need to be reassigned.
+              This will remove "{deleteStaff?.name}" from your team. Their
+              future appointments will need to be reassigned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

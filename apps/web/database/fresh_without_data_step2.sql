@@ -1,5 +1,3 @@
-CREATE DATABASE  IF NOT EXISTS `fresh` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `fresh`;
 -- MySQL dump 10.13  Distrib 8.0.44, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: fresh
@@ -266,18 +264,9 @@ CREATE TABLE `business_hours` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_salon_day` (`salon_id`,`day_of_week`),
   CONSTRAINT `fk_business_hours_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=71 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `business_hours`
---
-
-LOCK TABLES `business_hours` WRITE;
-/*!40000 ALTER TABLE `business_hours` DISABLE KEYS */;
-INSERT INTO `business_hours` VALUES (29,163,0,'09:00:00','19:00:00',0),(30,163,1,'09:00:00','19:00:00',0),(31,163,2,'09:00:00','19:00:00',0),(32,163,3,'09:00:00','19:00:00',0),(33,163,4,'09:00:00','20:00:00',0),(34,163,5,'09:00:00','20:00:00',0),(35,163,6,NULL,NULL,1),(36,164,0,'10:00:00','20:00:00',0),(37,164,1,'10:00:00','20:00:00',0),(38,164,2,'10:00:00','20:00:00',0),(39,164,3,'10:00:00','20:00:00',0),(40,164,4,'10:00:00','21:00:00',0),(41,164,5,'10:00:00','21:00:00',0),(42,164,6,'11:00:00','18:00:00',0),(43,165,0,NULL,NULL,1),(44,165,1,NULL,NULL,1),(45,165,2,'10:00:00','19:00:00',0),(46,165,3,'10:00:00','19:00:00',0),(47,165,4,'10:00:00','20:00:00',0),(48,165,5,'10:00:00','20:00:00',0),(49,165,6,'09:00:00','18:00:00',0),(50,166,0,'09:00:00','18:00:00',0),(51,166,1,'09:00:00','18:00:00',0),(52,166,2,'09:00:00','18:00:00',0),(53,166,3,'09:00:00','18:00:00',0),(54,166,4,'09:00:00','19:00:00',0),(55,166,5,'09:00:00','19:00:00',0),(56,166,6,NULL,NULL,1),(57,167,0,'10:00:00','20:00:00',0),(58,167,1,'10:00:00','20:00:00',0),(59,167,2,'10:00:00','20:00:00',0),(60,167,3,'10:00:00','20:00:00',0),(61,167,4,'10:00:00','21:00:00',0),(62,167,5,'10:00:00','21:00:00',0),(63,167,6,'11:00:00','19:00:00',0),(64,168,0,'09:00:00','19:00:00',0),(65,168,1,'09:00:00','19:00:00',0),(66,168,2,'09:00:00','19:00:00',0),(67,168,3,'09:00:00','19:00:00',0),(68,168,4,'09:00:00','20:00:00',0),(69,168,5,'09:00:00','20:00:00',0),(70,168,6,'10:00:00','17:00:00',0);
-/*!40000 ALTER TABLE `business_hours` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `campaigns`
@@ -702,14 +691,6 @@ CREATE TABLE `platform_settings` (
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `platform_settings`
---
-
-LOCK TABLES `platform_settings` WRITE;
-/*!40000 ALTER TABLE `platform_settings` DISABLE KEYS */;
-/*!40000 ALTER TABLE `platform_settings` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `product_categories`
@@ -908,7 +889,7 @@ CREATE TABLE `reviews` (
   KEY `idx_reviews_staff` (`staff_id`),
   CONSTRAINT `fk_reviews_client` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_reviews_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -917,7 +898,6 @@ CREATE TABLE `reviews` (
 
 LOCK TABLES `reviews` WRITE;
 /*!40000 ALTER TABLE `reviews` DISABLE KEYS */;
-INSERT INTO `reviews` VALUES (1,163,179,5,'Amazing experience! The stylist really listened to what I wanted and delivered perfectly.','2026-01-07 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(2,163,179,5,'Best haircut I\'ve had in Paris. The balayage looks incredible!','2025-12-31 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(3,163,179,4,'Great service and beautiful salon. Slightly pricey but worth it.','2025-12-23 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(4,163,179,5,'I\'ve been coming here for years. Consistently excellent!','2025-12-13 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(5,164,179,5,'The spa pedicure was heavenly! So relaxing and my feet look amazing.','2026-01-09 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(6,164,179,5,'Best nail salon in the area. Clean, professional, and beautiful results.','2026-01-04 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(7,164,179,4,'Love my gel manicure! Lasted over 3 weeks without chipping.','2025-12-28 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(8,165,179,5,'Perfect fade every time. These guys know what they\'re doing!','2026-01-10 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(9,165,179,5,'The hot towel shave is a must-try. Old school barbering at its finest.','2026-01-02 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(10,165,179,5,'Great atmosphere and even better cuts. My go-to barber shop.','2025-12-25 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(11,166,179,5,'The facial was incredible! My skin has never looked better.','2026-01-08 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(12,166,179,4,'Professional service and great results. Will definitely return.','2025-12-29 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(13,167,179,5,'The massage was exactly what I needed. So relaxing!','2026-01-06 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(14,167,179,5,'Beautiful spa with amazing therapists. A true escape from the city.','2025-12-27 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(15,168,179,5,'Trendy salon with talented stylists. Love my new look!','2026-01-05 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(16,168,179,4,'Great cut and color. The atmosphere is very cool and modern.','2025-12-21 17:25:54','approved',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `reviews` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -935,18 +915,9 @@ CREATE TABLE `salon_amenities` (
   PRIMARY KEY (`id`),
   KEY `idx_amenities_salon` (`salon_id`),
   CONSTRAINT `fk_amenities_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `salon_amenities`
---
-
-LOCK TABLES `salon_amenities` WRITE;
-/*!40000 ALTER TABLE `salon_amenities` DISABLE KEYS */;
-INSERT INTO `salon_amenities` VALUES (17,163,'WiFi'),(18,163,'Coffee & Tea'),(19,163,'Parking'),(20,164,'WiFi'),(21,164,'Refreshments'),(22,164,'Wheelchair Accessible'),(23,165,'WiFi'),(24,165,'Complimentary Drinks'),(25,165,'Street Parking'),(26,166,'WiFi'),(27,166,'Refreshments'),(28,166,'Air Conditioning'),(29,167,'WiFi'),(30,167,'Herbal Tea'),(31,167,'Relaxation Room'),(32,167,'Parking'),(33,168,'WiFi'),(34,168,'Coffee Bar'),(35,168,'Music');
-/*!40000 ALTER TABLE `salon_amenities` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `salon_clients`
@@ -970,14 +941,6 @@ CREATE TABLE `salon_clients` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `salon_clients`
---
-
-LOCK TABLES `salon_clients` WRITE;
-/*!40000 ALTER TABLE `salon_clients` DISABLE KEYS */;
-/*!40000 ALTER TABLE `salon_clients` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `salon_gallery`
@@ -994,18 +957,10 @@ CREATE TABLE `salon_gallery` (
   PRIMARY KEY (`id`),
   KEY `salon_id` (`salon_id`),
   CONSTRAINT `salon_gallery_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `salon_gallery`
---
 
-LOCK TABLES `salon_gallery` WRITE;
-/*!40000 ALTER TABLE `salon_gallery` DISABLE KEYS */;
-INSERT INTO `salon_gallery` VALUES (7,163,'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800',1),(8,163,'https://images.unsplash.com/photo-1562322140-8baeececf3df?w=800',2),(9,163,'https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?w=800',3),(10,164,'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800',1),(11,164,'https://images.unsplash.com/photo-1610992015732-2449b76344bc?w=800',2),(12,165,'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800',1),(13,165,'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800',2),(14,166,'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=800',1),(15,166,'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=800',2),(16,167,'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800',1),(17,167,'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800',2),(18,168,'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?w=800',1),(19,168,'https://images.unsplash.com/photo-1562322140-8baeececf3df?w=800',2);
-/*!40000 ALTER TABLE `salon_gallery` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `salon_photos`
@@ -1022,7 +977,7 @@ CREATE TABLE `salon_photos` (
   PRIMARY KEY (`id`),
   KEY `idx_salon_photos_salon_id` (`salon_id`),
   CONSTRAINT `fk_salon_photos_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1031,7 +986,6 @@ CREATE TABLE `salon_photos` (
 
 LOCK TABLES `salon_photos` WRITE;
 /*!40000 ALTER TABLE `salon_photos` DISABLE KEYS */;
-INSERT INTO `salon_photos` VALUES (1,163,'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200',1),(2,164,'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=1200',1),(3,165,'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1200',1),(4,166,'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200',1),(5,167,'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=1200',1),(6,168,'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?w=1200',1);
 /*!40000 ALTER TABLE `salon_photos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1061,15 +1015,7 @@ CREATE TABLE `salon_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `salon_settings`
---
 
-LOCK TABLES `salon_settings` WRITE;
-/*!40000 ALTER TABLE `salon_settings` DISABLE KEYS */;
-INSERT INTO `salon_settings` VALUES (163,24,0.00,0,0,'09:00:00','19:00:00',1,1,90,0,1,24),(164,24,0.00,0,0,'09:00:00','19:00:00',1,1,90,0,1,24),(165,48,25.00,0,0,'09:00:00','19:00:00',1,1,90,0,1,24),(166,24,0.00,0,0,'09:00:00','19:00:00',1,1,90,0,1,24),(167,48,0.00,1,20,'09:00:00','19:00:00',1,1,90,0,1,24),(168,24,0.00,0,0,'09:00:00','19:00:00',1,1,90,0,1,24);
-/*!40000 ALTER TABLE `salon_settings` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `salons`
@@ -1111,18 +1057,9 @@ CREATE TABLE `salons` (
   KEY `idx_salons_category` (`category`),
   KEY `idx_salons_city` (`city`),
   CONSTRAINT `fk_salons_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=163 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `salons`
---
-
-LOCK TABLES `salons` WRITE;
-/*!40000 ALTER TABLE `salons` DISABLE KEYS */;
-INSERT INTO `salons` VALUES (163,179,'Luxe Hair Studio','Premium hair salon specializing in modern cuts, coloring, and styling. Our expert stylists stay current with the latest trends and techniques.','+33 1 42 86 82 00','contact@luxehairstudio.fr','15 Rue de Rivoli','Paris','France',48.8566000,2.3522000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active'),(164,180,'Bella Nails & Spa','Full-service nail salon and spa offering manicures, pedicures, and relaxing treatments in a luxurious environment.','+33 1 45 48 55 26','info@bellanails.fr','28 Avenue des Champs-Élysées','Paris','France',48.8698000,2.3078000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active'),(165,181,'The Barber Shop','Traditional barbershop with a modern twist. Expert cuts, hot towel shaves, and grooming services for the modern gentleman.','+33 1 42 77 76 17','hello@thebarbershop.fr','45 Rue du Faubourg Saint-Antoine','Paris','France',48.8534000,2.3735000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active'),(166,182,'Glow Beauty Bar','Your destination for facials, waxing, lash extensions, and makeup services. We help you look and feel your best.','+33 1 43 26 48 23','contact@glowbeauty.fr','12 Boulevard Saint-Germain','Paris','France',48.8529000,2.3499000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active'),(167,183,'Serenity Spa','Escape to tranquility with our massage therapy, body treatments, and wellness services. Your urban oasis awaits.','+33 1 42 60 34 86','info@serenityspa.fr','8 Rue de la Paix','Paris','France',48.8692000,2.3311000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active'),(168,184,'Studio 54 Salon','Trendy salon offering cutting-edge hair services, balayage, and hair treatments. Walk-ins welcome!','+33 1 48 87 63 42','booking@studio54salon.fr','54 Rue de Charonne','Paris','France',48.8533000,2.3816000,1,'2026-01-12 17:25:53',1,'Europe/Paris','EUR',NULL,NULL,NULL,2,'Hair Salon',NULL,NULL,'active');
-/*!40000 ALTER TABLE `salons` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `service_categories`
@@ -1140,18 +1077,9 @@ CREATE TABLE `service_categories` (
   UNIQUE KEY `uq_service_categories` (`salon_id`,`name`),
   KEY `idx_service_categories_salon_id` (`salon_id`),
   CONSTRAINT `fk_service_categories_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `service_categories`
---
-
-LOCK TABLES `service_categories` WRITE;
-/*!40000 ALTER TABLE `service_categories` DISABLE KEYS */;
-INSERT INTO `service_categories` VALUES (21,163,'Hair Cuts',1),(22,163,'Hair Color',2),(23,163,'Hair Treatments',3),(24,164,'Manicures',1),(25,164,'Pedicures',2),(26,164,'Spa Services',3),(27,165,'Haircuts',1),(28,165,'Shaving',2),(29,165,'Grooming',3),(30,166,'Facials',1),(31,166,'Waxing',2),(32,166,'Lashes & Brows',3),(33,167,'Massage',1),(34,167,'Body Treatments',2),(35,167,'Wellness',3),(36,168,'Cuts & Styling',1),(37,168,'Color Services',2),(38,168,'Treatments',3);
-/*!40000 ALTER TABLE `service_categories` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `service_staff`
@@ -1170,14 +1098,7 @@ CREATE TABLE `service_staff` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `service_staff`
---
 
-LOCK TABLES `service_staff` WRITE;
-/*!40000 ALTER TABLE `service_staff` DISABLE KEYS */;
-/*!40000 ALTER TABLE `service_staff` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `services`
@@ -1205,18 +1126,10 @@ CREATE TABLE `services` (
   KEY `idx_services_salon_active` (`salon_id`,`is_active`),
   CONSTRAINT `fk_services_category` FOREIGN KEY (`category_id`) REFERENCES `service_categories` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_services_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `services`
---
 
-LOCK TABLES `services` WRITE;
-/*!40000 ALTER TABLE `services` DISABLE KEYS */;
-INSERT INTO `services` VALUES (32,163,21,'Women\'s Haircut',60,75.00,1,NULL,0,0,NULL,1),(33,163,21,'Men\'s Haircut',45,55.00,1,NULL,0,0,NULL,1),(34,163,21,'Bang Trim',15,20.00,1,NULL,0,0,NULL,0),(35,163,22,'Full Color',120,150.00,1,NULL,0,0,NULL,1),(36,163,22,'Balayage',180,250.00,1,NULL,0,0,NULL,1),(37,163,22,'Root Touch-Up',90,95.00,1,NULL,0,0,NULL,0),(38,163,23,'Deep Conditioning',30,45.00,1,NULL,0,0,NULL,0),(39,163,23,'Keratin Treatment',150,300.00,1,NULL,0,0,NULL,1),(40,164,24,'Classic Manicure',45,35.00,1,NULL,0,0,NULL,1),(41,164,24,'Gel Manicure',60,55.00,1,NULL,0,0,NULL,1),(42,164,24,'Acrylic Full Set',90,75.00,1,NULL,0,0,NULL,1),(43,164,25,'Classic Pedicure',60,45.00,1,NULL,0,0,NULL,1),(44,164,25,'Spa Pedicure',75,65.00,1,NULL,0,0,NULL,1),(45,164,25,'Deluxe Pedicure',90,85.00,1,NULL,0,0,NULL,0),(46,164,26,'Paraffin Treatment',30,25.00,1,NULL,0,0,NULL,0),(47,164,26,'Hand & Foot Massage',30,40.00,1,NULL,0,0,NULL,0),(48,165,27,'Classic Cut',45,45.00,1,NULL,0,0,NULL,1),(49,165,27,'Fade Haircut',60,55.00,1,NULL,0,0,NULL,1),(50,165,27,'Buzz Cut',30,35.00,1,NULL,0,0,NULL,0),(51,165,28,'Hot Towel Shave',45,50.00,1,NULL,0,0,NULL,1),(52,165,28,'Beard Trim',30,30.00,1,NULL,0,0,NULL,1),(53,165,29,'Beard Shaping',45,40.00,1,NULL,0,0,NULL,0),(54,165,29,'Hair & Beard Combo',75,75.00,1,NULL,0,0,NULL,1);
-/*!40000 ALTER TABLE `services` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `staff`
@@ -1247,14 +1160,7 @@ CREATE TABLE `staff` (
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `staff`
---
 
-LOCK TABLES `staff` WRITE;
-/*!40000 ALTER TABLE `staff` DISABLE KEYS */;
-/*!40000 ALTER TABLE `staff` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `staff_commissions`
@@ -1365,7 +1271,6 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `first_name` varchar(100) DEFAULT NULL,
   `last_name` varchar(100) DEFAULT NULL,
-  `country` varchar(100) DEFAULT NULL,
   `role` enum('client','owner','staff','admin') NOT NULL DEFAULT 'client',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1376,18 +1281,10 @@ CREATE TABLE `users` (
   `last_login_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=188 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=179 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `users`
---
 
-LOCK TABLES `users` WRITE;
-/*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (179,'owner@fresh.com','+1234567890',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','John','Smith',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(180,'owner2@fresh.com','+1234567891',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Sarah','Connor',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(181,'owner3@fresh.com','+1234567892',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','James','Bond',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(182,'owner4@fresh.com','+1234567893',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Ellen','Ripley',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(183,'owner5@fresh.com','+1234567894',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Tony','Stark',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(184,'owner6@fresh.com','+1234567895',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Bruce','Wayne',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(185,'client@fresh.com','+1234567896',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Waynee','Waynee',NULL,'client','2026-01-12 17:25:53','2026-01-12 23:35:52',0,NULL,NULL,NULL,NULL),(186,'testpro_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$KPN1h3cBzDAXG2OoHC.0/.8rtTpTVFGWCqlXV5LBmaxz69JwRwBra','Test','Pro','DZ','owner','2026-01-13 00:07:24','2026-01-13 00:07:24',0,NULL,NULL,NULL,NULL),(187,'testclient_no_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$ARXrdSCbqoGNipokHOPaJ.ujBkwMkF1Sjz4VWIeNabnljFnsQM7mO','Test','Client','','client','2026-01-13 00:09:11','2026-01-13 00:09:11',0,NULL,NULL,NULL,NULL);
-/*!40000 ALTER TABLE `users` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `waitlist`
@@ -1457,15 +1354,7 @@ CREATE TABLE `widget_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `widget_settings`
---
 
-LOCK TABLES `widget_settings` WRITE;
-/*!40000 ALTER TABLE `widget_settings` DISABLE KEYS */;
-INSERT INTO `widget_settings` VALUES (163,1,'#8B5CF6','#EC4899','Book Now',1,1,1,1,1,1,NULL,NULL),(164,1,'#EC4899','#8B5CF6','Book Now',1,1,1,1,1,1,NULL,NULL),(165,1,'#3B82F6','#1E40AF','Book Now',1,1,1,1,1,1,NULL,NULL),(166,1,'#F59E0B','#EF4444','Book Now',1,1,1,1,1,1,NULL,NULL),(167,1,'#10B981','#059669','Book Now',1,1,1,1,1,1,NULL,NULL),(168,1,'#8B5CF6','#6366F1','Book Now',1,1,1,1,1,1,NULL,NULL);
-/*!40000 ALTER TABLE `widget_settings` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Dumping events for database 'fresh'
@@ -1484,4 +1373,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-13  0:11:17
+-- Dump completed on 2026-01-12 16:14:41

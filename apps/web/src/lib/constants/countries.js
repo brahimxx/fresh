@@ -1,0 +1,17 @@
+export const COUNTRIES = [
+    { label: "United States", value: "US" },
+    { label: "United Kingdom", value: "GB" },
+    { label: "Canada", value: "CA" },
+    { label: "Australia", value: "AU" },
+    { label: "France", value: "FR" },
+    { label: "Germany", value: "DE" },
+    { label: "Spain", value: "ES" },
+    { label: "Italy", value: "IT" },
+    { label: "Algeria", value: "DZ" },
+    { label: "Morocco", value: "MA" },
+    { label: "Tunisia", value: "TN" },
+    { label: "United Arab Emirates", value: "AE" },
+    { label: "Saudi Arabia", value: "SA" },
+    { label: "Egypt", value: "EG" },
+    { label: "Turkey", value: "TR" },
+].sort((a, b) => a.label.localeCompare(b.label));

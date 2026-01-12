@@ -43,13 +43,19 @@ export function BookingConfirmation({
     return hour + ":" + min + " " + ampm;
   }
 
-  var totalPrice = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    return sum + parseFloat(s.price);
-  }, 0) : 0;
+  var totalPrice =
+    selectedServices && Array.isArray(selectedServices)
+      ? selectedServices.reduce(function (sum, s) {
+        return sum + parseFloat(s.price);
+      }, 0)
+      : 0;
 
-  var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    return sum + (s.duration || 30);
-  }, 0) : 0;
+  var totalDuration =
+    selectedServices && Array.isArray(selectedServices)
+      ? selectedServices.reduce(function (sum, s) {
+        return sum + (s.duration || 30);
+      }, 0)
+      : 0;
 
   function addToCalendar(type) {
     var title = encodeURIComponent("Appointment at " + salon.name);
@@ -61,12 +67,12 @@ export function BookingConfirmation({
 
     var details = encodeURIComponent(
       "Services: " +
-        selectedServices
-          .map(function (s) {
-            return s.name;
-          })
-          .join(", ") +
-        (selectedStaff ? "\nStaff: " + selectedStaff.name : "")
+      selectedServices
+        .map(function (s) {
+          return s.name;
+        })
+        .join(", ") +
+      (selectedStaff ? "\nStaff: " + selectedStaff.name : "")
     );
 
     var location = encodeURIComponent(salon.address || "");
@@ -97,8 +103,8 @@ export function BookingConfirmation({
   return (
     <Card className="text-center">
       <CardHeader className="pb-4">
-        <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-          <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="mx-auto w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mb-4">
+          <CheckCircle className="h-8 w-8 text-green-500" />
         </div>
         <CardTitle className="text-2xl">Booking Confirmed!</CardTitle>
         <p className="text-muted-foreground">
@@ -108,7 +114,7 @@ export function BookingConfirmation({
       <CardContent className="space-y-6">
         {/* Booking Reference */}
         {booking?.reference && (
-          <div className="bg-gray-50 rounded-lg p-4">
+          <div className="bg-muted rounded-lg p-4 text-center">
             <p className="text-sm text-muted-foreground">Booking Reference</p>
             <p className="text-2xl font-mono font-bold">{booking.reference}</p>
           </div>
@@ -180,24 +186,26 @@ export function BookingConfirmation({
         <div className="text-left">
           <h3 className="font-semibold mb-3">Services</h3>
           <div className="space-y-2">
-            {selectedServices && Array.isArray(selectedServices) && selectedServices.map(function (service) {
-              return (
-                <div
-                  key={service.id}
-                  className="flex justify-between items-center"
-                >
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {service.duration} min
+            {selectedServices &&
+              Array.isArray(selectedServices) &&
+              selectedServices.map(function (service) {
+                return (
+                  <div
+                    key={service.id}
+                    className="flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {service.duration} min
+                      </p>
+                    </div>
+                    <p className="font-medium">
+                      ${parseFloat(service.price).toFixed(2)}
                     </p>
                   </div>
-                  <p className="font-medium">
-                    ${parseFloat(service.price).toFixed(2)}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between items-center font-semibold">
@@ -232,11 +240,11 @@ export function BookingConfirmation({
         </div>
 
         {/* Cancellation Policy */}
-        <div className="bg-yellow-50 rounded-lg p-4 text-left">
-          <h4 className="font-medium text-yellow-900 text-sm">
+        <div className="bg-yellow-500/10 rounded-lg p-4 text-left border border-yellow-500/20">
+          <h4 className="font-medium text-yellow-500 text-sm">
             Cancellation Policy
           </h4>
-          <p className="text-sm text-yellow-800 mt-1">
+          <p className="text-sm text-yellow-200/80 mt-1">
             Free cancellation up to 24 hours before your appointment. Late
             cancellations may be subject to a fee.
           </p>

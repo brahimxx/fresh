@@ -13,6 +13,7 @@ export async function POST(request) {
     const password = body.password;
     const firstName = body.firstName ?? body.first_name;
     const lastName = body.lastName ?? body.last_name;
+    const country = body.country ?? null;
     const role = body.role ?? 'client';
 
     // Validation
@@ -52,9 +53,9 @@ export async function POST(request) {
     // Hash password and create user
     const passwordHash = await hashPassword(password);
     const result = await query(
-      `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [email, phone || null, passwordHash, firstName, lastName, role]
+      `INSERT INTO users (email, phone, country, password_hash, first_name, last_name, role, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [email, phone || null, country, passwordHash, firstName, lastName, role]
     );
 
     // Create token
@@ -80,6 +81,7 @@ export async function POST(request) {
         firstName,
         lastName,
         role,
+        country,
       },
       token,
     });

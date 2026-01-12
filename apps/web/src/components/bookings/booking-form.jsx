@@ -61,7 +61,12 @@ var bookingSchema = z.object({
   notes: z.string().optional(),
 });
 
-export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: propSalonId }) {
+export function BookingFormDialog({
+  open,
+  onOpenChange,
+  initialDate,
+  salonId: propSalonId,
+}) {
   var { salonId: contextSalonId } = useSalon();
   var salonId = propSalonId || contextSalonId;
   var [clientSearch, setClientSearch] = useState("");
@@ -74,17 +79,17 @@ export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: pr
   // Debug logging
   useEffect(() => {
     if (services) {
-      console.log('BookingForm: Loaded services:', services);
+      console.log("BookingForm: Loaded services:", services);
       if (Array.isArray(services) && services.length === 0) {
-        console.warn('No services loaded');
+        console.warn("No services loaded");
       }
     }
   }, [services]);
   useEffect(() => {
     if (staff) {
-      console.log('BookingForm: Loaded staff:', staff);
+      console.log("BookingForm: Loaded staff:", staff);
       if (Array.isArray(staff) && staff.length === 0) {
-        console.warn('No staff loaded');
+        console.warn("No staff loaded");
       }
     }
   }, [staff]);
@@ -113,27 +118,36 @@ export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: pr
   var watchServiceId = form.watch("serviceId");
 
   // Filter staff by selected service
-  var filteredStaff = Array.isArray(staff) && watchServiceId
-    ? staff.filter(function(member) {
-        // Debug: log staff member and their services
-        console.log('Staff member:', member);
-        if (Array.isArray(member.service_ids)) {
-          return member.service_ids.includes(watchServiceId);
-        }
-        if (Array.isArray(member.services)) {
-          return member.services.some(function(s) { return s.id === watchServiceId; });
-        }
-        // If neither, log warning
-        console.warn('Staff member missing service_ids/services:', member);
-        return true; // fallback: show all if no info
-      })
-    : Array.isArray(staff) ? staff : [];
+  var filteredStaff =
+    Array.isArray(staff) && watchServiceId
+      ? staff.filter(function (member) {
+          // Debug: log staff member and their services
+          console.log("Staff member:", member);
+          if (Array.isArray(member.service_ids)) {
+            return member.service_ids.includes(watchServiceId);
+          }
+          if (Array.isArray(member.services)) {
+            return member.services.some(function (s) {
+              return s.id === watchServiceId;
+            });
+          }
+          // If neither, log warning
+          console.warn("Staff member missing service_ids/services:", member);
+          return true; // fallback: show all if no info
+        })
+      : Array.isArray(staff)
+      ? staff
+      : [];
 
   // If no staff after filtering, show all with a note
-  var showAllStaff = filteredStaff.length === 0 && watchServiceId && Array.isArray(staff) && staff.length > 0;
+  var showAllStaff =
+    filteredStaff.length === 0 &&
+    watchServiceId &&
+    Array.isArray(staff) &&
+    staff.length > 0;
   if (showAllStaff) {
     filteredStaff = staff;
-    console.warn('No staff found for service, showing all staff');
+    console.warn("No staff found for service, showing all staff");
   }
 
   var { data: availability } = useAvailability(salonId, {
@@ -350,37 +364,48 @@ export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: pr
             {servicesLoading ? (
               <Skeleton className="h-10 w-full" />
             ) : (
-                <Select
-                  value={form.watch("serviceId")}
-                  onValueChange={function (val) {
-                    form.setValue("serviceId", val);
-                    console.log('Service selected:', val);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={services && services.length === 0 ? "No services available" : "Select a service"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-48">
-                      {services && services.length > 0 ? (
-                        services.map(function (service) {
-                          return (
-                            <SelectItem key={service.id} value={String(service.id)}>
-                              <div className="flex justify-between items-center w-full">
-                                <span>{service.name}</span>
-                                <span className="text-muted-foreground text-sm ml-2">
-                                  {service.duration}min - {service.price} EUR
-                                </span>
-                              </div>
-                            </SelectItem>
-                          );
-                        })
-                      ) : (
-                        <div className="p-2 text-muted-foreground text-sm">No services available</div>
-                      )}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
+              <Select
+                value={form.watch("serviceId")}
+                onValueChange={function (val) {
+                  form.setValue("serviceId", val);
+                  console.log("Service selected:", val);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      services && services.length === 0
+                        ? "No services available"
+                        : "Select a service"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-48">
+                    {services && services.length > 0 ? (
+                      services.map(function (service) {
+                        return (
+                          <SelectItem
+                            key={service.id}
+                            value={String(service.id)}
+                          >
+                            <div className="flex justify-between items-center w-full">
+                              <span>{service.name}</span>
+                              <span className="text-muted-foreground text-sm ml-2">
+                                {service.duration}min - {service.price} EUR
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })
+                    ) : (
+                      <div className="p-2 text-muted-foreground text-sm">
+                        No services available
+                      </div>
+                    )}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
             )}
             {form.formState.errors.serviceId && (
               <p className="text-sm text-destructive">
@@ -402,7 +427,15 @@ export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: pr
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={filteredStaff.length === 0 ? "No staff available" : showAllStaff ? "Select staff member (showing all)" : "Select staff member"} />
+                  <SelectValue
+                    placeholder={
+                      filteredStaff.length === 0
+                        ? "No staff available"
+                        : showAllStaff
+                        ? "Select staff member (showing all)"
+                        : "Select staff member"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {Array.isArray(filteredStaff) && filteredStaff.length > 0 ? (
@@ -414,7 +447,9 @@ export function BookingFormDialog({ open, onOpenChange, initialDate, salonId: pr
                       );
                     })
                   ) : (
-                    <div className="p-2 text-muted-foreground text-sm">No staff available for this service</div>
+                    <div className="p-2 text-muted-foreground text-sm">
+                      No staff available for this service
+                    </div>
                   )}
                 </SelectContent>
               </Select>

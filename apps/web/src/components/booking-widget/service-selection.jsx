@@ -1,76 +1,90 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Search, Check, Clock } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Search, Check, Clock } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function ServiceSelection({ salonId, selected, onSelect }) {
   var [services, setServices] = useState([]);
   var [categories, setCategories] = useState([]);
   var [loading, setLoading] = useState(true);
-  var [search, setSearch] = useState('');
+  var [search, setSearch] = useState("");
   var [activeCategory, setActiveCategory] = useState(null);
-  
-  useEffect(function() {
-    async function loadServices() {
-      try {
-        var res = await fetch('/api/widget/' + salonId + '/services');
-        if (res.ok) {
-          var data = await res.json();
-          console.log('Loaded services:', data.data.services);
-          setServices(data.data.services || []);
-          setCategories(data.data.categories || []);
-        } else {
-          console.error('Service API error:', res.status, await res.text());
+
+  useEffect(
+    function () {
+      async function loadServices() {
+        try {
+          var res = await fetch("/api/widget/" + salonId + "/services");
+          if (res.ok) {
+            var data = await res.json();
+            console.log("Loaded services:", data.data.services);
+            setServices(data.data.services || []);
+            setCategories(data.data.categories || []);
+          } else {
+            console.error("Service API error:", res.status, await res.text());
+          }
+        } catch (error) {
+          console.error("Failed to load services:", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Failed to load services:', error);
-      } finally {
-        setLoading(false);
       }
-    }
-    loadServices();
-  }, [salonId]);
-  
+      loadServices();
+    },
+    [salonId]
+  );
+
   function toggleService(service) {
-    var isSelected = selected.some(function(s) { return s.id === service.id; });
+    var isSelected = selected.some(function (s) {
+      return s.id === service.id;
+    });
     let newSelected;
     if (isSelected) {
-      newSelected = selected.filter(function(s) { return s.id !== service.id; });
+      newSelected = selected.filter(function (s) {
+        return s.id !== service.id;
+      });
     } else {
       newSelected = [...selected, service];
     }
-    console.log('Service selection changed:', newSelected);
+    console.log("Service selection changed:", newSelected);
     onSelect(newSelected);
   }
-  
+
   function isSelected(serviceId) {
-    return selected.some(function(s) { return s.id === serviceId; });
+    return selected.some(function (s) {
+      return s.id === serviceId;
+    });
   }
-  
+
   // Filter services
-  var filteredServices = (services && Array.isArray(services)) ? services.filter(function(service) {
-    var matchesSearch = !search || 
-      service.name.toLowerCase().includes(search.toLowerCase()) ||
-      service.description?.toLowerCase().includes(search.toLowerCase());
-    var matchesCategory = !activeCategory || service.category_id === activeCategory;
-    return matchesSearch && matchesCategory;
-  }) : [];
-  
+  var filteredServices =
+    services && Array.isArray(services)
+      ? services.filter(function (service) {
+        var matchesSearch =
+          !search ||
+          service.name.toLowerCase().includes(search.toLowerCase()) ||
+          service.description?.toLowerCase().includes(search.toLowerCase());
+        var matchesCategory =
+          !activeCategory || service.category_id === activeCategory;
+        return matchesSearch && matchesCategory;
+      })
+      : [];
+
   // Group by category
   var groupedServices = {};
-  filteredServices.forEach(function(service) {
-    var catId = service.category_id || 'uncategorized';
+  filteredServices.forEach(function (service) {
+    var catId = service.category_id || "uncategorized";
     if (!groupedServices[catId]) {
       groupedServices[catId] = [];
     }
     groupedServices[catId].push(service);
   });
-  
+
   if (loading) {
     return (
       <Card>
@@ -78,14 +92,14 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
           <Skeleton className="h-6 w-32" />
         </CardHeader>
         <CardContent className="space-y-3">
-          {[1, 2, 3, 4].map(function(i) {
+          {[1, 2, 3, 4].map(function (i) {
             return <Skeleton key={i} className="h-20 w-full" />;
           })}
         </CardContent>
       </Card>
     );
   }
-  
+
   return (
     <Card>
       <CardHeader>
@@ -101,28 +115,34 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
           <Input
             placeholder="Search services..."
             value={search}
-            onChange={function(e) { setSearch(e.target.value); }}
+            onChange={function (e) {
+              setSearch(e.target.value);
+            }}
             className="pl-10"
           />
         </div>
-        
+
         {/* Category Tabs */}
         {categories.length > 0 && (
           <div className="flex gap-2 flex-wrap">
             <Badge
-              variant={activeCategory === null ? 'default' : 'outline'}
+              variant={activeCategory === null ? "default" : "outline"}
               className="cursor-pointer"
-              onClick={function() { setActiveCategory(null); }}
+              onClick={function () {
+                setActiveCategory(null);
+              }}
             >
               All
             </Badge>
-            {categories.map(function(cat) {
+            {categories.map(function (cat) {
               return (
                 <Badge
                   key={cat.id}
-                  variant={activeCategory === cat.id ? 'default' : 'outline'}
+                  variant={activeCategory === cat.id ? "default" : "outline"}
                   className="cursor-pointer"
-                  onClick={function() { setActiveCategory(cat.id); }}
+                  onClick={function () {
+                    setActiveCategory(cat.id);
+                  }}
                 >
                   {cat.name}
                 </Badge>
@@ -130,11 +150,13 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
             })}
           </div>
         )}
-        
+
         {/* Service List */}
         <div className="space-y-2">
-          {Object.entries(groupedServices).map(function([catId, catServices]) {
-            var category = categories.find(function(c) { return c.id === parseInt(catId); });
+          {Object.entries(groupedServices).map(function ([catId, catServices]) {
+            var category = categories.find(function (c) {
+              return c.id === parseInt(catId);
+            });
             return (
               <div key={catId}>
                 {category && !activeCategory && (
@@ -143,17 +165,19 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                   </h3>
                 )}
                 <div className="space-y-2">
-                  {catServices.map(function(service) {
+                  {catServices.map(function (service) {
                     var selected = isSelected(service.id);
                     return (
                       <div
                         key={service.id}
-                        onClick={function() { toggleService(service); }}
+                        onClick={function () {
+                          toggleService(service);
+                        }}
                         className={
-                          'p-4 rounded-lg border cursor-pointer transition-all ' +
-                          (selected 
-                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20' 
-                            : 'border-gray-200 hover:border-gray-300')
+                          "p-4 rounded-lg border cursor-pointer transition-all " +
+                          (selected
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                            : "border-border hover:border-primary/20 hover:bg-muted/30")
                         }
                       >
                         <div className="flex items-start justify-between">
@@ -191,7 +215,7 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
               </div>
             );
           })}
-          
+
           {filteredServices.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No services found
