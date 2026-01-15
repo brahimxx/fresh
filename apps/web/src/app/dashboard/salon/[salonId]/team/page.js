@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { use } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   MoreHorizontal,
@@ -12,6 +13,7 @@ import {
   Mail,
   Clock,
   Briefcase,
+  Eye,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,7 @@ import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 export default function TeamPage({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
+  var router = useRouter();
 
   var [staffFormOpen, setStaffFormOpen] = useState(false);
   var [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
@@ -229,11 +232,19 @@ export default function TeamPage({ params }) {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={function () {
+                                  router.push("/dashboard/salon/" + salonId + "/team/" + member.id);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={function () {
                                   handleEditStaff(member);
                                 }}
                               >
                                 <Pencil className="h-4 w-4 mr-2" />
-                                Edit Profile
+                                Quick Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={function () {

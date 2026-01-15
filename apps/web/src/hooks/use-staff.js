@@ -8,6 +8,8 @@ export var staffKeys = {
   list: function(salonId) { return [...staffKeys.lists(), salonId]; },
   detail: function(id) { return [...staffKeys.all, 'detail', id]; },
   schedule: function(id) { return [...staffKeys.all, 'schedule', id]; },
+  services: function(id) { return [...staffKeys.all, 'services', id]; },
+  commissions: function(id) { return [...staffKeys.all, 'commissions', id]; },
   availability: function(salonId, date, serviceId) { return [...staffKeys.all, 'availability', salonId, date, serviceId]; },
 };
 
@@ -136,6 +138,28 @@ export function useUpdateStaffServices() {
     onError: function(error) {
       toast.error(error.message || 'Failed to update services');
     },
+  });
+}
+
+export function useStaffServices(staffId, options) {
+  if (!options) options = {};
+  return useQuery({
+    queryKey: staffKeys.services(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/services'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data?.serviceIds || []; },
+    ...options,
+  });
+}
+
+export function useStaffCommissions(staffId, options) {
+  if (!options) options = {};
+  return useQuery({
+    queryKey: staffKeys.commissions(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/commissions'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data?.commissions || []; },
+    ...options,
   });
 }
 

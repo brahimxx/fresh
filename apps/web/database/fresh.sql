@@ -1229,7 +1229,7 @@ CREATE TABLE `staff` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `salon_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
-  `role` enum('staff','manager') NOT NULL DEFAULT 'staff',
+  `role` enum('staff','manager','owner','receptionist') NOT NULL DEFAULT 'staff',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `bio` text,
   `avatar_url` varchar(500) DEFAULT NULL,

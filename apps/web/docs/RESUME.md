@@ -42,6 +42,8 @@ Fresh is a modern, full-featured salon management platform built with Next.js, R
 
 ## Recent Work & Status
 
+- **Enhanced Team Management System:** Comprehensive staff detail page with multi-tab interface (January 15, 2026)
+- **Database Schema Enhancements:** Added 7 new staff-related tables and expanded staff table fields (January 15, 2026)
 - **Phase 10 Polish:** Completed all polish tasks (keyboard shortcuts, onboarding, help tooltips, SEO, accessibility, E2E tests, cross-browser, security audit, documentation, deployment)
 - **Client, Service & Team Management:** Implemented full CRUD operations for clients, services, and staff (January 11, 2026)
 - **Booking System Fixes:** Resolved critical booking creation and staff management bugs (January 10, 2026)
@@ -53,6 +55,90 @@ Fresh is a modern, full-featured salon management platform built with Next.js, R
 ---
 
 ## Latest Changes (January 2026)
+
+### Comprehensive Team Management System (January 15, 2026)
+
+**Overview:**
+Implemented a Fresha-like staff management system with extensive detail page featuring multiple tabs for managing all aspects of team members.
+
+**Database Enhancements:**
+
+**New Tables Created:**
+- `staff_addresses` - Multiple addresses (home, work, other)
+- `staff_emergency_contacts` - Emergency contact information
+- `staff_wages` - Wage rates and salary tracking
+- `staff_timesheets` - Clock in/out and hours tracking
+- `staff_pay_runs` - Payroll run management
+- `staff_pay_run_items` - Individual payment records
+- `staff_locations` - Multi-location assignments
+
+**Staff Table Enhancements:**
+- Added `first_name`, `last_name` (separate fields)
+- Added `phone_secondary` for additional contact
+- Added `country`, `birthday` fields
+- Added `start_date`, `end_date` for employment tracking
+- Added `employment_type` (employee/self-employed)
+- Added `notes` for internal documentation
+- Fixed `role` ENUM to include: `staff`, `manager`, `owner`, `receptionist`
+
+**New Features:**
+
+1. **Staff Detail Page** (`/dashboard/salon/[salonId]/team/[staffId]`)
+   - Profile header with avatar, name, role, and status badges
+   - 5 main tabs with comprehensive data management
+
+2. **Personal Tab** (`staff-personal-tab.jsx`)
+   - Profile section: first name, last name, email, phone (primary & secondary)
+   - Additional info: country, birthday (calendar picker), job title, bio
+   - Calendar color selector (8 colors)
+   - Work details: start date, end date, employment type
+   - Internal notes
+   - Edit mode with form validation
+
+3. **Addresses Tab** (`staff-addresses-tab.jsx`)
+   - Add/edit/delete multiple addresses
+   - Address types: home, work, other
+   - Primary address designation
+   - Full address fields
+
+4. **Emergency Contacts Tab** (`staff-emergency-contacts-tab.jsx`)
+   - Multiple emergency contacts
+   - Contact name, relationship
+   - Primary and secondary phone numbers
+   - Email and notes
+   - Primary contact designation
+
+5. **Workplace Tab** (3 sub-tabs)
+   - **Services** (`staff-services-tab.jsx`): Checkbox list of services to assign
+   - **Locations** (`staff-locations-tab.jsx`): Multi-location salon assignments
+   - **Settings** (`staff-settings-tab.jsx`): Active status, visibility, booking preferences
+
+6. **Pay Tab** (3 sub-tabs)
+   - **Wages & Timesheets** (`staff-wages-tab.jsx`): Hourly/salary rates, clock in/out tracking
+   - **Commissions** (`staff-commissions-tab.jsx`): Service/product/tip commission percentages
+   - **Pay Runs** (`staff-pay-runs-tab.jsx`): Payment history and upcoming payments
+
+**Hook Enhancements:**
+
+Updated `src/hooks/use-staff.js`:
+- Added `useStaffServices(staffId)` - Fetch assigned services
+- Added `useStaffCommissions(staffId)` - Fetch commission structure
+- Enhanced query keys for new data types
+
+**Navigation Updates:**
+- Team page dropdown now includes "View Details" option
+- Clicking navigates to full staff detail page
+- Quick edit still available for simple changes
+
+**Migration Scripts:**
+- `database/enhance_staff_schema.sql` - Complete schema enhancement
+- `database/fix_staff_roles.sql` - Role ENUM fix
+
+**Status:**
+- ✅ Database schema migrated successfully
+- ✅ All UI components created and functional
+- ✅ Navigation integrated
+- 🚧 API endpoints need implementation for full functionality
 
 ### Client, Service & Team Management (January 11, 2026)
 
