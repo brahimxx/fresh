@@ -1,5 +1,3 @@
-CREATE DATABASE  IF NOT EXISTS `fresh` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `fresh`;
 -- MySQL dump 10.13  Distrib 8.0.44, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: fresh
@@ -1229,7 +1227,7 @@ CREATE TABLE `staff` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `salon_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
-  `role` enum('staff','manager','owner','receptionist') NOT NULL DEFAULT 'staff',
+  `role` enum('staff','manager') NOT NULL DEFAULT 'staff',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `bio` text,
   `avatar_url` varchar(500) DEFAULT NULL,
@@ -1376,7 +1374,7 @@ CREATE TABLE `users` (
   `last_login_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=188 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=189 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1385,7 +1383,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (179,'owner@fresh.com','+1234567890',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','John','Smith',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(180,'owner2@fresh.com','+1234567891',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Sarah','Connor',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(181,'owner3@fresh.com','+1234567892',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','James','Bond',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(182,'owner4@fresh.com','+1234567893',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Ellen','Ripley',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(183,'owner5@fresh.com','+1234567894',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Tony','Stark',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(184,'owner6@fresh.com','+1234567895',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Bruce','Wayne',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(185,'client@fresh.com','+1234567896',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Waynee','Waynee',NULL,'client','2026-01-12 17:25:53','2026-01-12 23:35:52',0,NULL,NULL,NULL,NULL),(186,'testpro_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$KPN1h3cBzDAXG2OoHC.0/.8rtTpTVFGWCqlXV5LBmaxz69JwRwBra','Test','Pro','DZ','owner','2026-01-13 00:07:24','2026-01-13 00:07:24',0,NULL,NULL,NULL,NULL),(187,'testclient_no_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$ARXrdSCbqoGNipokHOPaJ.ujBkwMkF1Sjz4VWIeNabnljFnsQM7mO','Test','Client','','client','2026-01-13 00:09:11','2026-01-13 00:09:11',0,NULL,NULL,NULL,NULL);
+INSERT INTO `users` VALUES (179,'owner@fresh.com','+1234567890',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','John','Smith',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(180,'owner2@fresh.com','+1234567891',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Sarah','Connor',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(181,'owner3@fresh.com','+1234567892',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','James','Bond',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(182,'owner4@fresh.com','+1234567893',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Ellen','Ripley',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(183,'owner5@fresh.com','+1234567894',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Tony','Stark',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(184,'owner6@fresh.com','+1234567895',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Bruce','Wayne',NULL,'owner','2026-01-12 17:25:53','2026-01-12 17:25:53',0,NULL,NULL,NULL,NULL),(185,'client@fresh.com','+1234567896',NULL,NULL,NULL,NULL,NULL,NULL,'$2b$10$69IPnzwcjesjbu/fsiPHy.uAcixbosVMUwYDucDGAKLDjQ717PCgu','Waynee','Waynee',NULL,'client','2026-01-12 17:25:53','2026-01-12 23:35:52',0,NULL,NULL,NULL,NULL),(186,'testpro_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$KPN1h3cBzDAXG2OoHC.0/.8rtTpTVFGWCqlXV5LBmaxz69JwRwBra','Test','Pro','DZ','owner','2026-01-13 00:07:24','2026-01-13 00:07:24',0,NULL,NULL,NULL,NULL),(187,'testclient_no_country@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$ARXrdSCbqoGNipokHOPaJ.ujBkwMkF1Sjz4VWIeNabnljFnsQM7mO','Test','Client','','client','2026-01-13 00:09:11','2026-01-13 00:09:11',0,NULL,NULL,NULL,NULL),(188,'onboarding_test_999@example.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'$2b$12$ixRZsHbNiEsxhp0/JMhzn.4k7jbNIHp9zFYZ/NzucHg9nQMtYePeu','Onboarding','Test','DZ','owner','2026-01-13 00:23:42','2026-01-13 00:23:42',0,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1484,4 +1482,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-13  0:11:17
+-- Dump completed on 2026-01-18  2:01:00
