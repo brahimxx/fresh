@@ -1,4 +1,4 @@
-import { getOne, run } from '@/lib/db';
+import { getOne, query } from '@/lib/db';
 import { getSession, createToken } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
 import { cookies } from 'next/headers';
@@ -17,7 +17,7 @@ export async function POST(request) {
         }
 
         // Update user role in database
-        await run(
+        await query(
             'UPDATE users SET role = "owner" WHERE id = ?',
             [session.userId]
         );

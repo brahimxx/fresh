@@ -56,6 +56,110 @@ Fresh is a modern, full-featured salon management platform built with Next.js, R
 
 ## Latest Changes (January 2026)
 
+### Comprehensive Team Management System - VERIFIED WORKING (January 18, 2026)
+
+**Status:** ✅ **Fully Implemented and Tested**
+
+**Verification:**
+- E2E smoke test created and passing (`e2e/staff-detail-smoke.spec.js`)
+- All 5 tabs load correctly: Personal, Addresses, Emergency, Workplace, Pay
+- API endpoint `/api/staff/[staffId]` created for GET/PUT/DELETE operations
+- All UI components exist and functional
+
+**Overview:**
+Implemented a comprehensive Fresha-like staff management system with extensive detail page featuring multiple tabs for managing all aspects of team members.
+
+**Database Enhancements:**
+
+**Tables Already in Schema:**
+- `staff` - Main staff table with all personal fields
+- `staff_addresses` - Multiple addresses (home, work, other)
+- `staff_emergency_contacts` - Emergency contact information
+- `staff_wages` - Wage rates and salary tracking
+- `staff_timesheets` - Clock in/out and hours tracking
+- `staff_pay_runs` - Payroll run management
+- `staff_pay_run_items` - Individual payment records
+- `staff_locations` - Multi-location assignments
+- `staff_commissions` - Commission tracking
+
+**Staff Table Fields:**
+- `first_name`, `last_name` - Separate name fields
+- `phone_secondary` - Additional contact number
+- `country`, `birthday` - Personal information
+- `start_date`, `end_date` - Employment tracking
+- `employment_type` - ENUM: employee/self-employed
+- `notes` - Internal documentation
+- `color` - Calendar color (#HEX format)
+- `title` - Job title (e.g., "Senior Stylist")
+- `bio` - Public bio for clients
+- `role` - ENUM: staff/manager/owner/receptionist
+
+**Implementation Details:**
+
+1. **Staff Detail Page** (`/dashboard/salon/[salonId]/team/[staffId]`)
+   - ✅ Profile header with avatar, name, role, and status badges
+   - ✅ 5 main tabs with comprehensive data management
+   - ✅ Responsive layout with proper loading states
+
+2. **Personal Tab** (`src/components/staff/staff-personal-tab.jsx`)
+   - ✅ Profile: first name, last name, email, phone (primary & secondary)
+   - ✅ Additional: country, birthday (calendar picker), job title, bio
+   - ✅ Calendar color selector (8 colors)
+   - ✅ Work details: start/end date, employment type
+   - ✅ Internal notes
+   - ✅ Edit mode with validation
+
+3. **Addresses Tab** (`src/components/staff/staff-addresses-tab.jsx`)
+   - ✅ Add/edit/delete multiple addresses
+   - ✅ Address types: home, work, other
+   - ✅ Primary address designation
+   - ✅ Full address fields (street, city, state, postal, country)
+
+4. **Emergency Contacts Tab** (`src/components/staff/staff-emergency-contacts-tab.jsx`)
+   - ✅ Multiple emergency contacts
+   - ✅ Contact name, relationship
+   - ✅ Primary and secondary phone numbers
+   - ✅ Email and notes
+   - ✅ Primary contact designation
+
+5. **Workplace Tab** (3 sub-tabs)
+   - ✅ **Services** (`src/components/staff/staff-services-tab.jsx`): Checkbox list of services to assign
+   - ✅ **Locations** (`src/components/staff/staff-locations-tab.jsx`): Multi-location salon assignments
+   - ✅ **Settings** (`src/components/staff/staff-settings-tab.jsx`): Active status, visibility, booking preferences
+
+6. **Pay Tab** (3 sub-tabs)
+   - ✅ **Wages & Timesheets** (`src/components/staff/staff-wages-tab.jsx`): Hourly/salary rates, clock in/out tracking
+   - ✅ **Commissions** (`src/components/staff/staff-commissions-tab.jsx`): Service/product/tip commission percentages
+   - ✅ **Pay Runs** (`src/components/staff/staff-pay-runs-tab.jsx`): Payment history and upcoming payments
+
+**API Endpoints Created:**
+
+- ✅ `GET /api/staff/[staffId]` - Fetch staff member details
+- ✅ `PUT /api/staff/[staffId]` - Update staff member information
+- ✅ `DELETE /api/staff/[staffId]` - Soft delete (deactivate) staff member
+- ✅ Proper authorization checks (owner, manager, or self)
+- ✅ Comprehensive field updates for all personal data
+
+**Hook Enhancements:**
+
+Updated `src/hooks/use-staff.js`:
+- ✅ `useStaffMember(staffId)` - Fetch single staff member with all details
+- ✅ `useStaffServices(staffId)` - Fetch assigned services
+- ✅ `useStaffCommissions(staffId)` - Fetch commission structure
+- ✅ Enhanced query keys for new data types
+
+**Navigation Updates:**
+- ✅ Team page dropdown includes "View Details" option
+- ✅ Clicking navigates to full staff detail page at `/dashboard/salon/[salonId]/team/[staffId]`
+- ✅ Quick edit still available for simple changes via modal
+
+**Testing:**
+- ✅ E2E smoke test created: `e2e/staff-detail-smoke.spec.js`
+- ✅ Test verifies all 5 tabs load correctly
+- ✅ Test verifies navigation and auth
+- ✅ Test passed on Chromium browser
+- ✅ No runtime errors detected
+
 ### Comprehensive Team Management System (January 15, 2026)
 
 **Overview:**

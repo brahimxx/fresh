@@ -1,6 +1,10 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatCurrency } from '@/lib/format';
+
+// Re-export for backward compatibility
+export { formatCurrency };
 
 // Query keys factory
 export var giftCardKeys = {
@@ -48,13 +52,7 @@ export function generateGiftCardCode() {
   return segments.join('-');
 }
 
-// Format currency
-export function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount || 0);
-}
+
 
 // List gift cards
 export function useGiftCards(salonId, filters) {

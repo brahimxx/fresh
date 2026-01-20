@@ -10,11 +10,11 @@ export async function POST(request) {
     const { token, newPassword } = body;
 
     if (!token || !newPassword) {
-      return error('Token and new password are required');
+      return error({ code: 'MISSING_FIELDS', message: 'Token and new password are required' });
     }
 
     if (newPassword.length < 8) {
-      return error('Password must be at least 8 characters');
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters' });
     }
 
     // Hash the token to compare with stored hash
@@ -27,7 +27,7 @@ export async function POST(request) {
     );
 
     if (!user) {
-      return error('Invalid or expired reset token', 400);
+      return error({ code: 'INVALID_TOKEN', message: 'Invalid or expired reset token' }, 400);
     }
 
     // Hash new password and update

@@ -147,7 +147,13 @@ export function useStaffServices(staffId, options) {
     queryKey: staffKeys.services(staffId),
     queryFn: function() { return api.get('/staff/' + staffId + '/services'); },
     enabled: !!staffId,
-    select: function(response) { return response.data?.serviceIds || []; },
+    select: function(response) { 
+      // Extract service IDs from array of service objects
+      if (Array.isArray(response.data)) {
+        return response.data.map(function(s) { return s.id; });
+      }
+      return response.data?.serviceIds || []; 
+    },
     ...options,
   });
 }

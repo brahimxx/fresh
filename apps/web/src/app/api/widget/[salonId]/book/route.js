@@ -33,7 +33,7 @@ export async function POST(request, { params }) {
       [salonId]
     );
     if (!widgetSettings || !widgetSettings.enabled) {
-      return error("Booking widget is not available");
+      return error({ code: 'WIDGET_DISABLED', message: "Booking widget is not available" }, 403);
     }
 
     const body = await request.json();
@@ -41,7 +41,7 @@ export async function POST(request, { params }) {
     // Validate input using Zod schema
     const validation = validate(widgetBookingSchema, body);
     if (!validation.success) {
-      return error(formatValidationErrors(validation.errors));
+      return error({ code: 'VALIDATION_ERROR', message: formatValidationErrors(validation.errors) }, 400);
     }
 
     const { serviceId, staffId, startTime, notes } = validation.data;
@@ -55,16 +55,16 @@ export async function POST(request, { params }) {
       [serviceId, salonId]
     );
     if (!service) {
-      return error("Service not found or inactive");
+      return error({ code: 'SERVICE_UNAVAILABLE', message: "Service not found or inactive" }, 404);
     }
 
     // Verify staff can perform this service
     const staffCheck = await getOne(
-      "SELECT id FROM service_staff WHERE service_id = ? AND staff_id = ?",
+      "SELECT service_id FROM service_staff WHERE service_id = ? AND staff_id = ?",
       [serviceId, staffId]
     );
     if (!staffCheck) {
-      return error("Selected staff cannot perform this service");
+      return error({ code: 'INVALID_STAFF', message: "Selected staff cannot perform this service" }, 400);
     }
 
     // Calculate end time
@@ -86,13 +86,22 @@ export async function POST(request, { params }) {
     const timeStr = startDateTime.toTimeString().slice(0, 8);
     const endTimeStr = endDateTime.toTimeString().slice(0, 8);
 
-    const workingHours = await getOne(
-      "SELECT * FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?",
+    // Check staff working hours, fallback to salon business hours
+    let workingHours = await getOne(
+      "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?",
       [staffId, dayOfWeek, timeStr, endTimeStr]
     );
 
+    // Fallback to salon business hours if staff has no specific hours
     if (!workingHours) {
-      return error("Staff is not working at this time", 409);
+      workingHours = await getOne(
+        "SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0 AND open_time <= ? AND close_time >= ?",
+        [salonId, dayOfWeek, timeStr, endTimeStr]
+      );
+    }
+
+    if (!workingHours) {
+      return error({ code: 'STAFF_UNAVAILABLE', message: "Staff is not working at this time" }, 409);
     }
 
     const result = await transaction(async (conn) => {
@@ -135,7 +144,7 @@ export async function POST(request, { params }) {
         `INSERT INTO bookings (
           salon_id, client_id, staff_id, start_datetime, end_datetime, 
           status, source, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, 'pending', 'widget', ?, NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, 'pending', 'marketplace', ?, NOW())`,
         [
           salonId,
           clientId,
@@ -208,12 +217,12 @@ export async function POST(request, { params }) {
     });
   } catch (err) {
     if (err.message === "Unauthorized") {
-      return unauthorized("Please sign in to complete your booking");
+      return unauthorized({ code: 'UNAUTHORIZED', message: "Please sign in to complete your booking" });
     }
     if (err.message.startsWith("CONFLICT:")) {
-      return error(err.message.replace("CONFLICT: ", ""), 409);
+      return error({ code: 'BOOKING_CONFLICT', message: err.message.replace("CONFLICT: ", "") }, 409);
     }
     console.error("Widget booking error:", err);
-    return error("Failed to create booking", 500);
+    return error({ code: 'INTERNAL_SERVER_ERROR', message: "Failed to create booking" }, 500);
   }
 }

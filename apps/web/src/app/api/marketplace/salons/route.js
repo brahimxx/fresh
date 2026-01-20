@@ -13,8 +13,8 @@ export async function GET(request) {
     const minRating = searchParams.get('minRating');
     const openNow = searchParams.get('openNow') === 'true';
     const sort = searchParams.get('sort') || 'recommended';
-    const limit = parseInt(searchParams.get('limit')) || 20;
-    const offset = parseInt(searchParams.get('offset')) || 0;
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20)); // Between 1 and 100
+    const offset = Math.max(0, parseInt(searchParams.get('offset')) || 0); // Non-negative
     
     let sql = `
       SELECT 
@@ -54,16 +54,19 @@ export async function GET(request) {
     
     // Price filter
     if (price.length > 0) {
-      sql += ` AND s.price_level IN (${price.map(() => '?').join(',')})`;
-      params.push(...price.map(p => parseInt(p)));
+      const priceLevels = price.map(p => parseInt(p)).filter(p => !isNaN(p));
+      if (priceLevels.length > 0) {
+        sql += ` AND s.price_level IN (${priceLevels.map(() => '?').join(',')})`;
+        params.push(...priceLevels);
+      }
     }
     
     // Group by before having clause
     sql += ` GROUP BY s.id`;
     
-    // Min rating filter (after group by)
+    // Min rating filter (after group by - use AVG() in HAVING)
     if (minRating) {
-      sql += ` HAVING rating >= ?`;
+      sql += ` HAVING AVG(r.rating) >= ?`;
       params.push(parseFloat(minRating));
     }
     
@@ -89,7 +92,8 @@ export async function GET(request) {
         sql += ` ORDER BY (COALESCE(AVG(r.rating), 0) * 0.7 + LEAST(COUNT(DISTINCT r.id), 100) * 0.3) DESC`;
     }
     
-    sql += ` LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
     
     const salons = await query(sql, params);
     

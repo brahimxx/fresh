@@ -77,9 +77,20 @@ export async function POST(request) {
       first_name,
       last_name,
       phone,
+      phoneSecondary,
       role,
       title,
       bio,
+      color,
+      country,
+      birthday,
+      startDate,
+      endDate,
+      employmentType,
+      notes,
+      isVisible,
+      serviceIds,
+      emergencyContact,
     } = body;
 
     if (!salon_id) {
@@ -123,8 +134,8 @@ export async function POST(request) {
         const passwordHash = await bcrypt.hash(tempPassword, 10);
 
         const userResult = await query(
-          `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
-           VALUES (?, ?, ?, ?, ?, 'staff')`,
+        `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
+         VALUES (?, ?, ?, ?, ?, 'staff')`,
           [email, passwordHash, firstName, lastName || null, phone || null]
         );
         user = { id: userResult.insertId };
@@ -164,17 +175,58 @@ export async function POST(request) {
 
     // Create staff entry
     const result = await query(
-      `INSERT INTO staff (salon_id, user_id, role, title, bio, is_active, is_visible)
-       VALUES (?, ?, ?, ?, ?, 1, 1)`,
-      [salon_id, user.id, role || "staff", title || null, bio || null]
+      `INSERT INTO staff (salon_id, user_id, role, title, bio, phone_secondary, color, country, birthday, start_date, end_date, employment_type, notes, is_active, is_visible)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      [
+        salon_id,
+        user.id,
+        role || "staff",
+        title || null,
+        bio || null,
+        phoneSecondary || null,
+        color || "#3B82F6",
+        country || null,
+        birthday || null,
+        startDate || null,
+        endDate || null,
+        employmentType || "employee",
+        notes || null,
+        isVisible !== false ? 1 : 0,
+      ]
     );
+
+    const staffId = result.insertId;
+
+    // Add service assignments if provided
+    if (serviceIds && serviceIds.length > 0) {
+      const serviceValues = serviceIds.map((serviceId) => [serviceId, staffId]);
+      await query(
+        `INSERT INTO service_staff (service_id, staff_id) VALUES ?`,
+        [serviceValues]
+      );
+    }
+
+    // Add emergency contact if provided
+    if (emergencyContact && emergencyContact.contactName) {
+      await query(
+        `INSERT INTO staff_emergency_contacts (staff_id, contact_name, relationship, phone_primary, email, is_primary)
+         VALUES (?, ?, ?, ?, ?, 1)`,
+        [
+          staffId,
+          emergencyContact.contactName,
+          emergencyContact.relationship || null,
+          emergencyContact.phonePrimary || null,
+          emergencyContact.email || null,
+        ]
+      );
+    }
 
     const newStaff = await getOne(
       `SELECT s.*, u.first_name, u.last_name, u.email, u.phone
        FROM staff s
        JOIN users u ON u.id = s.user_id
        WHERE s.id = ?`,
-      [result.insertId]
+      [staffId]
     );
 
     return created({

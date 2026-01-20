@@ -18,36 +18,36 @@ export async function POST(request) {
 
     // Validation
     if (!email || !password || !firstName || !lastName) {
-      return error('Missing required fields: email, password, first name, and last name are required', 400);
+      return error({ code: 'MISSING_FIELDS', message: 'Missing required fields: email, password, first name, and last name are required' }, 400);
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return error('Invalid email format. Please provide a valid email address.', 400);
+      return error({ code: 'INVALID_EMAIL', message: 'Invalid email format. Please provide a valid email address.' }, 400);
     }
 
     // Validate password strength
     if (password.length < 8) {
-      return error('Password must be at least 8 characters long', 400);
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters long' }, 400);
     }
     if (!/[A-Z]/.test(password)) {
-      return error('Password must contain at least one uppercase letter', 400);
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one uppercase letter' }, 400);
     }
     if (!/[a-z]/.test(password)) {
-      return error('Password must contain at least one lowercase letter', 400);
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one lowercase letter' }, 400);
     }
     if (!/[0-9]/.test(password)) {
-      return error('Password must contain at least one number', 400);
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one number' }, 400);
     }
     if (!/[!@#$%^&*]/.test(password)) {
-      return error('Password must contain at least one special character (!@#$%^&*)', 400);
+      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one special character (!@#$%^&*)' }, 400);
     }
 
     // Check if email already exists
     const existingUser = await getOne('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser) {
-      return error('This email is already registered. Please use a different email or try logging in.', 409);
+      return error({ code: 'EMAIL_IN_USE', message: 'This email is already registered. Please use a different email or try logging in.' }, 409);
     }
 
     // Hash password and create user

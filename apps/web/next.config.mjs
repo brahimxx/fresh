@@ -35,7 +35,6 @@ const nextConfig = {
       'lucide-react',
       '@tanstack/react-query',
       'date-fns',
-      'recharts',
     ],
   },
   

@@ -70,7 +70,7 @@ export async function GET(request, { params }) {
 
     // Calculate commissions for each period
     const commissionType = settings?.commission_type || 'percentage';
-    const commissionValue = parseFloat(settings?.commission_value || 0);
+    const commissionValue = parseFloat(settings?.service_commission || 0);
 
     const periods = periodData.map((p) => {
       let commission = 0;
@@ -94,7 +94,7 @@ export async function GET(request, { params }) {
       settings: settings
         ? {
             type: settings.commission_type,
-            value: parseFloat(settings.commission_value),
+            value: parseFloat(settings.service_commission),
           }
         : null,
       periods,

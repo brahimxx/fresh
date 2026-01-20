@@ -1,6 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { formatCurrency } from '@/lib/format';
+
+// Re-export for backward compatibility
+export { formatCurrency };
 
 // Query keys
 export var reportKeys = {
@@ -203,13 +207,7 @@ export function useStaffReport(salonId, dateRange) {
   });
 }
 
-// Format currency helper
-export function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount || 0);
-}
+
 
 // Format percentage helper
 export function formatPercentage(value, decimals) {

@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 8.0.44, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.42, for macos15 (x86_64)
 --
 -- Host: 127.0.0.1    Database: fresh
 -- ------------------------------------------------------
--- Server version	8.0.44
+-- Server version	9.3.0
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1227,13 +1227,22 @@ CREATE TABLE `staff` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `salon_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
-  `role` enum('staff','manager') NOT NULL DEFAULT 'staff',
+  `first_name` varchar(100) DEFAULT NULL,
+  `last_name` varchar(100) DEFAULT NULL,
+  `role` enum('staff','manager','owner','receptionist') NOT NULL DEFAULT 'staff',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `bio` text,
   `avatar_url` varchar(500) DEFAULT NULL,
   `color` varchar(7) DEFAULT '#3B82F6',
   `display_order` int DEFAULT '0',
   `title` varchar(100) DEFAULT NULL,
+  `phone_secondary` varchar(20) DEFAULT NULL,
+  `country` varchar(100) DEFAULT NULL,
+  `birthday` date DEFAULT NULL,
+  `start_date` date DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `employment_type` enum('employee','self_employed') DEFAULT 'employee',
+  `notes` text,
   `is_visible` tinyint(1) DEFAULT '1',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_staff_salon_user` (`salon_id`,`user_id`),
@@ -1252,6 +1261,40 @@ CREATE TABLE `staff` (
 LOCK TABLES `staff` WRITE;
 /*!40000 ALTER TABLE `staff` DISABLE KEYS */;
 /*!40000 ALTER TABLE `staff` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_addresses`
+--
+
+DROP TABLE IF EXISTS `staff_addresses`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_addresses` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `address_type` enum('home','work','other') NOT NULL DEFAULT 'home',
+  `street_address` varchar(255) DEFAULT NULL,
+  `city` varchar(100) DEFAULT NULL,
+  `state` varchar(100) DEFAULT NULL,
+  `postal_code` varchar(20) DEFAULT NULL,
+  `country` varchar(100) DEFAULT NULL,
+  `is_primary` tinyint(1) DEFAULT '0',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_addresses_staff_id` (`staff_id`),
+  CONSTRAINT `fk_staff_addresses_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_addresses`
+--
+
+LOCK TABLES `staff_addresses` WRITE;
+/*!40000 ALTER TABLE `staff_addresses` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_addresses` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -1287,6 +1330,148 @@ LOCK TABLES `staff_commissions` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `staff_emergency_contacts`
+--
+
+DROP TABLE IF EXISTS `staff_emergency_contacts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_emergency_contacts` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `contact_name` varchar(150) NOT NULL,
+  `relationship` varchar(100) DEFAULT NULL,
+  `phone_primary` varchar(20) NOT NULL,
+  `phone_secondary` varchar(20) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `is_primary` tinyint(1) DEFAULT '0',
+  `notes` text,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_emergency_staff_id` (`staff_id`),
+  CONSTRAINT `fk_staff_emergency_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_emergency_contacts`
+--
+
+LOCK TABLES `staff_emergency_contacts` WRITE;
+/*!40000 ALTER TABLE `staff_emergency_contacts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_emergency_contacts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_locations`
+--
+
+DROP TABLE IF EXISTS `staff_locations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_locations` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `salon_id` bigint unsigned NOT NULL,
+  `is_primary` tinyint(1) DEFAULT '0',
+  `start_date` date DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_staff_locations` (`staff_id`,`salon_id`),
+  KEY `idx_staff_locations_staff` (`staff_id`),
+  KEY `idx_staff_locations_salon` (`salon_id`),
+  CONSTRAINT `fk_staff_locations_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_staff_locations_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_locations`
+--
+
+LOCK TABLES `staff_locations` WRITE;
+/*!40000 ALTER TABLE `staff_locations` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_locations` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_pay_run_items`
+--
+
+DROP TABLE IF EXISTS `staff_pay_run_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_pay_run_items` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `pay_run_id` bigint unsigned NOT NULL,
+  `staff_id` bigint unsigned NOT NULL,
+  `base_pay` decimal(10,2) DEFAULT '0.00',
+  `commission_amount` decimal(10,2) DEFAULT '0.00',
+  `bonus_amount` decimal(10,2) DEFAULT '0.00',
+  `tips_amount` decimal(10,2) DEFAULT '0.00',
+  `deductions_amount` decimal(10,2) DEFAULT '0.00',
+  `total_pay` decimal(10,2) DEFAULT '0.00',
+  `hours_worked` decimal(6,2) DEFAULT NULL,
+  `notes` text,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_pay_run_items_pay_run` (`pay_run_id`),
+  KEY `idx_staff_pay_run_items_staff` (`staff_id`),
+  CONSTRAINT `fk_staff_pay_run_items_pay_run` FOREIGN KEY (`pay_run_id`) REFERENCES `staff_pay_runs` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_staff_pay_run_items_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_pay_run_items`
+--
+
+LOCK TABLES `staff_pay_run_items` WRITE;
+/*!40000 ALTER TABLE `staff_pay_run_items` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_pay_run_items` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_pay_runs`
+--
+
+DROP TABLE IF EXISTS `staff_pay_runs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_pay_runs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `salon_id` bigint unsigned NOT NULL,
+  `pay_period_start` date NOT NULL,
+  `pay_period_end` date NOT NULL,
+  `pay_date` date NOT NULL,
+  `status` enum('draft','processing','completed','cancelled') DEFAULT 'draft',
+  `total_amount` decimal(12,2) DEFAULT '0.00',
+  `currency` varchar(3) DEFAULT 'USD',
+  `notes` text,
+  `created_by` bigint unsigned DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_pay_runs_salon_id` (`salon_id`),
+  KEY `idx_staff_pay_runs_period` (`pay_period_start`,`pay_period_end`),
+  CONSTRAINT `fk_staff_pay_runs_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_pay_runs`
+--
+
+LOCK TABLES `staff_pay_runs` WRITE;
+/*!40000 ALTER TABLE `staff_pay_runs` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_pay_runs` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `staff_time_off`
 --
 
@@ -1312,6 +1497,81 @@ CREATE TABLE `staff_time_off` (
 LOCK TABLES `staff_time_off` WRITE;
 /*!40000 ALTER TABLE `staff_time_off` DISABLE KEYS */;
 /*!40000 ALTER TABLE `staff_time_off` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_timesheets`
+--
+
+DROP TABLE IF EXISTS `staff_timesheets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_timesheets` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `salon_id` bigint unsigned NOT NULL,
+  `clock_in` datetime NOT NULL,
+  `clock_out` datetime DEFAULT NULL,
+  `break_duration` int DEFAULT '0' COMMENT 'Break duration in minutes',
+  `total_hours` decimal(5,2) DEFAULT NULL COMMENT 'Total hours worked',
+  `notes` text,
+  `status` enum('clocked_in','clocked_out','approved','disputed') DEFAULT 'clocked_in',
+  `approved_by` bigint unsigned DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_timesheets_staff_id` (`staff_id`),
+  KEY `idx_staff_timesheets_salon_id` (`salon_id`),
+  KEY `idx_staff_timesheets_date` (`clock_in`),
+  CONSTRAINT `fk_staff_timesheets_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_staff_timesheets_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_timesheets`
+--
+
+LOCK TABLES `staff_timesheets` WRITE;
+/*!40000 ALTER TABLE `staff_timesheets` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_timesheets` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `staff_wages`
+--
+
+DROP TABLE IF EXISTS `staff_wages`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_wages` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `wage_type` enum('hourly','salary','commission_only') NOT NULL DEFAULT 'hourly',
+  `hourly_rate` decimal(10,2) DEFAULT NULL,
+  `salary_amount` decimal(10,2) DEFAULT NULL,
+  `salary_period` enum('weekly','biweekly','monthly','annual') DEFAULT 'monthly',
+  `currency` varchar(3) DEFAULT 'USD',
+  `effective_from` date NOT NULL,
+  `effective_to` date DEFAULT NULL,
+  `notes` text,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_staff_wages_staff_id` (`staff_id`),
+  KEY `idx_staff_wages_effective` (`staff_id`,`effective_from`,`effective_to`),
+  CONSTRAINT `fk_staff_wages_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `staff_wages`
+--
+
+LOCK TABLES `staff_wages` WRITE;
+/*!40000 ALTER TABLE `staff_wages` DISABLE KEYS */;
+/*!40000 ALTER TABLE `staff_wages` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -1482,4 +1742,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-18  2:01:00
+-- Dump completed on 2026-01-18 12:37:22

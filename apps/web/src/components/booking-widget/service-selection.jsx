@@ -174,14 +174,14 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                           toggleService(service);
                         }}
                         className={
-                          "p-4 rounded-lg border cursor-pointer transition-all " +
-                          (selected
+                          "p-5 rounded-lg border cursor-pointer transition-all active:scale-[0.98] " +
+                          (isSelected
                             ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                             : "border-border hover:border-primary/20 hover:bg-muted/30")
                         }
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                        <div className="flex gap-4 min-h-[44px]">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <h4 className="font-medium">{service.name}</h4>
                               {selected && (
@@ -217,8 +217,18 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
           })}
 
           {filteredServices.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No services found
+            <div className="text-center py-12 space-y-2">
+              <div className="flex justify-center">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-muted-foreground" />
+                </div>
+              </div>
+              <div>
+                <p className="font-medium text-sm">No services found</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Try adjusting your search or category filter
+                </p>
+              </div>
             </div>
           )}
         </div>

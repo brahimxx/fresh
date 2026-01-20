@@ -33,18 +33,32 @@ export function DateTimeSelection({
   // Load slots when date is selected
   useEffect(
     function () {
+      console.log('DateTime useEffect triggered:', {
+        selectedDate,
+        selectedServices,
+        selectedServicesLength: selectedServices?.length,
+        isArray: Array.isArray(selectedServices)
+      });
+      
       if (
         !selectedDate ||
         !selectedServices ||
         !Array.isArray(selectedServices) ||
         selectedServices.length === 0
-      )
+      ) {
+        console.log('Early return - missing required data');
         return;
+      }
 
       async function loadSlots() {
         setLoadingSlots(true);
         try {
-          var dateStr = selectedDate.toISOString().slice(0, 10);
+          // Format date as YYYY-MM-DD in local timezone, not UTC
+          var year = selectedDate.getFullYear();
+          var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          var day = String(selectedDate.getDate()).padStart(2, '0');
+          var dateStr = year + '-' + month + '-' + day;
+          
           var serviceId =
             selectedServices && selectedServices[0]
               ? selectedServices[0].id
@@ -60,10 +74,24 @@ export function DateTimeSelection({
             serviceId +
             (staffId ? "&staffId=" + staffId : "");
 
+          console.log('===== AVAILABILITY REQUEST =====');
+          console.log('Selected date object:', selectedDate);
+          console.log('Date string for API:', dateStr);
+          console.log('Service ID:', serviceId);
+          console.log('Staff ID:', staffId);
+          console.log('Full URL:', url);
+          
           var res = await fetch(url);
           if (res.ok) {
             var data = await res.json();
+            console.log('===== AVAILABILITY RESPONSE =====');
+            console.log('Full response:', data);
+            console.log('Success:', data.success);
+            console.log('Slots array:', data.data?.slots);
+            console.log('Number of slots:', data.data?.slots?.length || 0);
             setTimeSlots(data.data?.slots || []);
+          } else {
+            console.error('Availability API error:', res.status, await res.text());
           }
         } catch (error) {
           console.error("Failed to load slots:", error);
@@ -143,6 +171,8 @@ export function DateTimeSelection({
     return time.getHours();
   }
 
+  console.log('Total timeSlots:', timeSlots.length, timeSlots);
+
   var morningSlots = timeSlots.filter(function (s) {
     return getHourFromSlot(s) < 12;
   });
@@ -152,6 +182,12 @@ export function DateTimeSelection({
   });
   var eveningSlots = timeSlots.filter(function (s) {
     return getHourFromSlot(s) >= 17;
+  });
+
+  console.log('Grouped slots:', {
+    morning: morningSlots.length,
+    afternoon: afternoonSlots.length,
+    evening: eveningSlots.length
   });
 
   function formatTime(slot) {
@@ -233,10 +269,10 @@ export function DateTimeSelection({
               })}
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-2">
               {days.map(function (date, idx) {
                 if (!date) {
-                  return <div key={"empty-" + idx} className="h-10" />;
+                  return <div key={"empty-" + idx} className="h-12" />;
                 }
 
                 var available = isDateAvailable(date);
@@ -251,11 +287,11 @@ export function DateTimeSelection({
                       selectDate(date);
                     }}
                     className={
-                      "h-10 rounded-lg text-sm font-medium transition-all " +
+                      "h-12 min-w-[44px] rounded-lg text-sm font-medium transition-all active:scale-95 " +
                       (selected
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-white shadow-sm"
                         : available
-                          ? "bg-muted hover:bg-muted/80 text-foreground"
+                          ? "bg-muted hover:bg-muted/80 text-foreground hover:shadow-sm"
                           : "text-muted-foreground/30 cursor-not-allowed")
                     }
                   >
@@ -288,7 +324,7 @@ export function DateTimeSelection({
             {loadingSlots ? (
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6].map(function (i) {
-                  return <Skeleton key={i} className="h-9 w-20" />;
+                  return <Skeleton key={i} className="h-10 w-20" />;
                 })}
               </div>
             ) : timeSlots.length > 0 ? (
@@ -308,6 +344,7 @@ export function DateTimeSelection({
                               isSlotSelected(slot) ? "default" : "outline"
                             }
                             size="sm"
+                            className="min-w-[80px] min-h-[44px] active:scale-95 transition-transform"
                             onClick={function () {
                               onTimeSelect(key);
                             }}
@@ -335,6 +372,7 @@ export function DateTimeSelection({
                               isSlotSelected(slot) ? "default" : "outline"
                             }
                             size="sm"
+                            className="min-w-[80px] min-h-[44px] active:scale-95 transition-transform"
                             onClick={function () {
                               onTimeSelect(key);
                             }}
@@ -362,6 +400,7 @@ export function DateTimeSelection({
                               isSlotSelected(slot) ? "default" : "outline"
                             }
                             size="sm"
+                            className="min-w-[80px] min-h-[44px] active:scale-95 transition-transform"
                             onClick={function () {
                               onTimeSelect(key);
                             }}
@@ -375,8 +414,18 @@ export function DateTimeSelection({
                 )}
               </div>
             ) : (
-              <div className="text-center py-4 text-muted-foreground">
-                No available times for this date
+              <div className="text-center py-8 space-y-2">
+                <div className="flex justify-center">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium text-sm">No times available</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Try selecting a different date or check back later
+                  </p>
+                </div>
               </div>
             )}
           </div>

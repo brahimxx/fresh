@@ -149,7 +149,7 @@ export async function POST(request) {
     // Validate input
     const validation = validate(createBookingSchema, body);
     if (!validation.success) {
-      return error(formatValidationErrors(validation.errors));
+      return error({ code: 'VALIDATION_ERROR', message: formatValidationErrors(validation.errors) }, 400);
     }
 
     const {
@@ -165,7 +165,7 @@ export async function POST(request) {
 
     // Get services to calculate total duration and price
     if (serviceIds.length === 0) {
-      return error("At least one service is required");
+      return error({ code: 'NO_SERVICES', message: "At least one service is required" }, 400);
     }
 
     const services = await query(
@@ -176,7 +176,19 @@ export async function POST(request) {
     );
 
     if (services.length !== serviceIds.length) {
-      return error("One or more services not found or inactive");
+      return error({ code: 'INVALID_SERVICES', message: "One or more services not found or inactive" }, 400);
+    }
+
+    // Verify staff can perform these services
+    const staffServices = await query(
+      `SELECT service_id FROM service_staff WHERE staff_id = ? AND service_id IN (${serviceIds
+        .map(() => "?")
+        .join(",")})`,
+      [staffId, ...serviceIds]
+    );
+
+    if (staffServices.length !== serviceIds.length) {
+      return error({ code: 'INVALID_STAFF_SERVICE', message: "Staff cannot perform one or more of the selected services" }, 400);
     }
 
     const totalDuration = services.reduce(
@@ -216,7 +228,7 @@ export async function POST(request) {
     );
 
     if (!workingHours) {
-      return error("Staff is not working at this time", 409);
+      return error({ code: 'STAFF_UNAVAILABLE', message: "Staff is not working at this time" }, 409);
     }
 
     // Check for time off (outside transaction for faster fail)
@@ -226,7 +238,7 @@ export async function POST(request) {
     );
 
     if (timeOff) {
-      return error("Staff is on time off", 409);
+      return error({ code: 'STAFF_ON_LEAVE', message: "Staff is on time off" }, 409);
     }
 
     // Create booking in transaction with row locking to prevent race conditions
@@ -329,9 +341,9 @@ export async function POST(request) {
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
     if (err.message.startsWith("CONFLICT:")) {
-      return error(err.message.replace("CONFLICT: ", ""), 409);
+      return error({ code: 'BOOKING_CONFLICT', message: err.message.replace("CONFLICT: ", "") }, 409);
     }
     console.error("Create booking error:", err);
-    return error("Failed to create booking", 500);
+    return error({ code: 'INTERNAL_SERVER_ERROR', message: "Failed to create booking" }, 500);
   }
 }

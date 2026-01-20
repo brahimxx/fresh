@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { verifyAuth } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/response";

@@ -16,6 +16,7 @@ export const bookingKeys = {
     start,
     end,
   ],
+  my: (filter) => [...bookingKeys.all, "my", filter],
 };
 
 // Fetch bookings for calendar view
@@ -34,15 +35,41 @@ export function useCalendarBookings(salonId, startDate, endDate, options = {}) {
   });
 }
 
-// Fetch bookings list with filters
+// Fetch user's marketplace bookings (upcoming/past)
+export function useMyBookings(filter = "upcoming", options = {}) {
+  return useQuery({
+    queryKey: bookingKeys.my(filter),
+    queryFn: async () => {
+      const response = await api.get(`/my/bookings?filter=${filter}`);
+      return response.data?.bookings || [];
+    },
+    ...options,
+  });
+}
+
+// Fetch bookings list with filters  
 export function useBookings(filters = {}, options = {}) {
   return useQuery({
     queryKey: bookingKeys.list(filters),
-    queryFn: () => api.get("/bookings", filters),
-    select: (response) => ({
-      data: response.data?.bookings || [],
-      pagination: response.pagination,
-    }),
+    queryFn: async () => {
+      const response = await api.get("/bookings", filters);
+      console.log('=== BOOKINGS API RESPONSE ===');
+      console.log('Full response:', response);
+      console.log('response.success:', response.success);
+      console.log('response.data:', response.data);
+      console.log('response.data.bookings:', response.data?.bookings);
+      return response;
+    },
+    select: (response) => {
+      console.log('=== BOOKINGS SELECT TRANSFORM ===');
+      console.log('Input to select:', response);
+      const result = {
+        data: response.data?.bookings || [],
+        pagination: response.data?.pagination || response.pagination,
+      };
+      console.log('Output from select:', result);
+      return result;
+    },
     ...options,
   });
 }

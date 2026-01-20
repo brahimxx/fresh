@@ -216,6 +216,13 @@ export async function POST(request) {
       [session.userId]
     );
 
+    // Add the owner as the first staff member
+    await query(
+      `INSERT INTO staff (salon_id, user_id, title, role, is_visible, is_active, created_at)
+       VALUES (?, ?, 'Owner', 'owner', 1, 1, NOW())`,
+      [result.insertId, session.userId]
+    );
+
     // Create default salon settings
     await query(
       `INSERT INTO salon_settings (salon_id, cancellation_policy_hours, no_show_fee, deposit_required, deposit_percentage)

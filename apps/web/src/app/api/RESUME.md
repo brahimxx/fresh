@@ -335,7 +335,27 @@ See `/database/migrations.sql` for complete DDL. Includes:
 
 ## Code Modifications Log
 
-### Session: January 7, 2026 (Latest)
+### Session: January 18, 2026
+
+#### 1. Created Missing Staff Detail API Endpoint
+
+**Problem**: Staff detail page at `/dashboard/salon/[salonId]/team/[staffId]` was failing because the API endpoint `/api/staff/[staffId]` didn't exist. The `useStaffMember(staffId)` hook was calling a non-existent endpoint.
+
+**Solution**: Created comprehensive staff detail endpoint with full CRUD operations.
+
+**File Created**: `src/app/api/staff/[staffId]/route.js`
+
+**GET /api/staff/[staffId]** - Fetch staff member details with authorization
+
+**PUT /api/staff/[staffId]** - Update staff member (all personal fields, employment info, customization)
+
+**DELETE /api/staff/[staffId]** - Soft delete (deactivate)
+
+**Result**: ✅ Staff detail page now loads correctly; E2E test `staff-detail-smoke.spec.js` passes
+
+---
+
+### Session: January 7, 2026
 
 #### 1. Fixed E2E Test Auth Cookie Persistence Across All Browsers
 

@@ -42,6 +42,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/loading-skeletons";
+import { DataError } from "@/components/ui/data-error";
+import { EmptyBookings } from "@/components/ui/empty-states";
 
 import {
   useBookings,
@@ -72,19 +75,26 @@ export default function BookingsPage({ params }) {
   var [detailOpen, setDetailOpen] = useState(false);
 
   var filters = {
-    salon_id: salonId,
+    salonId: salonId,
     status: statusFilter !== "all" ? statusFilter : undefined,
     search: search || undefined,
     page: page,
     limit: 20,
   };
 
-  var { data, isLoading, error } = useBookings(filters);
+  var { data, isLoading, error, refetch } = useBookings(filters);
   var confirmBooking = useConfirmBooking();
   var cancelBooking = useCancelBooking();
 
   var bookings = data?.data || [];
   var pagination = data?.pagination || { total: 0, pages: 1 };
+
+  console.log('Bookings page state:', { 
+    isLoading, 
+    bookingsCount: bookings.length, 
+    firstBooking: bookings[0],
+    data: data 
+  });
 
   function handleViewBooking(booking) {
     setSelectedBooking(booking);
@@ -130,8 +140,18 @@ export default function BookingsPage({ params }) {
         </div>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <DataError
+          title="Failed to load bookings"
+          message="Unable to fetch your bookings. Please try again."
+          onRetry={refetch}
+          error={error}
+        />
+      )}
+
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      {!error && (
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -159,6 +179,11 @@ export default function BookingsPage({ params }) {
       </div>
 
       {/* Table */}
+      {isLoading ? (
+        <TableSkeleton rows={5} columns={7} />
+      ) : bookings.length === 0 ? (
+        <EmptyBookings onAdd={() => setNewBookingOpen(true)} />
+      ) : (
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -173,48 +198,33 @@ export default function BookingsPage({ params }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              Array.from({ length: 5 }).map(function (_, i) {
-                return (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-28" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-8" />
-                    </TableCell>
-                  </TableRow>
-                );
+            {bookings
+              .filter(function(booking) { 
+                // Filter out any invalid booking objects
+                return booking && typeof booking === 'object' && booking.id;
               })
-            ) : bookings.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  No bookings found
-                </TableCell>
-              </TableRow>
-            ) : (
-              bookings.map(function (booking) {
-                var startTime = new Date(
-                  booking.start_datetime || booking.startDateTime
-                );
+                .map(function (booking) {
+                var startDatetimeStr = booking.startDatetime || booking.start_datetime;
+                
+                // Debug logging
+                if (!startDatetimeStr) {
+                  console.error('Missing datetime for booking:', booking);
+                  return null; // Skip this booking
+                }
+                
+                var startTime = new Date(startDatetimeStr);
+                
+                // If invalid date, try parsing MySQL datetime format
+                if (isNaN(startTime.getTime()) && startDatetimeStr) {
+                  // MySQL returns 'YYYY-MM-DD HH:MM:SS', convert to ISO format
+                  startTime = new Date(startDatetimeStr.replace(' ', 'T'));
+                }
+                
+                // Fallback to current date if still invalid
+                if (isNaN(startTime.getTime())) {
+                  startTime = new Date();
+                }
+                
                 var statusConfig =
                   STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
 
@@ -240,9 +250,9 @@ export default function BookingsPage({ params }) {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p>{format(startTime, "MMM d, yyyy")}</p>
+                        <p>{!isNaN(startTime.getTime()) ? format(startTime, "MMM d, yyyy") : "Invalid date"}</p>
                         <p className="text-sm text-muted-foreground">
-                          {format(startTime, "HH:mm")}
+                          {!isNaN(startTime.getTime()) ? format(startTime, "HH:mm") : "-"}
                         </p>
                       </div>
                     </TableCell>
@@ -303,14 +313,16 @@ export default function BookingsPage({ params }) {
                     </TableCell>
                   </TableRow>
                 );
-              })
-            )}
+              }).filter(Boolean) // Remove any null entries
+            }
           </TableBody>
         </Table>
       </div>
+      )}
+      )}
 
       {/* Pagination */}
-      {pagination.pages > 1 && (
+      {!error && !isLoading && pagination.pages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing {bookings.length} of {pagination.total} bookings
@@ -341,6 +353,8 @@ export default function BookingsPage({ params }) {
             </Button>
           </div>
         </div>
+      )}
+
       )}
 
       {/* Dialogs */}

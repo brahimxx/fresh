@@ -44,6 +44,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/loading-skeletons";
+import { DataError } from "@/components/ui/data-error";
+import { EmptyClients } from "@/components/ui/empty-states";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,7 +93,7 @@ export default function ClientsPage({ params }) {
     limit: 20,
   };
 
-  var { data, isLoading } = useClients(filters);
+  var { data, isLoading, error, refetch } = useClients(filters);
   var deleteClientMutation = useDeleteClient();
 
   var clients = data?.data || [];
@@ -135,7 +138,18 @@ export default function ClientsPage({ params }) {
         </Button>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <DataError
+          title="Failed to load clients"
+          message="Unable to fetch your client list. Please try again."
+          onRetry={refetch}
+          error={error}
+        />
+      )}
+
       {/* Filters */}
+      {!error && (
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -161,8 +175,10 @@ export default function ClientsPage({ params }) {
           </SelectContent>
         </Select>
       </div>
+      )}
 
       {/* Stats Cards */}
+      {!error && !isLoading && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Total Clients</p>
@@ -181,8 +197,14 @@ export default function ClientsPage({ params }) {
           <p className="text-2xl font-bold">-</p>
         </div>
       </div>
+      )}
 
       {/* Table */}
+      {isLoading ? (
+        <TableSkeleton rows={5} columns={6} />
+      ) : !error && clients.length === 0 ? (
+        <EmptyClients onAdd={() => setCreateOpen(true)} />
+      ) : !error ? (
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -196,42 +218,7 @@ export default function ClientsPage({ params }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              Array.from({ length: 5 }).map(function (_, i) {
-                return (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-10 w-40" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-8" />
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : clients.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  No clients found
-                </TableCell>
-              </TableRow>
-            ) : (
-              clients.map(function (client) {
+            {clients.map(function (client) {
                 var name =
                   (client.first_name || "") + " " + (client.last_name || "");
                 name = name.trim() || client.name || "Unknown";
@@ -348,13 +335,14 @@ export default function ClientsPage({ params }) {
                   </TableRow>
                 );
               })
-            )}
+            }
           </TableBody>
         </Table>
       </div>
+      ) : null}
 
       {/* Pagination */}
-      {pagination.pages > 1 && (
+      {!error && !isLoading && pagination.pages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing {clients.length} of {pagination.total} clients

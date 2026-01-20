@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Scissors, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,13 @@ export function StaffServicesTab({ staffId, salonId }) {
   var updateServices = useUpdateStaffServices();
 
   var [selectedServices, setSelectedServices] = useState(staffServices || []);
+
+  // Update selected services when data loads
+  useEffect(function() {
+    if (staffServices) {
+      setSelectedServices(staffServices);
+    }
+  }, [staffServices]);
 
   function handleToggleService(serviceId) {
     setSelectedServices(function (prev) {

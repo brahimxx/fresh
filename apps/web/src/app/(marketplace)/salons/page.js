@@ -78,7 +78,9 @@ function SalonSearchContent() {
   var [selectedCategories, setSelectedCategories] = useState(
     searchParams.get('category')?.split(',').filter(Boolean) || []
   );
-  var [selectedPrices, setSelectedPrices] = useState([]);
+  var [selectedPrices, setSelectedPrices] = useState(
+    searchParams.get('price')?.split(',').filter(Boolean) || []
+  );
   var [minRating, setMinRating] = useState(null);
   var [sortBy, setSortBy] = useState('recommended');
   var [openNow, setOpenNow] = useState(false);

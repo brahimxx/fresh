@@ -14,6 +14,9 @@ export async function POST(request) {
       return error('Booking ID and amount are required');
     }
 
+    // Generate idempotency key to prevent duplicate charges
+    const idempotencyKey = `booking-${bookingId}-${Date.now()}`;
+
     // Create Stripe PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100), // Convert to cents
@@ -21,6 +24,8 @@ export async function POST(request) {
       metadata: {
         bookingId: bookingId.toString(),
       },
+    }, {
+      idempotencyKey,
     });
 
     return created({

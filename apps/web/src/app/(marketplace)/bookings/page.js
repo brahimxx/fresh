@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -15,15 +15,15 @@ import {
     Loader2,
     CalendarDays,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/providers/auth-provider";
-import api from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataError } from "@/components/ui/data-error";
+import { useAuth } from "@/providers/auth-provider";
+import { useMyBookings } from "@/hooks/use-bookings";
 import Link from "next/link";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
@@ -31,33 +31,16 @@ function BookingsContent() {
     const { user, isAuthenticated, loading: authLoading } = useAuth();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("upcoming");
-    const [bookings, setBookings] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            router.push("/login?redirect=/bookings");
-        }
-    }, [authLoading, isAuthenticated, router]);
+    const { data: bookings = [], isLoading, error, refetch } = useMyBookings(activeTab, {
+        enabled: isAuthenticated,
+    });
 
-    useEffect(() => {
-        if (isAuthenticated) {
-            fetchBookings();
-        }
-    }, [isAuthenticated, activeTab]);
-
-    const fetchBookings = async () => {
-        setLoading(true);
-        try {
-            const response = await api.get(`/my/bookings?filter=${activeTab}`);
-            setBookings(response.data?.bookings || []);
-        } catch (error) {
-            console.error("Failed to fetch bookings:", error);
-            toast.error("Failed to load your bookings");
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Redirect if not authenticated
+    if (!authLoading && !isAuthenticated) {
+        router.push("/login?redirect=/bookings");
+        return null;
+    }
 
     const getStatusBadge = (status) => {
         switch (status) {
@@ -105,7 +88,14 @@ function BookingsContent() {
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-0">
-                    {loading ? (
+                    {error ? (
+                        <DataError
+                            title="Failed to load bookings"
+                            message="Unable to fetch your bookings. Please try again."
+                            onRetry={refetch}
+                            error={error}
+                        />
+                    ) : isLoading ? (
                         <div className="space-y-4">
                             {[1, 2, 3].map((i) => (
                                 <Card key={i} className="overflow-hidden border-border/50">

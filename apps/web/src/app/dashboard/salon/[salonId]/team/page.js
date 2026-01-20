@@ -44,6 +44,7 @@ import {
   STAFF_COLORS,
   STAFF_ROLES,
 } from "@/hooks/use-staff";
+import { StaffCreationWizard } from "@/components/staff/staff-creation-wizard";
 import { StaffFormDialog } from "@/components/staff/staff-form";
 import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 
@@ -53,6 +54,7 @@ export default function TeamPage({ params }) {
   var router = useRouter();
 
   var [staffFormOpen, setStaffFormOpen] = useState(false);
+  var [wizardOpen, setWizardOpen] = useState(false);
   var [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   var [editStaff, setEditStaff] = useState(null);
   var [scheduleStaff, setScheduleStaff] = useState(null);
@@ -82,7 +84,7 @@ export default function TeamPage({ params }) {
 
   function handleAddStaff() {
     setEditStaff(null);
-    setStaffFormOpen(true);
+    setWizardOpen(true);
   }
 
   function handleEditStaff(member) {
@@ -321,6 +323,13 @@ export default function TeamPage({ params }) {
           </Button>
         </div>
       )}
+
+      {/* Staff Creation Wizard */}
+      <StaffCreationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        salonId={salonId}
+      />
 
       {/* Staff Form Dialog */}
       <StaffFormDialog

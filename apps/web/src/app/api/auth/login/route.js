@@ -11,7 +11,7 @@ export async function POST(request) {
 
     // Validation
     if (!email || !password) {
-      return error('Email and password are required', 400);
+      return error({ code: 'MISSING_FIELDS', message: 'Email and password are required' }, 400);
     }
 
     // Find user
@@ -21,13 +21,13 @@ export async function POST(request) {
     );
 
     if (!user) {
-      return unauthorized('No account found with this email address. Please create an account or check your email.');
+      return unauthorized({ code: 'INVALID_CREDENTIALS', message: 'No account found with this email address. Please create an account or check your email.' });
     }
 
     // Verify password
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      return unauthorized('Incorrect password. Please try again or use "Forgot password".');
+      return unauthorized({ code: 'INVALID_CREDENTIALS', message: 'Incorrect password. Please try again or use "Forgot password".' });
     }
 
     // Create token

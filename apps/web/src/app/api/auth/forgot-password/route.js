@@ -10,7 +10,7 @@ export async function POST(request) {
     const { email } = body;
 
     if (!email) {
-      return error('Email is required');
+      return error({ code: 'MISSING_EMAIL', message: 'Email is required' });
     }
 
     const user = await getOne('SELECT id, email, first_name FROM users WHERE email = ?', [email]);
@@ -36,7 +36,10 @@ export async function POST(request) {
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
 
     // TODO: Send email with resetUrl
-    console.log('Password reset URL:', resetUrl);
+    // Only log in development for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Password reset URL:', resetUrl);
+    }
 
     return success({
       message: 'If an account exists, a reset link has been sent',

@@ -53,16 +53,24 @@ export async function GET(request, { params }) {
 
     for (const staffMember of availableStaff) {
       // Get working hours for this staff on this day
-      const workingHours = await getOne(
+      let workingHours = await getOne(
         'SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?',
         [staffMember.id, dayOfWeek]
       );
+
+      // Fallback to salon business hours if staff has no specific working hours
+      if (!workingHours) {
+        workingHours = await getOne(
+          'SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0',
+          [salonId, dayOfWeek]
+        );
+      }
 
       if (!workingHours) continue;
 
       // Check for time off
       const timeOff = await getOne(
-        'SELECT id FROM staff_time_off WHERE staff_id = ? AND ? BETWEEN start_date AND end_date',
+        'SELECT id FROM staff_time_off WHERE staff_id = ? AND ? BETWEEN DATE(start_datetime) AND DATE(end_datetime)',
         [staffMember.id, date]
       );
 
@@ -78,17 +86,34 @@ export async function GET(request, { params }) {
       );
 
       // Generate available slots
-      const start = new Date(`${date}T${workingHours.start_time}`);
-      const end = new Date(`${date}T${workingHours.end_time}`);
+      // Ensure time format is HH:MM:SS
+      const startTimeStr = workingHours.start_time.includes(':') 
+        ? workingHours.start_time 
+        : workingHours.start_time;
+      const endTimeStr = workingHours.end_time.includes(':')
+        ? workingHours.end_time
+        : workingHours.end_time;
+        
+      const startTime = new Date(`${date}T${startTimeStr}`);
+      const endTime = new Date(`${date}T${endTimeStr}`);
+      
+      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        console.error('Invalid time format:', { start_time: workingHours.start_time, end_time: workingHours.end_time });
+        continue;
+      }
+      
       const duration = service.duration_minutes;
       const now = new Date();
 
-      while (start.getTime() + duration * 60000 <= end.getTime()) {
-        const slotEnd = new Date(start.getTime() + duration * 60000);
+      let currentSlot = new Date(startTime);
+      
+      while (currentSlot.getTime() + duration * 60000 <= endTime.getTime()) {
+        const slotStart = new Date(currentSlot);
+        const slotEnd = new Date(currentSlot.getTime() + duration * 60000);
 
         // Skip past times
-        if (start <= now) {
-          start.setMinutes(start.getMinutes() + 15);
+        if (slotStart <= now) {
+          currentSlot.setMinutes(currentSlot.getMinutes() + 15);
           continue;
         }
 
@@ -96,19 +121,19 @@ export async function GET(request, { params }) {
         const hasConflict = bookings.some((booking) => {
           const bookingStart = new Date(booking.start_datetime);
           const bookingEnd = new Date(booking.end_datetime);
-          return start < bookingEnd && slotEnd > bookingStart;
+          return slotStart < bookingEnd && slotEnd > bookingStart;
         });
 
         if (!hasConflict) {
           slots.push({
             staffId: staffMember.id,
             staffName: `${staffMember.first_name} ${staffMember.last_name}`,
-            startTime: start.toISOString(),
+            startTime: slotStart.toISOString(),
             endTime: slotEnd.toISOString(),
           });
         }
 
-        start.setMinutes(start.getMinutes() + 15);
+        currentSlot.setMinutes(currentSlot.getMinutes() + 15);
       }
     }
 
@@ -120,6 +145,7 @@ export async function GET(request, { params }) {
     });
   } catch (err) {
     console.error('Get widget availability error:', err);
-    return error('Failed to get availability', 500);
+    console.error('Error stack:', err.stack);
+    return error(`Failed to get availability: ${err.message}`, 500);
   }
 }

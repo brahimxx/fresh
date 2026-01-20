@@ -1,6 +1,9 @@
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
@@ -29,7 +32,7 @@ export async function GET(request, { params }) {
     );
 
     if (!booking) {
-      return error('Booking not found', 404);
+      return error({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' }, 404);
     }
 
     const hasAccess = await checkSalonAccess(booking.salon_id, session.userId, session.role);
@@ -140,7 +143,7 @@ export async function GET(request, { params }) {
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Get checkout error:', err);
-    return error('Failed to get checkout', 500);
+    return error({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get checkout' }, 500);
   }
 }
 
@@ -175,6 +178,12 @@ export async function POST(request, { params }) {
       paymentMethod,
       stripePaymentId,
     } = body;
+
+    // Check for existing payment to prevent duplicates
+    const existingPayment = await getOne('SELECT id, status FROM payments WHERE booking_id = ?', [bookingId]);
+    if (existingPayment && existingPayment.status === 'paid') {
+      return error({ code: 'PAYMENT_EXISTS', message: 'This booking has already been paid' }, 400);
+    }
 
     const result = await transaction(async (conn) => {
       // Add products to booking
@@ -237,6 +246,27 @@ export async function POST(request, { params }) {
       const finalAmount = Math.max(0, subtotal - discountTotal - giftCardTotal);
       const totalWithTip = finalAmount + parseFloat(tipAmount);
 
+      // Verify Stripe payment BEFORE committing to database
+      let verifiedStripePayment = null;
+      if (paymentMethod === 'card') {
+        if (!stripePaymentId) {
+           throw new Error('Stripe payment ID is required for card payments');
+        }
+        
+        const intent = await stripe.paymentIntents.retrieve(stripePaymentId);
+        if (intent.status !== 'succeeded') {
+          throw new Error(`Payment verification failed: status is ${intent.status}`);
+        }
+        
+        // Check amount match (cents)
+        const expectedCents = Math.round(totalWithTip * 100);
+        if (Math.abs(intent.amount - expectedCents) > 10) {
+           throw new Error(`Payment amount mismatch: paid ${intent.amount / 100}, expected ${totalWithTip}`);
+        }
+        
+        verifiedStripePayment = intent;
+      }
+
       // Create payment record
       const [paymentResult] = await conn.execute(
         `INSERT INTO payments (booking_id, amount, tip_amount, method, status, stripe_payment_id, created_at)
@@ -276,6 +306,6 @@ export async function POST(request, { params }) {
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Complete checkout error:', err);
-    return error('Failed to complete checkout', 500);
+    return error({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to complete checkout' }, 500);
   }
 }

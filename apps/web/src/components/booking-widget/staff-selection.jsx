@@ -96,17 +96,17 @@ export function StaffSelection({
             selectStaff(null);
           }}
           className={
-            "p-4 rounded-lg border cursor-pointer transition-all " +
+            "p-5 rounded-lg border cursor-pointer transition-all active:scale-[0.98] " +
             (selected === null
               ? "border-primary bg-primary/5 ring-2 ring-primary/20"
               : "border-border hover:border-primary/20 hover:bg-muted/30")
           }
         >
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
-              <Users className="h-6 w-6 text-gray-600" />
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+              <Users className="h-7 w-7 text-gray-600" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h4 className="font-medium">Any Available</h4>
                 {selected === null && (
@@ -132,18 +132,18 @@ export function StaffSelection({
                 selectStaff(member);
               }}
               className={
-                "p-4 rounded-lg border cursor-pointer transition-all " +
+                "p-5 rounded-lg border cursor-pointer transition-all active:scale-[0.98] " +
                 (isSelected
                   ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                   : "border-border hover:border-primary/20 hover:bg-muted/30")
               }
             >
               <div className="flex items-center gap-4">
-                <Avatar className="w-14 h-14">
+                <Avatar className="w-16 h-16">
                   <AvatarImage src={member.avatar_url} alt={member.name} />
                   <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium">{member.name}</h4>
                     {isSelected && (
@@ -194,8 +194,18 @@ export function StaffSelection({
         })}
 
         {staff.length === 0 && (
-          <div className="text-center py-4 text-muted-foreground">
-            No staff available for selected services
+          <div className="text-center py-8 space-y-2">
+            <div className="flex justify-center">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <User className="h-6 w-6 text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <p className="font-medium text-sm">No staff available</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                No team members can provide the selected services
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

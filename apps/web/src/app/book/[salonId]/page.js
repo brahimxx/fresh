@@ -121,7 +121,7 @@ export default function BookingPage({ params }) {
 
   async function handleConfirmBooking() {
     if (!isAuthenticated || !user) {
-      alert("Please sign in to complete your booking.");
+      setErrorMsg("Please sign in to complete your booking.");
       return;
     }
 
@@ -155,11 +155,21 @@ export default function BookingPage({ params }) {
         setBookingComplete(true);
       } else {
         var errorData = await res.json();
-        alert(errorData.error || "Booking failed. Please try again.");
+        var errorMessage = errorData.error || "Unable to complete booking";
+        if (errorMessage.includes("not available")) {
+          setErrorMsg("This time slot is no longer available. Please select a different time.");
+        } else if (errorMessage.includes("conflict")) {
+          setErrorMsg("There's a scheduling conflict. Please choose a different time slot.");
+        } else {
+          setErrorMsg(errorMessage + ". Please try again or contact the salon.");
+        }
+        // Go back to datetime selection
+        setCurrentStep(2);
       }
     } catch (error) {
       console.error("Booking failed:", error);
-      alert("Booking failed. Please try again.");
+      setErrorMsg("Network error. Please check your connection and try again.");
+      setCurrentStep(2);
     }
   }
 
@@ -176,18 +186,27 @@ export default function BookingPage({ params }) {
 
   if (errorMsg || !salon) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md w-full mx-4">
-          <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-bold mb-2 text-destructive">
-              {errorMsg === "Salon not found" ? "Salon Not Found" : "Booking Unavailable"}
-            </h2>
-            <p className="text-muted-foreground font-medium">
-              {errorMsg || "This booking page is not available at the moment."}
-            </p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+                <MapPin className="h-8 w-8 text-destructive" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold mb-2">
+                {errorMsg === "Salon not found" ? "Salon Not Found" : "Booking Unavailable"}
+              </h2>
+              <p className="text-muted-foreground">
+                {errorMsg === "Salon not found" 
+                  ? "We couldn't find this salon. It may have been removed or the link is incorrect."
+                  : errorMsg || "This booking page is temporarily unavailable. Please try again later."}
+              </p>
+            </div>
             <Button
               variant="outline"
-              className="mt-6 w-full rounded-xl"
+              className="w-full rounded-xl min-h-[44px]"
               onClick={() => window.location.href = '/'}
             >
               Back to Marketplace
@@ -317,9 +336,35 @@ export default function BookingPage({ params }) {
 
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
+        {/* Error Alert */}
+        {errorMsg && currentStep !== 0 && (
+          <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <div className="w-5 h-5 rounded-full bg-destructive/20 flex items-center justify-center">
+                  <span className="text-destructive font-bold text-xs">!</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-destructive">{errorMsg}</p>
+              </div>
+              <button
+                onClick={() => setErrorMsg(null)}
+                className="flex-shrink-0 text-destructive/70 hover:text-destructive"
+              >
+                <span className="sr-only">Dismiss</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+        
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Step Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 transition-all duration-300 ease-in-out">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {currentStep === 0 && (
               <ServiceSelection
                 salonId={salonId}
@@ -340,8 +385,8 @@ export default function BookingPage({ params }) {
             {currentStep === 2 && (
               <DateTimeSelection
                 salonId={salonId}
-                services={selectedServices}
-                staffId={selectedStaff?.id}
+                selectedServices={selectedServices}
+                selectedStaff={selectedStaff}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
                 onDateSelect={setSelectedDate}
@@ -390,7 +435,7 @@ export default function BookingPage({ params }) {
                   <div>
                     <h4 className="font-medium mb-1">Date & Time</h4>
                     <p className="text-sm text-muted-foreground">
-                      {selectedDate} at {selectedTime}
+                      {selectedDate && selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {selectedTime && new Date(selectedTime.split('-')[0]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </p>
                   </div>
 
@@ -433,6 +478,7 @@ export default function BookingPage({ params }) {
                 </CardContent>
               </Card>
             )}
+            </div>
           </div>
 
           {/* Summary Sidebar */}
@@ -480,11 +526,11 @@ export default function BookingPage({ params }) {
                       <div className="border-t pt-4">
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>{selectedDate}</span>
+                          <span>{selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm mt-1">
                           <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>{selectedTime}</span>
+                          <span>{new Date(selectedTime.split('-')[0]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
                         </div>
                       </div>
                     )}
@@ -505,17 +551,26 @@ export default function BookingPage({ params }) {
             variant="outline"
             onClick={handleBack}
             disabled={currentStep === 0}
+            className="min-h-[44px] transition-all"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
 
           {currentStep < STEPS.length - 1 ? (
-            <Button onClick={handleNext} disabled={!canProceed()}>
+            <Button 
+              onClick={handleNext} 
+              disabled={!canProceed()}
+              className="min-h-[44px] transition-all"
+            >
               Continue
             </Button>
           ) : (
-            <Button onClick={handleConfirmBooking} disabled={!canProceed()}>
+            <Button 
+              onClick={handleConfirmBooking} 
+              disabled={!canProceed()}
+              className="min-h-[44px] transition-all"
+            >
               Confirm Booking
             </Button>
           )}

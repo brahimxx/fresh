@@ -28,7 +28,7 @@ export default defineConfig({
   // Shared settings for all projects
   use: {
     // Base URL for all tests
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000',
     
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -39,6 +39,15 @@ export default defineConfig({
     // Video on first retry
     video: 'on-first-retry',
   },
+
+  // Start the server before running tests
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120 * 1000,
+  },
+
 
   // Configure projects for major browsers
   projects: [

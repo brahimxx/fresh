@@ -76,7 +76,7 @@ export async function GET(request, { params }) {
     const staffWithCommissions = commissionData.map((staff) => {
       const settings = staffSettings.find((s) => s.staff_id === staff.staff_id);
       const commissionType = settings?.commission_type || 'percentage';
-      const commissionValue = settings?.commission_value || 0;
+      const commissionValue = parseFloat(settings?.service_commission || 0);
 
       let commissionAmount = 0;
       if (commissionType === 'percentage') {
@@ -102,7 +102,7 @@ export async function GET(request, { params }) {
         staffId: s.staff_id,
         staffName: `${s.first_name} ${s.last_name}`,
         commissionType: s.commission_type,
-        commissionValue: parseFloat(s.commission_value),
+        commissionValue: parseFloat(s.service_commission || 0),
       })),
       data: staffWithCommissions,
       totals: {
@@ -150,12 +150,12 @@ export async function POST(request, { params }) {
 
     if (existing) {
       await query(
-        'UPDATE staff_commissions SET commission_type = ?, commission_value = ? WHERE staff_id = ?',
+        'UPDATE staff_commissions SET commission_type = ?, service_commission = ? WHERE staff_id = ?',
         [commissionType, commissionValue, staffId]
       );
     } else {
       await query(
-        'INSERT INTO staff_commissions (staff_id, commission_type, commission_value, created_at) VALUES (?, ?, ?, NOW())',
+        'INSERT INTO staff_commissions (staff_id, commission_type, service_commission, created_at) VALUES (?, ?, ?, NOW())',
         [staffId, commissionType, commissionValue]
       );
     }

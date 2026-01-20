@@ -2,6 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
+import { formatCurrency } from '@/lib/format';
+
+// Re-export for backward compatibility
+export { formatCurrency };
 
 // Query key factory for payments
 export var paymentKeys = {
@@ -144,11 +148,4 @@ export var PAYMENT_STATUSES = {
   partial_refund: { label: 'Partial Refund', color: 'bg-orange-100 text-orange-800' },
 };
 
-// Format currency
-export function formatCurrency(amount, currency) {
-  currency = currency || 'EUR';
-  return new Intl.NumberFormat('en-EU', {
-    style: 'currency',
-    currency: currency,
-  }).format(amount || 0);
-}
+

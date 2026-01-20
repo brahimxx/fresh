@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Search, MapPin, Star, Clock, ChevronRight, Scissors, Sparkles, Heart } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMarketplaceSalons } from '@/hooks/use-marketplace';
 
 var FEATURED_CATEGORIES = [
   { name: 'Hair Salons', icon: Scissors, slug: 'hair', count: '2,500+' },
@@ -28,26 +29,11 @@ export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
-  const [featuredSalons, setFeaturedSalons] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // Fetch featured salons on mount
-  useEffect(() => {
-    async function fetchFeaturedSalons() {
-      try {
-        const res = await fetch('/api/marketplace/salons?sort=rating&limit=4');
-        if (res.ok) {
-          const data = await res.json();
-          setFeaturedSalons(data.data || []);
-        }
-      } catch (error) {
-        console.error('Failed to load featured salons:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchFeaturedSalons();
-  }, []);
+  // Fetch featured salons using TanStack Query
+  const { data: featuredSalons = [], isLoading: loading } = useMarketplaceSalons(
+    { sort: 'rating', limit: 4 }
+  );
 
   const handleSearch = () => {
     const params = new URLSearchParams();

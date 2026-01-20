@@ -41,9 +41,14 @@ export async function POST(request) {
     }
 
     const refundAmount = amount || payment.amount;
+    const totalRefunded = parseFloat(payment.refunded_amount || 0);
+    const remainingAmount = parseFloat(payment.amount) - totalRefunded;
 
-    if (refundAmount > payment.amount) {
-      return error('Refund amount cannot exceed payment amount');
+    if (refundAmount > remainingAmount) {
+      return error({ 
+        code: 'REFUND_EXCEEDS_REMAINING', 
+        message: `Refund amount (${refundAmount}) exceeds remaining amount (${remainingAmount})` 
+      }, 400);
     }
 
     const result = await transaction(async (conn) => {

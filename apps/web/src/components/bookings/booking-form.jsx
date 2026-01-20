@@ -121,8 +121,6 @@ export function BookingFormDialog({
   var filteredStaff =
     Array.isArray(staff) && watchServiceId
       ? staff.filter(function (member) {
-          // Debug: log staff member and their services
-          console.log("Staff member:", member);
           if (Array.isArray(member.service_ids)) {
             return member.service_ids.includes(watchServiceId);
           }
@@ -131,24 +129,15 @@ export function BookingFormDialog({
               return s.id === watchServiceId;
             });
           }
-          // If neither, log warning
-          console.warn("Staff member missing service_ids/services:", member);
-          return true; // fallback: show all if no info
+          // Don't show staff without service assignments
+          return false;
         })
       : Array.isArray(staff)
       ? staff
       : [];
 
-  // If no staff after filtering, show all with a note
-  var showAllStaff =
-    filteredStaff.length === 0 &&
-    watchServiceId &&
-    Array.isArray(staff) &&
-    staff.length > 0;
-  if (showAllStaff) {
-    filteredStaff = staff;
-    console.warn("No staff found for service, showing all staff");
-  }
+  // Don't fallback to showing all staff - if no staff can do the service, show empty
+  var showAllStaff = false;
 
   var { data: availability } = useAvailability(salonId, {
     date: watchDate ? format(watchDate, "yyyy-MM-dd") : null,
@@ -430,9 +419,7 @@ export function BookingFormDialog({
                   <SelectValue
                     placeholder={
                       filteredStaff.length === 0
-                        ? "No staff available"
-                        : showAllStaff
-                        ? "Select staff member (showing all)"
+                        ? "No staff available for this service"
                         : "Select staff member"
                     }
                   />

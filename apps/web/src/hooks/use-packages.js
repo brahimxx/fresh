@@ -1,6 +1,10 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatCurrency } from '@/lib/format';
+
+// Re-export for backward compatibility
+export { formatCurrency };
 
 // Query keys factory
 export var packageKeys = {
@@ -18,13 +22,7 @@ export var PACKAGE_STATUSES = {
   sold_out: { label: 'Sold Out', color: 'bg-red-100 text-red-800' },
 };
 
-// Format currency
-export function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount || 0);
-}
+
 
 // Calculate package savings
 export function calculateSavings(pkg) {

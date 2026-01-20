@@ -25,14 +25,11 @@ export async function GET(request, { params }) {
 
     // If specific services selected, filter by staff who can perform them
     if (serviceIds.length > 0) {
-      staffQuery += ` AND (
-        s.id IN (
+      staffQuery += ` AND s.id IN (
           SELECT staff_id FROM service_staff WHERE service_id IN (${serviceIds
             .map(() => "?")
             .join(",")})
-        )
-        OR NOT EXISTS (SELECT 1 FROM service_staff WHERE staff_id = s.id)
-      )`;
+        )`;
       queryParams.push(...serviceIds);
     }
 

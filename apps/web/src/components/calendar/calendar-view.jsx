@@ -24,7 +24,8 @@ import { useSalon } from "@/providers/salon-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CalendarSkeleton } from "@/components/ui/loading-skeletons";
+import { DataError } from "@/components/ui/data-error";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import {
@@ -68,14 +69,14 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   );
 
   // Fetch bookings
-  var { data: bookings, isLoading: bookingsLoading } = useCalendarBookings(
+  var { data: bookings, isLoading: bookingsLoading, error: bookingsError, refetch: refetchBookings } = useCalendarBookings(
     salonId,
     dateRange.start,
     dateRange.end
   );
 
   // Fetch staff
-  var { data: staff, isLoading: staffLoading } = useStaff(salonId);
+  var { data: staff, isLoading: staffLoading, error: staffError, refetch: refetchStaff } = useStaff(salonId);
 
   // Build staff color map
   var staffColorMap = useMemo(
@@ -207,15 +208,17 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   }, []);
 
   if (bookingsLoading || staffLoading) {
+    return <CalendarSkeleton />;
+  }
+
+  if (bookingsError || staffError) {
     return (
-      <div className="p-4 space-y-4">
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Skeleton className="h-[600px] w-full" />
-      </div>
+      <DataError
+        title="Failed to load calendar"
+        message={bookingsError ? "Unable to fetch bookings" : "Unable to fetch staff members"}
+        onRetry={bookingsError ? refetchBookings : refetchStaff}
+        error={bookingsError || staffError}
+      />
     );
   }
 
