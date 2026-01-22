@@ -39,6 +39,7 @@ export function useClientSearch(query, options) {
       var responseData = response.data || response;
       return responseData.clients || responseData.data || [];
     },
+    staleTime: 1000 * 30, // 30 seconds for search results
     ...options,
   });
 }
@@ -59,6 +60,7 @@ export function useClients(filters, options) {
         pagination: responseData.pagination,
       };
     },
+    staleTime: 1000 * 60, // 1 minute
     ...options,
   });
 }

@@ -2,12 +2,27 @@ import { getOne } from '@/lib/db';
 import { verifyPassword, createToken } from '@/lib/auth';
 import { success, error, unauthorized } from '@/lib/response';
 import { cookies } from 'next/headers';
+import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
 
 // POST /api/auth/login - Login user
 export async function POST(request) {
   try {
     const body = await request.json();
     const { email, password } = body;
+
+    // Rate limiting: 5 attempts per 15 minutes per email
+    const rateLimit = rateLimiter.check(
+      `login:${email?.toLowerCase() || 'unknown'}`,
+      RateLimitPresets.AUTH.maxAttempts,
+      RateLimitPresets.AUTH.windowMs
+    );
+
+    if (!rateLimit.success) {
+      return error(
+        `Too many login attempts. Please try again in ${rateLimit.retryAfter} seconds.`,
+        429
+      );
+    }
 
     // Validation
     if (!email || !password) {
@@ -42,7 +57,7 @@ export async function POST(request) {
     cookieStore.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 

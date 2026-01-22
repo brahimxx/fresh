@@ -30,12 +30,13 @@ export async function GET(request, { params }) {
     const { id } = await params;
 
     const staff = await query(
-      `SELECT st.id, st.role, st.is_active, st.user_id,
+      `SELECT st.id, st.role, st.is_active, st.user_id, st.color,
+              st.first_name as staff_first_name, st.last_name as staff_last_name,
               u.first_name, u.last_name, u.email, u.phone
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? AND st.is_active = 1
-       ORDER BY st.role DESC, u.first_name`,
+       ORDER BY st.role DESC, COALESCE(st.first_name, u.first_name)`,
       [id]
     );
 
@@ -50,12 +51,13 @@ export async function GET(request, { params }) {
         return {
           id: s.id,
           userId: s.user_id,
-          firstName: s.first_name,
-          lastName: s.last_name,
+          firstName: s.staff_first_name || s.first_name,
+          lastName: s.staff_last_name || s.last_name,
           email: s.email,
           phone: s.phone,
           role: s.role,
           isActive: s.is_active,
+          color: s.color,
           service_ids: serviceIds.map((sid) => sid.service_id),
         };
       })

@@ -2,6 +2,7 @@ import { query, getOne } from '@/lib/db';
 import { hashPassword, verifyPassword, createToken } from '@/lib/auth';
 import { success, error, created } from '@/lib/response';
 import { cookies } from 'next/headers';
+import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
 
 // POST /api/auth/register - Register a new user
 export async function POST(request) {
@@ -9,6 +10,22 @@ export async function POST(request) {
     const body = await request.json();
     // Accept both camelCase and snake_case from client
     const email = body.email;
+
+    // Rate limiting: 5 attempts per 15 minutes per IP
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const rateLimit = rateLimiter.check(
+      `register:${ip}`,
+      RateLimitPresets.AUTH.maxAttempts,
+      RateLimitPresets.AUTH.windowMs
+    );
+
+    if (!rateLimit.success) {
+      return error(
+        `Too many registration attempts. Please try again in ${rateLimit.retryAfter} seconds.`,
+        429
+      );
+    }
+
     const phone = body.phone ?? null;
     const password = body.password;
     const firstName = body.firstName ?? body.first_name;
@@ -70,7 +87,7 @@ export async function POST(request) {
     cookieStore.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 

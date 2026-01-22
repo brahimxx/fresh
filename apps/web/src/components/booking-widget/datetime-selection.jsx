@@ -59,26 +59,25 @@ export function DateTimeSelection({
           var day = String(selectedDate.getDate()).padStart(2, '0');
           var dateStr = year + '-' + month + '-' + day;
           
-          var serviceId =
-            selectedServices && selectedServices[0]
-              ? selectedServices[0].id
-              : "";
-          var staffId = selectedStaff?.id || "";
+          // Build services parameter with staff assignments
+          var servicesParam = selectedServices
+            .map(function(s) { 
+              return s.id + ':' + (s.staffId || ''); 
+            })
+            .join(',');
 
           var url =
             "/api/widget/" +
             salonId +
             "/availability?date=" +
             dateStr +
-            "&serviceId=" +
-            serviceId +
-            (staffId ? "&staffId=" + staffId : "");
+            "&services=" +
+            encodeURIComponent(servicesParam);
 
           console.log('===== AVAILABILITY REQUEST =====');
           console.log('Selected date object:', selectedDate);
           console.log('Date string for API:', dateStr);
-          console.log('Service ID:', serviceId);
-          console.log('Staff ID:', staffId);
+          console.log('Services with staff:', servicesParam);
           console.log('Full URL:', url);
           
           var res = await fetch(url);
@@ -101,7 +100,7 @@ export function DateTimeSelection({
       }
       loadSlots();
     },
-    [salonId, selectedServices, selectedStaff, selectedDate]
+    [salonId, selectedServices, selectedDate]
   );
 
   // Calendar helpers

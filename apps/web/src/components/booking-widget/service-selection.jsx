@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, Check, Clock } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Check, Clock, User } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function ServiceSelection({ salonId, selected, onSelect }) {
   var [services, setServices] = useState([]);
@@ -49,9 +56,25 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
         return s.id !== service.id;
       });
     } else {
-      newSelected = [...selected, service];
+      // Add service with first available staff as default
+      var defaultStaff = service.availableStaff && service.availableStaff[0];
+      newSelected = [...selected, { 
+        ...service, 
+        staffId: defaultStaff?.id || null,
+        staffName: defaultStaff?.name || null
+      }];
     }
     console.log("Service selection changed:", newSelected);
+    onSelect(newSelected);
+  }
+
+  function updateServiceStaff(serviceId, staffId, staffName) {
+    var newSelected = selected.map(function (s) {
+      if (s.id === serviceId) {
+        return { ...s, staffId: staffId, staffName: staffName };
+      }
+      return s;
+    });
     onSelect(newSelected);
   }
 
@@ -61,10 +84,12 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
     });
   }
 
-  // Filter services
-  var filteredServices =
-    services && Array.isArray(services)
-      ? services.filter(function (service) {
+  // Filter services with memoization
+  var filteredServices = useMemo(
+    function () {
+      if (!services || !Array.isArray(services)) return [];
+      
+      return services.filter(function (service) {
         var matchesSearch =
           !search ||
           service.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -72,18 +97,26 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
         var matchesCategory =
           !activeCategory || service.category_id === activeCategory;
         return matchesSearch && matchesCategory;
-      })
-      : [];
+      });
+    },
+    [services, search, activeCategory]
+  );
 
-  // Group by category
-  var groupedServices = {};
-  filteredServices.forEach(function (service) {
-    var catId = service.category_id || "uncategorized";
-    if (!groupedServices[catId]) {
-      groupedServices[catId] = [];
-    }
-    groupedServices[catId].push(service);
-  });
+  // Group by category with memoization
+  var groupedServices = useMemo(
+    function () {
+      var groups = {};
+      filteredServices.forEach(function (service) {
+        var catId = service.category_id || "uncategorized";
+        if (!groups[catId]) {
+          groups[catId] = [];
+        }
+        groups[catId].push(service);
+      });
+      return groups;
+    },
+    [filteredServices]
+  );
 
   if (loading) {
     return (
@@ -166,48 +199,95 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                 )}
                 <div className="space-y-2">
                   {catServices.map(function (service) {
-                    var selected = isSelected(service.id);
+                    var selectedService = selected.find(function (s) { return s.id === service.id; });
+                    var isServiceSelected = !!selectedService;
+                    
                     return (
                       <div
                         key={service.id}
-                        onClick={function () {
-                          toggleService(service);
-                        }}
                         className={
-                          "p-5 rounded-lg border cursor-pointer transition-all active:scale-[0.98] " +
-                          (isSelected
+                          "p-5 rounded-lg border transition-all " +
+                          (isServiceSelected
                             ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                             : "border-border hover:border-primary/20 hover:bg-muted/30")
                         }
                       >
-                        <div className="flex gap-4 min-h-[44px]">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">{service.name}</h4>
-                              {selected && (
-                                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                                  <Check className="h-3 w-3 text-white" />
-                                </div>
+                        <div 
+                          onClick={function () {
+                            toggleService(service);
+                          }}
+                          className="cursor-pointer active:scale-[0.98] transition-transform"
+                        >
+                          <div className="flex gap-4 min-h-[44px]">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">{service.name}</h4>
+                                {isServiceSelected && (
+                                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                    <Check className="h-3 w-3 text-white" />
+                                  </div>
+                                )}
+                              </div>
+                              {service.description && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {service.description}
+                                </p>
                               )}
+                              <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {service.duration} min
+                                </span>
+                              </div>
                             </div>
-                            {service.description && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {service.description}
+                            <div className="text-right">
+                              <p className="font-semibold">
+                                ${parseFloat(service.price).toFixed(2)}
                               </p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {service.duration} min
-                              </span>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">
-                              ${parseFloat(service.price).toFixed(2)}
-                            </p>
                           </div>
                         </div>
+                        
+                        {/* Staff selection dropdown - shown when service is selected */}
+                        {isServiceSelected && service.availableStaff && service.availableStaff.length > 0 && (
+                          <div className="mt-4 pt-4 border-t" onClick={function(e) { e.stopPropagation(); }}>
+                            <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              Select Staff Member
+                            </label>
+                            <Select 
+                              value={selectedService.staffId ? selectedService.staffId.toString() : ""}
+                              onValueChange={function(value) {
+                                var staff = service.availableStaff.find(function(s) { return s.id.toString() === value; });
+                                if (staff) {
+                                  updateServiceStaff(service.id, staff.id, staff.name);
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Choose a staff member" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {service.availableStaff.map(function(staff) {
+                                  return (
+                                    <SelectItem key={staff.id} value={staff.id.toString()}>
+                                      <div className="flex items-center gap-2">
+                                        <div 
+                                          className="w-3 h-3 rounded-full" 
+                                          style={{ backgroundColor: staff.color || '#3B82F6' }}
+                                        />
+                                        <span>{staff.name}</span>
+                                        {staff.title && (
+                                          <span className="text-xs text-muted-foreground">({staff.title})</span>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

@@ -1,25 +1,25 @@
-/* FullCalendar Custom Styles - Fresha-Inspired Clean Modern Design */
+/* FullCalendar Custom Styles - Using App Theme Colors */
 
-/* Root variables - Clean minimal palette */
+/* Root variables - Using the app's design system */
 .fc {
-  --fc-border-color: #e5e7eb;
-  --fc-button-bg-color: #111827;
-  --fc-button-border-color: #111827;
-  --fc-button-hover-bg-color: #1f2937;
-  --fc-button-hover-border-color: #1f2937;
-  --fc-button-active-bg-color: #374151;
-  --fc-button-active-border-color: #374151;
-  --fc-event-bg-color: #3b82f6;
-  --fc-event-border-color: #3b82f6;
-  --fc-event-text-color: #ffffff;
-  --fc-today-bg-color: #fef3c7;
-  --fc-page-bg-color: #ffffff;
-  --fc-neutral-bg-color: #f9fafb;
-  --fc-list-event-hover-bg-color: #f3f4f6;
+  --fc-border-color: hsl(var(--border));
+  --fc-button-bg-color: hsl(var(--primary));
+  --fc-button-text-color: hsl(var(--primary-foreground));
+  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
+  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
+  --fc-event-bg-color: hsl(var(--primary));
+  --fc-event-text-color: hsl(var(--primary-foreground));
+  --fc-today-bg-color: hsl(var(--accent));
+  --fc-page-bg-color: hsl(var(--background));
+  --fc-card-bg-color: hsl(var(--card));
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-hover-bg-color: hsl(var(--accent));
+  --fc-text-color: hsl(var(--foreground));
+  --fc-muted-text-color: hsl(var(--muted-foreground));
 
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
     "Helvetica", "Arial", sans-serif;
-  background: #ffffff;
+  background: var(--fc-page-bg-color);
   border: none;
   padding: 0;
   box-shadow: none;
@@ -38,7 +38,7 @@
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #111827;
+  color: var(--fc-text-color);
 }
 
 .fc .fc-button {
@@ -49,18 +49,25 @@
   text-transform: none;
   transition: all 0.2s ease;
   box-shadow: none;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fc-border-color);
+  background: var(--fc-button-bg-color);
+  color: var(--fc-button-text-color);
 }
 
 .fc .fc-button:hover {
   transform: none;
-  background: #1f2937;
-  border-color: #1f2937;
+  background: var(--fc-button-hover-bg-color);
+  border-color: var(--fc-border-color);
 }
 
 .fc .fc-button:active {
   transform: none;
-  background: #374151;
+  background: var(--fc-button-active-bg-color);
+}
+
+.fc .fc-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
 }
 
 .fc .fc-button:focus {
@@ -72,14 +79,14 @@
   box-shadow: none;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fc-border-color);
 }
 
 .fc .fc-button-group > .fc-button {
   border-radius: 0;
   box-shadow: none;
   border: none;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--fc-border-color);
 }
 
 .fc .fc-button-group > .fc-button:first-child {
@@ -98,20 +105,20 @@
   cursor: pointer;
   transition: background-color 0.2s ease;
   position: relative;
-  border-color: #f3f4f6;
+  border-color: var(--fc-border-color);
 }
 
 .fc .fc-daygrid-day:hover {
-  background-color: #f9fafb;
+  background-color: var(--fc-neutral-bg-color);
 }
 
 .fc .fc-daygrid-day.fc-day-today {
-  background-color: #fef3c7;
+  background-color: var(--fc-today-bg-color);
 }
 
 .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
-  background: #111827;
-  color: #ffffff;
+  background: var(--fc-button-bg-color);
+  color: var(--fc-button-text-color);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -126,7 +133,7 @@
   padding: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #111827;
+  color: var(--fc-text-color);
 }
 
 .fc .fc-daygrid-day-top {
@@ -136,13 +143,13 @@
 /* Time grid styling - Fresha Clean Design */
 .fc .fc-timegrid-slot {
   height: 3rem;
-  border-color: #f3f4f6;
+  border-color: var(--fc-border-color);
 }
 
 .fc .fc-timegrid-slot-label {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--fc-muted-text-color);
   padding: 0.5rem;
   vertical-align: middle;
 }
@@ -153,12 +160,12 @@
 }
 
 .fc .fc-timegrid-col:hover {
-  background-color: #f9fafb;
+  background-color: var(--fc-neutral-bg-color);
 }
 
 .fc .fc-timegrid-axis {
-  background: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  background: var(--fc-page-bg-color);
+  border-right: 1px solid var(--fc-border-color);
 }
 
 /* Event styling - Fresha Clean Design */
@@ -221,10 +228,10 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6b7280;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-  border-color: #f3f4f6;
+  color: var(--fc-muted-text-color);
+  background: var(--fc-page-bg-color);
+  border-bottom: 1px solid var(--fc-border-color);
+  border-color: var(--fc-border-color);
 }
 
 .fc .fc-col-header-cell-cushion {
@@ -234,7 +241,7 @@
 .fc .fc-scrollgrid {
   border-radius: 0;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fc-border-color);
 }
 
 /* Now indicator - Clean Design */
@@ -258,18 +265,18 @@
 }
 
 .fc .fc-scroller::-webkit-scrollbar-track {
-  background: #f9fafb;
+  background: var(--fc-neutral-bg-color);
   border-radius: 4px;
 }
 
 .fc .fc-scroller::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--fc-border-color);
   border-radius: 4px;
-  border: 2px solid #f9fafb;
+  border: 2px solid var(--fc-neutral-bg-color);
 }
 
 .fc .fc-scroller::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: var(--fc-muted-text-color);
 }
 
 /* List view - Clean Design */
@@ -279,17 +286,17 @@
 }
 
 .fc .fc-list-event:hover td {
-  background-color: #f9fafb;
-  border-left-color: #3b82f6;
+  background-color: var(--fc-hover-bg-color);
+  border-left-color: hsl(var(--primary));
 }
 
 .fc .fc-list-day-cushion {
-  background: #f9fafb;
+  background: var(--fc-neutral-bg-color);
   font-weight: 600;
   padding: 0.75rem 1rem;
   border-radius: 0;
   margin: 0;
-  color: #111827;
+  color: var(--fc-text-color);
 }
 
 .fc .fc-list-event-dot {
@@ -338,33 +345,31 @@
   color: #111827 !important;
 }
 
-/* Status-based event colors - Clean solid colors */
+/* Status-based event styling - Using borders and opacity to show status */
 .fc-event[data-status="pending"] {
-  background: #fbbf24 !important;
-  color: #111827 !important;
+  border: 2px dashed rgba(255, 255, 255, 0.8) !important;
+  opacity: 0.85;
 }
 
 .fc-event[data-status="confirmed"] {
-  background: #10b981 !important;
-  color: #ffffff !important;
+  border: 2px solid rgba(255, 255, 255, 0.9) !important;
+  opacity: 1;
 }
 
 .fc-event[data-status="completed"] {
-  background: #3b82f6 !important;
-  color: #ffffff !important;
+  opacity: 0.7;
+  border: 2px solid rgba(255, 255, 255, 0.6) !important;
 }
 
 .fc-event[data-status="cancelled"] {
-  background: #9ca3af !important;
-  color: #ffffff !important;
-  opacity: 0.7;
+  opacity: 0.4;
   text-decoration: line-through;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 .fc-event[data-status="no_show"] {
-  background: #ef4444 !important;
-  color: #ffffff !important;
-  border: 2px dashed rgba(255, 255, 255, 0.5) !important;
+  opacity: 0.5;
+  border: 2px dashed rgba(239, 68, 68, 0.8) !important;
 }
 
 /* Responsive adjustments - Clean Design */
@@ -404,7 +409,7 @@
 
 /* Additional clean enhancements */
 .fc .fc-view-harness {
-  background: #ffffff;
+  background: var(--fc-page-bg-color);
   border-radius: 0;
   overflow: hidden;
 }
@@ -426,7 +431,7 @@
 /* Weekend styling - subtle */
 .fc .fc-day-sat,
 .fc .fc-day-sun {
-  background-color: #fafafa;
+  background-color: hsl(var(--muted) / 0.3);
 }
 
 /* Past dates styling */
@@ -436,13 +441,13 @@
 
 /* Disabled dates */
 .fc .fc-day-disabled {
-  background-color: #f9fafb;
+  background-color: var(--fc-neutral-bg-color);
   opacity: 0.4;
 }
 
 /* Event resize handles */
 .fc-event .fc-event-resizer {
-  background: rgba(0, 0, 0, 0.1);
+  background: hsl(var(--foreground) / 0.1);
   border-radius: 0;
   width: 100%;
   height: 4px;

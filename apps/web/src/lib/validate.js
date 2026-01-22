@@ -4,7 +4,20 @@ import { z } from "zod";
 // Common Schemas
 // ============================================================
 
-export const emailSchema = z.string().email("Invalid email address");
+export const emailSchema = z
+  .string()
+  .min(1, "Email is required")
+  .max(255, "Email is too long")
+  .email("Invalid email address")
+  .regex(
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+    "Invalid email format"
+  )
+  .refine(
+    (email) => !email.includes("..") && !email.startsWith("."),
+    "Invalid email format"
+  )
+  .transform((email) => email.toLowerCase());
 export const phoneSchema = z
   .string()
   .regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number")
@@ -12,7 +25,12 @@ export const phoneSchema = z
   .nullable();
 export const passwordSchema = z
   .string()
-  .min(8, "Password must be at least 8 characters");
+  .min(8, "Password must be at least 8 characters")
+  .max(128, "Password is too long")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character");
 export const idSchema = z.coerce.number().int().positive("Invalid ID");
 export const dateSchema = z
   .string()
@@ -67,7 +85,7 @@ export const createBookingSchema = z.object({
   serviceIds: z.array(idSchema).min(1, "At least one service is required"),
   startDatetime: datetimeSchema,
   endDatetime: datetimeSchema,
-  notes: z.string().max(500).optional(),
+  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
   source: z.enum(["marketplace", "direct", "widget"]).default("marketplace"),
 });
 

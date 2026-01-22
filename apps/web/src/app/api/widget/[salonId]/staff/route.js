@@ -23,14 +23,17 @@ export async function GET(request, { params }) {
 
     const queryParams = [salonId];
 
-    // If specific services selected, filter by staff who can perform them
+    // If specific services selected, filter by staff who can perform ALL of them
     if (serviceIds.length > 0) {
       staffQuery += ` AND s.id IN (
-          SELECT staff_id FROM service_staff WHERE service_id IN (${serviceIds
-            .map(() => "?")
-            .join(",")})
+          SELECT staff_id 
+          FROM service_staff 
+          WHERE service_id IN (${serviceIds.map(() => "?").join(",")})
+          GROUP BY staff_id
+          HAVING COUNT(DISTINCT service_id) = ?
         )`;
       queryParams.push(...serviceIds);
+      queryParams.push(serviceIds.length);
     }
 
     staffQuery += ` GROUP BY s.id, s.title, s.avatar_url, u.first_name, u.last_name

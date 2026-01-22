@@ -27,6 +27,7 @@ export function useServices(salonId, options) {
         });
       });
     },
+    staleTime: 1000 * 60 * 5, // 5 minutes - services don't change often
     ...options,
   });
 }

@@ -32,7 +32,8 @@ export async function GET(request) {
       SELECT b.*,
              u.first_name as client_first_name, u.last_name as client_last_name, u.email as client_email, u.phone as client_phone,
              s.name as salon_name,
-             su.first_name as staff_first_name, su.last_name as staff_last_name
+             COALESCE(st.first_name, su.first_name) as staff_first_name,
+             COALESCE(st.last_name, su.last_name) as staff_last_name
       FROM bookings b
       JOIN users u ON u.id = b.client_id
       JOIN salons s ON s.id = b.salon_id
@@ -89,6 +90,10 @@ export async function GET(request) {
     const bookingIds = bookings.map((b) => b.id);
     let bookingServices = [];
     if (bookingIds.length > 0) {
+      // HIGH-1: Validate all IDs are integers to prevent SQL injection
+      if (!bookingIds.every(id => Number.isInteger(id) && id > 0)) {
+        throw new Error('Invalid booking IDs detected');
+      }
       bookingServices = await query(
         `SELECT bs.*, sv.name as service_name
          FROM booking_services bs
@@ -222,14 +227,21 @@ export async function POST(request) {
     const timeStr = startDate.toTimeString().slice(0, 8);
     const endTimeStr = endDate.toTimeString().slice(0, 8);
 
+    console.log(`[BOOKING] Checking: staffId=${staffId}, day=${dayOfWeek}, start=${timeStr}, end=${endTimeStr}`);
+    
+    // Check if appointment falls within staff working hours
+    // Staff shift must start at or before appointment start AND end at or after appointment end
     const workingHours = await getOne(
       "SELECT * FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?",
       [staffId, dayOfWeek, timeStr, endTimeStr]
     );
 
     if (!workingHours) {
+      console.error(`[BOOKING ERROR] Staff not available: day=${dayOfWeek}, time=${timeStr}-${endTimeStr}`);
       return error({ code: 'STAFF_UNAVAILABLE', message: "Staff is not working at this time" }, 409);
     }
+    
+    console.log(`[BOOKING] Working hours OK:`, workingHours);
 
     // Check for time off (outside transaction for faster fail)
     const timeOff = await getOne(
@@ -238,8 +250,11 @@ export async function POST(request) {
     );
 
     if (timeOff) {
+      console.error(`[BOOKING ERROR] Staff on time off`);
       return error({ code: 'STAFF_ON_LEAVE', message: "Staff is on time off" }, 409);
     }
+    
+    console.log(`[BOOKING] No time off conflicts`);
 
     // Create booking in transaction with row locking to prevent race conditions
     const result = await transaction(async (conn) => {
@@ -254,8 +269,11 @@ export async function POST(request) {
       );
 
       if (conflicts.length > 0) {
+        console.error(`[BOOKING ERROR] Time slot conflict`);
         throw new Error("CONFLICT: Staff is not available at this time");
       }
+      
+      console.log(`[BOOKING] No conflicts, creating booking`);
 
       // Insert the booking
       const [bookingResult] = await conn.execute(

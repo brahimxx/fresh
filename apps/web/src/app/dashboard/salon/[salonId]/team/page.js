@@ -194,9 +194,8 @@ export default function TeamPage({ params }) {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {members.map(function (member) {
-                    var colorIndex = member.id % STAFF_COLORS.length;
-                    var colorClass = STAFF_COLORS[colorIndex];
                     var memberName = `${member.firstName} ${member.lastName}`;
+                    var memberColor = member.color || "#3B82F6";
 
                     return (
                       <div
@@ -205,12 +204,8 @@ export default function TeamPage({ params }) {
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center gap-3">
-                            <Avatar className="h-12 w-12">
-                              <AvatarFallback
-                                className={
-                                  colorClass.light + " " + colorClass.text
-                                }
-                              >
+                            <Avatar className="h-12 w-12" style={{ backgroundColor: memberColor }}>
+                              <AvatarFallback className="text-white font-semibold">
                                 {getInitials(memberName)}
                               </AvatarFallback>
                             </Avatar>

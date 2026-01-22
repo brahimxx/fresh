@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 import { use } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -96,18 +96,18 @@ export default function BookingsPage({ params }) {
     data: data 
   });
 
-  function handleViewBooking(booking) {
+  var handleViewBooking = useCallback(function(booking) {
     setSelectedBooking(booking);
     setDetailOpen(true);
-  }
+  }, []);
 
-  function handleQuickConfirm(bookingId) {
+  var handleQuickConfirm = useCallback(function(bookingId) {
     confirmBooking.mutate(bookingId);
-  }
+  }, [confirmBooking]);
 
-  function handleQuickCancel(bookingId) {
+  var handleQuickCancel = useCallback(function(bookingId) {
     cancelBooking.mutate(bookingId);
-  }
+  }, [cancelBooking]);
 
   return (
     <div className="space-y-6">
@@ -152,6 +152,7 @@ export default function BookingsPage({ params }) {
 
       {/* Filters */}
       {!error && (
+        <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -177,6 +178,7 @@ export default function BookingsPage({ params }) {
           </SelectContent>
         </Select>
       </div>
+      )}
 
       {/* Table */}
       {isLoading ? (
@@ -233,20 +235,24 @@ export default function BookingsPage({ params }) {
                     <TableCell>
                       <div>
                         <p className="font-medium">
-                          {booking.client_name ||
-                            booking.clientName ||
-                            "Walk-in"}
+                          {booking.client
+                            ? booking.client.firstName + " " + booking.client.lastName
+                            : "Walk-in"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {booking.client_email || booking.clientEmail || ""}
+                          {booking.client?.email || ""}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {booking.service_name || booking.serviceName || "-"}
+                      {booking.services && booking.services.length > 0
+                        ? booking.services.map((s) => s.name).join(", ")
+                        : "-"}
                     </TableCell>
                     <TableCell>
-                      {booking.staff_name || booking.staffName || "Unassigned"}
+                      {booking.staff
+                        ? booking.staff.firstName + " " + booking.staff.lastName
+                        : "Unassigned"}
                     </TableCell>
                     <TableCell>
                       <div>
@@ -319,7 +325,6 @@ export default function BookingsPage({ params }) {
         </Table>
       </div>
       )}
-      )}
 
       {/* Pagination */}
       {!error && !isLoading && pagination.pages > 1 && (
@@ -353,8 +358,6 @@ export default function BookingsPage({ params }) {
             </Button>
           </div>
         </div>
-      )}
-
       )}
 
       {/* Dialogs */}

@@ -2,12 +2,28 @@ import { getOne } from '@/lib/db';
 import { success, error } from '@/lib/response';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
+import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
 
 // POST /api/auth/forgot-password - Request password reset
 export async function POST(request) {
   try {
     const body = await request.json();
     const { email } = body;
+
+    // Rate limiting: 10 attempts per 15 minutes per IP
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const rateLimit = rateLimiter.check(
+      `forgot-password:${ip}`,
+      RateLimitPresets.PASSWORD_RESET.maxAttempts,
+      RateLimitPresets.PASSWORD_RESET.windowMs
+    );
+
+    if (!rateLimit.success) {
+      return error(
+        `Too many password reset attempts. Please try again in ${rateLimit.retryAfter} seconds.`,
+        429
+      );
+    }
 
     if (!email) {
       return error({ code: 'MISSING_EMAIL', message: 'Email is required' });

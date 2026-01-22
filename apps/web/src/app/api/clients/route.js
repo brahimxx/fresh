@@ -10,11 +10,15 @@ import {
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
+  // First, verify salon exists
   const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
     salonId,
   ]);
-  if (salon && salon.owner_id === userId) return true;
+  if (!salon) return false; // Salon doesn't exist
+  
+  if (role === "admin") return true;
+  if (salon.owner_id === userId) return true;
+  
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
     [salonId, userId]

@@ -31,6 +31,7 @@ export function useCalendarBookings(salonId, startDate, endDate, options = {}) {
       }),
     enabled: !!salonId && !!startDate && !!endDate,
     select: (response) => response.data?.bookings || [],
+    staleTime: 1000 * 60 * 2, // Consider data fresh for 2 minutes
     ...options,
   });
 }
@@ -70,6 +71,7 @@ export function useBookings(filters = {}, options = {}) {
       console.log('Output from select:', result);
       return result;
     },
+    staleTime: 1000 * 60, // Consider data fresh for 1 minute
     ...options,
   });
 }

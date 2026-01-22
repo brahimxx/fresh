@@ -8,8 +8,14 @@ export async function GET(request, { params }) {
     const session = await requireAuth();
     const { id } = await params;
 
+    // Strict ID validation to prevent type confusion attacks
+    const userId = Number(id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return error('Invalid user ID', 400);
+    }
+
     // Users can only view their own profile unless admin
-    if (session.userId !== parseInt(id) && session.role !== 'admin') {
+    if (session.userId !== userId && session.role !== 'admin') {
       return forbidden('You can only view your own profile');
     }
 
@@ -45,8 +51,14 @@ export async function PUT(request, { params }) {
     const session = await requireAuth();
     const { id } = await params;
 
+    // Strict ID validation to prevent type confusion attacks
+    const userId = Number(id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return error('Invalid user ID', 400);
+    }
+
     // Users can only update their own profile unless admin
-    if (session.userId !== parseInt(id) && session.role !== 'admin') {
+    if (session.userId !== userId && session.role !== 'admin') {
       return forbidden('You can only update your own profile');
     }
 
@@ -86,8 +98,14 @@ export async function DELETE(request, { params }) {
     const session = await requireAuth();
     const { id } = await params;
 
+    // Strict ID validation to prevent type confusion attacks
+    const userId = Number(id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return error('Invalid user ID', 400);
+    }
+
     // Only admins can delete users, or users can delete themselves
-    if (session.userId !== parseInt(id) && session.role !== 'admin') {
+    if (session.userId !== userId && session.role !== 'admin') {
       return forbidden('Not authorized to delete this user');
     }
 

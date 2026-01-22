@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -99,15 +99,15 @@ export default function ClientsPage({ params }) {
   var clients = data?.data || [];
   var pagination = data?.pagination || { total: 0, pages: 1 };
 
-  function handleViewClient(client) {
+  var handleViewClient = useCallback(function(client) {
     router.push("./clients/" + client.id);
-  }
+  }, [router]);
 
-  function handleEditClient(client) {
+  var handleEditClient = useCallback(function(client) {
     setEditClient(client);
-  }
+  }, []);
 
-  function handleDeleteConfirm() {
+  var handleDeleteConfirm = useCallback(function() {
     if (deleteClient) {
       deleteClientMutation.mutate(
         { id: deleteClient.id, salonId: salonId },
@@ -118,7 +118,7 @@ export default function ClientsPage({ params }) {
         }
       );
     }
-  }
+  }, [deleteClient, deleteClientMutation, salonId]);
 
   return (
     <div className="space-y-6">

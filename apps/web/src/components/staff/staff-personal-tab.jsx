@@ -76,18 +76,18 @@ export function StaffPersonalTab({ staff, salonId }) {
 
   function onSubmit(data) {
     var payload = {
-      first_name: data.firstName,
-      last_name: data.lastName,
+      firstName: data.firstName,
+      lastName: data.lastName,
       email: data.email || null,
       phone: data.phone || null,
-      phone_secondary: data.phoneSecondary || null,
+      phoneSecondary: data.phoneSecondary || null,
       country: data.country || null,
       birthday: data.birthday ? format(data.birthday, "yyyy-MM-dd") : null,
       color: data.color,
       title: data.title || null,
-      start_date: data.startDate ? format(data.startDate, "yyyy-MM-dd") : null,
-      end_date: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
-      employment_type: data.employmentType,
+      startDate: data.startDate ? format(data.startDate, "yyyy-MM-dd") : null,
+      endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
+      employmentType: data.employmentType,
       bio: data.bio || null,
       notes: data.notes || null,
     };

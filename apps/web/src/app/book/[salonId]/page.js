@@ -22,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // Import booking steps
 import { ServiceSelection } from "@/components/booking-widget/service-selection";
-import { StaffSelection } from "@/components/booking-widget/staff-selection";
 import { DateTimeSelection } from "@/components/booking-widget/datetime-selection";
 import { BookingAuth } from "@/components/booking-widget/booking-auth";
 import { BookingConfirmation } from "@/components/booking-widget/booking-confirmation";
@@ -30,7 +29,6 @@ import { useAuth } from "@/providers/auth-provider";
 
 var STEPS = [
   { id: "services", label: "Services", icon: Scissors },
-  { id: "staff", label: "Staff", icon: User },
   { id: "datetime", label: "Date & Time", icon: Calendar },
   { id: "account", label: "Sign In", icon: User },
   { id: "confirm", label: "Confirm", icon: Check },
@@ -49,9 +47,8 @@ export default function BookingPage({ params }) {
   // Auth
   var { user, isAuthenticated } = useAuth();
 
-  // Booking state
-  var [selectedServices, setSelectedServices] = useState([]);
-  var [selectedStaff, setSelectedStaff] = useState(null);
+  // Booking state - now services include staff assignments
+  var [selectedServices, setSelectedServices] = useState([]); // Each service has: { ...service, staffId, staffName }
   var [selectedDate, setSelectedDate] = useState(null);
   var [selectedTime, setSelectedTime] = useState(null);
   var [bookingNotes, setBookingNotes] = useState("");
@@ -107,12 +104,14 @@ export default function BookingPage({ params }) {
   function canProceed() {
     switch (currentStep) {
       case 0:
-        return selectedServices && Array.isArray(selectedServices) && selectedServices.length > 0;
+        // All services must have staff assigned
+        return selectedServices && 
+               Array.isArray(selectedServices) && 
+               selectedServices.length > 0 &&
+               selectedServices.every(function(s) { return s.staffId; });
       case 1:
-        return true; // Staff is optional
-      case 2:
         return selectedDate && selectedTime;
-      case 3:
+      case 2:
         return isAuthenticated; // Must be logged in
       default:
         return true;
@@ -126,14 +125,21 @@ export default function BookingPage({ params }) {
     }
 
     try {
-      // Parse the selected time to get startTime and staffId
-      // Format: "2024-01-15T10:00:00.000Z-123" (ISO time + staffId)
-      var timeParts = selectedTime.split("-");
-      var staffIdFromSlot = timeParts.pop();
-      var startTime = timeParts.join("-");
+      // Parse the selected time to get startTime
+      var startTime = selectedTime.split("-")[0]; // Remove any suffix if present
 
       // Get token for authenticated request
       var token = localStorage.getItem("auth_token");
+
+      // Prepare services with staff assignments
+      var servicesWithStaff = selectedServices.map(function(service) {
+        return {
+          serviceId: service.id,
+          staffId: service.staffId,
+          price: service.price,
+          duration: service.duration
+        };
+      });
 
       var res = await fetch("/api/widget/" + salonId + "/book", {
         method: "POST",
@@ -142,8 +148,7 @@ export default function BookingPage({ params }) {
           Authorization: token ? "Bearer " + token : "",
         },
         body: JSON.stringify({
-          serviceId: selectedServices[0]?.id, // Primary service
-          staffId: selectedStaff?.id || parseInt(staffIdFromSlot),
+          services: servicesWithStaff,
           startTime: startTime,
           notes: bookingNotes,
         }),
@@ -155,7 +160,11 @@ export default function BookingPage({ params }) {
         setBookingComplete(true);
       } else {
         var errorData = await res.json();
-        var errorMessage = errorData.error || "Unable to complete booking";
+        // Handle both string and object error formats
+        var errorMessage = typeof errorData.error === 'string' 
+          ? errorData.error 
+          : (errorData.error?.message || "Unable to complete booking");
+        
         if (errorMessage.includes("not available")) {
           setErrorMsg("This time slot is no longer available. Please select a different time.");
         } else if (errorMessage.includes("conflict")) {
@@ -374,19 +383,9 @@ export default function BookingPage({ params }) {
             )}
 
             {currentStep === 1 && (
-              <StaffSelection
-                salonId={salonId}
-                selectedServices={selectedServices}
-                selected={selectedStaff}
-                onSelect={setSelectedStaff}
-              />
-            )}
-
-            {currentStep === 2 && (
               <DateTimeSelection
                 salonId={salonId}
                 selectedServices={selectedServices}
-                selectedStaff={selectedStaff}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
                 onDateSelect={setSelectedDate}
@@ -394,7 +393,7 @@ export default function BookingPage({ params }) {
               />
             )}
 
-            {currentStep === 3 && (
+            {currentStep === 2 && (
               <BookingAuth
                 onAuthenticated={function () {
                   /* User just logged in, can proceed */
@@ -402,7 +401,7 @@ export default function BookingPage({ params }) {
               />
             )}
 
-            {currentStep === 4 && (
+            {currentStep === 3 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Review Your Booking</CardTitle>
@@ -414,23 +413,21 @@ export default function BookingPage({ params }) {
                       return (
                         <div
                           key={service.id}
-                          className="flex justify-between text-sm py-1"
+                          className="py-2 border-b last:border-0"
                         >
-                          <span>{service.name}</span>
-                          <span>${parseFloat(service.price).toFixed(2)}</span>
+                          <div className="flex justify-between">
+                            <span className="font-medium">{service.name}</span>
+                            <span>${parseFloat(service.price).toFixed(2)}</span>
+                          </div>
+                          {service.staffName && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              with {service.staffName}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
-
-                  {selectedStaff && (
-                    <div>
-                      <h4 className="font-medium mb-1">Staff</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedStaff.name}
-                      </p>
-                    </div>
-                  )}
 
                   <div>
                     <h4 className="font-medium mb-1">Date & Time</h4>

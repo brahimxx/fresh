@@ -2,9 +2,16 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-change-in-production"
-);
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('SECURITY ERROR: JWT_SECRET environment variable is required');
+  }
+  if (secret.length < 32) {
+    throw new Error('SECURITY ERROR: JWT_SECRET must be at least 32 characters for adequate security');
+  }
+  return new TextEncoder().encode(secret);
+})();
 
 export async function hashPassword(password) {
   return bcrypt.hash(password, 12);

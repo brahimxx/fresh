@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { use } from 'react';
 import { CalendarView } from '@/components/calendar/calendar-view';
 import { BookingFormDialog } from '@/components/bookings/booking-form';
@@ -15,27 +15,27 @@ export default function CalendarPage({ params }) {
   var [selectedBooking, setSelectedBooking] = useState(null);
   var [detailOpen, setDetailOpen] = useState(false);
   
-  function handleDateSelect(date) {
+  var handleDateSelect = useCallback(function(date) {
     setSelectedDate(date);
     setNewBookingOpen(true);
-  }
+  }, []);
   
-  function handleEventClick(booking) {
+  var handleEventClick = useCallback(function(booking) {
     setSelectedBooking(booking);
     setDetailOpen(true);
-  }
+  }, []);
   
-  function handleNewBooking() {
+  var handleNewBooking = useCallback(function() {
     setSelectedDate(new Date());
     setNewBookingOpen(true);
-  }
+  }, []);
   
-  function handleReschedule(booking) {
+  var handleReschedule = useCallback(function(booking) {
     setDetailOpen(false);
     // Could open a reschedule dialog here
     setSelectedBooking(booking);
     setNewBookingOpen(true);
-  }
+  }, []);
   
   return (
     <div className="h-[calc(100vh-4rem)]">

@@ -78,13 +78,31 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   // Fetch staff
   var { data: staff, isLoading: staffLoading, error: staffError, refetch: refetchStaff } = useStaff(salonId);
 
-  // Build staff color map
+  // Build staff color map (use database colors or fallback to generated)
   var staffColorMap = useMemo(
     function () {
       var map = {};
       if (staff && Array.isArray(staff)) {
         staff.forEach(function (member, index) {
-          map[member.id] = getStaffColor(index);
+          var fallbackColor = getStaffColor(index);
+          var hex = member.color || fallbackColor.hex;
+          var name = fallbackColor.name; // Use the fallback name based on index
+          
+          // If member has a custom color, try to find matching color name
+          if (member.color) {
+            var matchingColor = getStaffColor(0); // Default
+            // Find color that matches the hex
+            for (var i = 0; i < 10; i++) {
+              var c = getStaffColor(i);
+              if (c.hex.toLowerCase() === member.color.toLowerCase()) {
+                matchingColor = c;
+                break;
+              }
+            }
+            name = matchingColor.name;
+          }
+          
+          map[member.id] = { hex: hex, name: name };
         });
       }
       return map;
@@ -100,18 +118,22 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       return bookings
         .filter(function (booking) {
           if (!selectedStaff || selectedStaff.length === 0) return true;
-          return selectedStaff.includes(booking.staff_id);
+          return selectedStaff.includes(booking.staff?.id);
         })
         .map(function (booking) {
-          var staffColor = staffColorMap[booking.staff_id] || {
+          var staffId = booking.staff?.id;
+          var staffColor = staffColorMap[staffId] || {
             name: "blue",
             hex: "#3b82f6",
           };
+          var clientName = booking.client
+            ? booking.client.firstName + " " + booking.client.lastName
+            : "Walk-in";
           return {
             id: booking.id,
-            title: booking.client_name || "Walk-in",
-            start: booking.start_datetime,
-            end: booking.end_datetime,
+            title: clientName,
+            start: booking.startDatetime,
+            end: booking.endDatetime,
             backgroundColor: staffColor.hex,
             borderColor: staffColor.hex,
             extendedProps: {
@@ -272,11 +294,11 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                     {staff &&
                       Array.isArray(staff) &&
                       staff.map(function (member, index) {
-                        var color = getStaffColor(index);
+                        var color = member.color || getStaffColor(index).hex;
                         return (
                           <div
                             key={member.id}
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-3 p-2 rounded hover:bg-muted/50"
                           >
                             <Checkbox
                               id={"staff-" + member.id}
@@ -289,14 +311,14 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                               }}
                             />
                             <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: color.hex }}
+                              className="w-4 h-4 rounded-full border-2 border-background shadow-sm flex-shrink-0"
+                              style={{ backgroundColor: color }}
                             />
                             <Label
                               htmlFor={"staff-" + member.id}
-                              className="cursor-pointer"
+                              className="cursor-pointer flex-1 font-medium"
                             >
-                              {member.first_name} {member.last_name}
+                              {member.firstName} {member.lastName}
                             </Label>
                           </div>
                         );
