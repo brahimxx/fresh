@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -105,7 +105,9 @@ function MiniChart({ data, label }) {
 export default function ReportsOverviewPage() {
   var params = useParams();
   var [rangeType, setRangeType] = useState('last_30_days');
-  var dateRange = getDateRange(rangeType);
+  var dateRange = useMemo(function() {
+    return getDateRange(rangeType);
+  }, [rangeType]);
   
   var { data: report, isLoading } = useReportsOverview(params.salonId, dateRange);
   

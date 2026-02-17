@@ -38,7 +38,7 @@ export default function CalendarPage({ params }) {
   }, []);
   
   return (
-    <div className="h-[calc(100vh-4rem)]">
+    <div className="h-full -m-6">
       <CalendarView
         onDateClick={handleDateSelect}
         onEventClick={handleEventClick}

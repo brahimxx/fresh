@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useSalon } from '@/providers/salon-provider';
-import { Header } from '@/components/layout/header';
 import api from '@/lib/api-client';
 
 function StatCard({ title, value, description, icon: Icon, trend }) {
@@ -117,15 +116,10 @@ export default function SalonDashboardPage() {
 
   if (salonLoading || statsLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="h-16 border-b px-6 flex items-center">
-          <Skeleton className="h-8 w-48" />
-        </div>
-        <div className="p-6 space-y-6">
-          <Skeleton className="h-8 w-64" />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map(function(_, i) { return <Skeleton key={i} className="h-32" />; })}
-          </div>
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map(function(_, i) { return <Skeleton key={i} className="h-32" />; })}
         </div>
       </div>
     );
@@ -145,24 +139,21 @@ export default function SalonDashboardPage() {
   var servicesUrl = '/dashboard/salon/' + salonId + '/services';
 
   return (
-    <div className="flex flex-col h-full">
-      <Header />
-      
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">{today}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild>
-              <Link href={calendarUrl}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Booking
-              </Link>
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">{today}</p>
         </div>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link href={calendarUrl}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Booking
+            </Link>
+          </Button>
+        </div>
+      </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
@@ -254,7 +245,6 @@ export default function SalonDashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
     </div>
   );
 }

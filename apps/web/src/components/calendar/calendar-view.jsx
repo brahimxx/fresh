@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -13,11 +13,15 @@ import {
   startOfMonth,
   endOfMonth,
   addDays,
+  subHours,
 } from "date-fns";
 
 import {
   useCalendarBookings,
   useRescheduleBooking,
+  useConfirmBooking,
+  useCancelBooking,
+  useUpdateBooking,
 } from "@/hooks/use-bookings";
 import { useStaff, getStaffColor } from "@/hooks/use-staff";
 import { useSalon } from "@/providers/salon-provider";
@@ -33,17 +37,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { EventTooltip } from "./event-tooltip";
+import { EventQuickActions } from "./event-quick-actions";
 
 import "@/styles/calendar.css";
 
 export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   var calendarRef = useRef(null);
+  var hasScrolledRef = useRef(false);
   var { salonId } = useSalon();
 
   var [currentDate, setCurrentDate] = useState(new Date());
-  var [currentView, setCurrentView] = useState("timeGridWeek");
+  var [currentView, setCurrentView] = useState("timeGridDay");
   var [selectedStaff, setSelectedStaff] = useState([]);
 
+  var confirmBooking = useConfirmBooking();
+  var cancelBooking = useCancelBooking();
+  var updateBooking = useUpdateBooking();
   var rescheduleBooking = useRescheduleBooking();
 
   // Calculate date range based on current view
@@ -129,6 +139,18 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           var clientName = booking.client
             ? booking.client.firstName + " " + booking.client.lastName
             : "Walk-in";
+          
+          // Format services for display
+          var servicesText = "";
+          if (booking.services && booking.services.length > 0) {
+            servicesText = booking.services.map(function(s) { return s.name; }).join(", ");
+          }
+          
+          // Format time
+          var startTime = new Date(booking.startDatetime);
+          var endTime = new Date(booking.endDatetime);
+          var timeText = format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
+          
           return {
             id: booking.id,
             title: clientName,
@@ -140,6 +162,9 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
               booking: booking,
               staffColor: staffColor.name,
               status: booking.status,
+              servicesText: servicesText,
+              timeText: timeText,
+              staffName: booking.staff ? booking.staff.firstName + " " + booking.staff.lastName : "",
             },
           };
         });
@@ -229,6 +254,128 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
     setSelectedStaff([]);
   }, []);
 
+  // Format date range based on current view
+  var getDateRangeDisplay = useCallback(
+    function () {
+      if (currentView === "dayGridMonth") {
+        return format(currentDate, "MMMM yyyy");
+      } else if (currentView === "timeGridWeek") {
+        var weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+        var weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+        
+        // If same month, show "Dec 16 - 22, 2024"
+        if (weekStart.getMonth() === weekEnd.getMonth()) {
+          return format(weekStart, "MMM d") + " - " + format(weekEnd, "d, yyyy");
+        }
+        // If different months, show "Dec 30 - Jan 5, 2024"
+        return format(weekStart, "MMM d") + " - " + format(weekEnd, "MMM d, yyyy");
+      } else {
+        // Day view
+        return format(currentDate, "MMMM d, yyyy");
+      }
+    },
+    [currentDate, currentView]
+  );
+
+  // Quick action handlers
+  var handleEditBooking = useCallback(
+    function (booking) {
+      if (onEventClick) onEventClick(booking);
+    },
+    [onEventClick]
+  );
+
+  var handleConfirmBooking = useCallback(
+    function (booking) {
+      confirmBooking.mutate(booking.id);
+    },
+    [confirmBooking]
+  );
+
+  var handleCompleteBooking = useCallback(
+    function (booking) {
+      updateBooking.mutate({
+        id: booking.id,
+        data: { status: "completed" },
+      });
+    },
+    [updateBooking]
+  );
+
+  var handleCancelBookingAction = useCallback(
+    function (booking) {
+      if (confirm("Are you sure you want to cancel this booking?")) {
+        cancelBooking.mutate(booking.id);
+      }
+    },
+    [cancelBooking]
+  );
+
+  // Center current time on mount and view changes
+  useEffect(function () {
+    if (!calendarRef.current || !events) return;
+    
+    var api = calendarRef.current.getApi();
+    var view = api.view;
+    
+    // Only apply to time grid views
+    if (view.type.includes('timeGrid')) {
+      // Reset scroll flag when view changes
+      hasScrolledRef.current = false;
+      
+      var scrollTimeout = setTimeout(function() {
+        if (hasScrolledRef.current) return;
+        
+        var scrollerEl = calendarRef.current?.elRef?.current?.querySelector('.fc-scroller-liquid-absolute');
+        if (scrollerEl && scrollerEl.scrollHeight > 0) {
+          var scrollerHeight = scrollerEl.clientHeight;
+          var now = new Date();
+          var hours = now.getHours();
+          var minutes = now.getMinutes();
+          
+          // Calculate total minutes from midnight
+          var currentMinutes = hours * 60 + minutes;
+          
+          // Total day minutes (24 hours)
+          var totalMinutes = 24 * 60;
+          
+          // Calculate the pixel position
+          var totalHeight = scrollerEl.scrollHeight;
+          var currentPosition = (currentMinutes / totalMinutes) * totalHeight;
+          
+          // Scroll to position that centers the current time
+          scrollerEl.scrollTop = currentPosition - (scrollerHeight / 2);
+          hasScrolledRef.current = true;
+        }
+      }, 300);
+      
+      return function() {
+        clearTimeout(scrollTimeout);
+      };
+    }
+  }, [currentView, events]);
+
+  // Update current time display dynamically
+  useEffect(function () {
+    var updateCurrentTime = function() {
+      var nowLine = calendarRef.current?.elRef?.current?.querySelector('.fc-timegrid-now-indicator-line');
+      if (nowLine) {
+        var now = new Date();
+        var timeStr = format(now, 'HH:mm');
+        nowLine.setAttribute('data-time', timeStr);
+      }
+    };
+
+    // Wait for calendar to render, then update
+    var timeout = setTimeout(updateCurrentTime, 100);
+    var interval = setInterval(updateCurrentTime, 60000); // Update every minute
+
+    return function() {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [events]);
+
   if (bookingsLoading || staffLoading) {
     return <CalendarSkeleton />;
   }
@@ -247,20 +394,20 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   return (
     <div className="flex flex-col h-full">
       {/* Custom toolbar */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-4 pt-4 border-b pb-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrev}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
           <Button variant="outline" size="sm" onClick={handleToday}>
             Today
           </Button>
+          <Button variant="outline" size="sm" onClick={handlePrev}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-lg font-semibold min-w-[200px] text-center">
+            {getDateRangeDisplay()}
+          </h2>
           <Button variant="outline" size="sm" onClick={handleNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="ml-4 text-lg font-semibold">
-            {format(currentDate, "MMMM yyyy")}
-          </h2>
         </div>
 
         <div className="flex items-center gap-2">
@@ -366,7 +513,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       </div>
 
       {/* Calendar */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 px-4 pb-4 relative">
         <FullCalendar
           ref={calendarRef}
           plugins={[
@@ -385,16 +532,70 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           dayMaxEvents={true}
           weekends={true}
           nowIndicator={true}
-          slotMinTime="07:00:00"
-          slotMaxTime="21:00:00"
+          slotMinTime="00:00:00"
+          slotMaxTime="24:00:00"
           slotDuration="00:15:00"
           slotLabelInterval="01:00:00"
+          slotLabelFormat={{
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          }}
+          eventTimeFormat={{
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          }}
           allDaySlot={false}
           height="100%"
+          businessHours={{
+            daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            startTime: '07:00',
+            endTime: '21:00'
+          }}
+          scrollTime="00:00:00"
+          scrollTimeReset={false}
           dateClick={handleDateClick}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
           eventResize={handleEventDrop}
+          eventContent={function (arg) {
+            var booking = arg.event.extendedProps.booking;
+            var servicesText = arg.event.extendedProps.servicesText;
+            var timeText = arg.event.extendedProps.timeText;
+            var staffName = arg.event.extendedProps.staffName;
+            var isTimeGrid = arg.view.type.includes("timeGrid");
+            
+            return (
+              <EventTooltip booking={booking}>
+                <div className="fc-event-main-frame w-full h-full relative group">
+                  <EventQuickActions
+                    booking={booking}
+                    onEdit={handleEditBooking}
+                    onConfirm={handleConfirmBooking}
+                    onComplete={handleCompleteBooking}
+                    onCancel={handleCancelBookingAction}
+                  />
+                  <div className="fc-event-time font-semibold">
+                    {isTimeGrid ? arg.timeText : timeText}
+                  </div>
+                  <div className="fc-event-title font-medium truncate">
+                    {arg.event.title}
+                  </div>
+                  {isTimeGrid && servicesText && (
+                    <div className="fc-event-service text-[0.65rem] opacity-90 truncate mt-0.5">
+                      {servicesText}
+                    </div>
+                  )}
+                  {isTimeGrid && staffName && (
+                    <div className="fc-event-staff text-[0.6rem] opacity-75 truncate">
+                      {staffName}
+                    </div>
+                  )}
+                </div>
+              </EventTooltip>
+            );
+          }}
           eventDidMount={function (arg) {
             var status = arg.event.extendedProps.status;
             var staffColor = arg.event.extendedProps.staffColor;

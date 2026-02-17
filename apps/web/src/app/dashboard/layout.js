@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
+import { Header } from '@/components/layout/header';
 import { useAuth } from '@/providers/auth-provider';
 import { SalonProvider } from '@/providers/salon-provider';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,9 +52,12 @@ export default function DashboardLayout({ children }) {
     <SalonProvider>
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6">
+            {children}
+          </main>
+        </div>
       </div>
     </SalonProvider>
   );

@@ -43,7 +43,7 @@ export function Header() {
       {/* Right side */}
       <div className="flex items-center gap-4">
         {/* Continue Setup Button - Show only if onboarding not completed */}
-        {user && !user.onboarding_completed && (
+        {user && !user.onboarding_completed && salon && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">

@@ -1,8 +1,8 @@
-/* FullCalendar Custom Styles - Using App Theme Colors */
+/* FullCalendar Custom Styles - Matching Website Design System */
 
-/* Root variables - Using the app's design system */
+/* Root variables - Using the app's exact design tokens */
 .fc {
-  --fc-border-color: hsl(var(--border));
+  --fc-border-color: var(--border);
   --fc-button-bg-color: hsl(var(--primary));
   --fc-button-text-color: hsl(var(--primary-foreground));
   --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
@@ -25,7 +25,16 @@
   box-shadow: none;
 }
 
-/* Toolbar styling - Fresha Clean Design */
+/* Match website border style - subtle borders like dashboard */
+.fc {
+  border-color: var(--border);
+}
+
+.fc .fc-scrollgrid {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
 .fc .fc-toolbar {
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -100,12 +109,12 @@
   border-right: none;
 }
 
-/* Day grid styling - Fresha Clean Design */
+/* Day grid styling - Matching website design */
 .fc .fc-daygrid-day {
   cursor: pointer;
   transition: background-color 0.2s ease;
   position: relative;
-  border-color: var(--fc-border-color);
+  border: 1px solid var(--border);
 }
 
 .fc .fc-daygrid-day:hover {
@@ -140,10 +149,12 @@
   justify-content: flex-start;
 }
 
-/* Time grid styling - Fresha Clean Design */
+/* Time grid styling - Matching website design */
 .fc .fc-timegrid-slot {
   height: 3rem;
-  border-color: var(--fc-border-color);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  position: relative;
 }
 
 .fc .fc-timegrid-slot-label {
@@ -157,26 +168,50 @@
 .fc .fc-timegrid-col {
   cursor: pointer;
   transition: background-color 0.2s ease;
+  position: relative;
+  z-index: 1 !important;
 }
 
 .fc .fc-timegrid-col:hover {
   background-color: var(--fc-neutral-bg-color);
 }
 
-.fc .fc-timegrid-axis {
-  background: var(--fc-page-bg-color);
-  border-right: 1px solid var(--fc-border-color);
+/* Show time on hover for time slots */
+.fc .fc-timegrid-slot-lane:hover::before {
+  content: attr(data-time);
+  position: absolute;
+  top: 50%;
+  left: 0.5rem;
+  transform: translateY(-50%);
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fc-muted-text-color);
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
 }
 
-/* Event styling - Fresha Clean Design */
+.fc-timegrid-now-indicator-container {
+  overflow: visible !important;
+}
+
+.fc .fc-timegrid-axis {
+  background: var(--fc-page-bg-color);
+  border-right: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
+}
+
+/* Event styling - Matching website design */
 .fc .fc-event {
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   border: none;
-  padding: 2px 6px;
+  margin: 0;
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   backdrop-filter: none;
 }
 
@@ -206,11 +241,30 @@
   white-space: nowrap;
 }
 
-/* Time grid events - Clean */
-.fc .fc-timegrid-event {
-  border-radius: 4px;
+.fc .fc-event-service {
+  font-size: 0.65rem;
+  opacity: 0.9;
+  margin-top: 2px;
+  line-height: 1.2;
   overflow: hidden;
-  border-left: 3px solid rgba(255, 255, 255, 0.3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-event-staff {
+  font-size: 0.6rem;
+  opacity: 0.75;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Time grid events - Matching website design */
+.fc .fc-timegrid-event {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: none;
 }
 
 .fc .fc-timegrid-event .fc-event-main {
@@ -218,20 +272,21 @@
 }
 
 .fc .fc-timegrid-event-harness {
-  margin-right: 1px;
+  margin: 0;
+  padding: 0;
 }
 
 /* Day header - Fresha Clean Design */
 .fc .fc-col-header-cell {
   padding: 0.75rem 0.5rem;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--fc-muted-text-color);
   background: var(--fc-page-bg-color);
-  border-bottom: 1px solid var(--fc-border-color);
-  border-color: var(--fc-border-color);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
 
 .fc .fc-col-header-cell-cushion {
@@ -241,15 +296,42 @@
 .fc .fc-scrollgrid {
   border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--fc-border-color);
+  border: none !important;
+}
+
+.fc .fc-scrollgrid-section > * {
+  border: none !important;
+}
+
+.fc .fc-scrollgrid-sync-table {
+  border: none !important;
 }
 
 /* Now indicator - Clean Design */
 .fc .fc-timegrid-now-indicator-line {
   border-color: #ef4444;
-  border-width: 2px;
+  border-width: 1px;
   opacity: 1;
   box-shadow: none;
+  position: relative;
+  z-index: 9999;
+}
+
+
+.fc .fc-timegrid-now-indicator-line::before {
+  content: attr(data-time);
+  position: absolute;
+  top: -11px;
+  left: -3.2rem;
+  background: #ef4444;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
 }
 
 .fc .fc-timegrid-now-indicator-arrow {
@@ -345,31 +427,27 @@
   color: #111827 !important;
 }
 
-/* Status-based event styling - Using borders and opacity to show status */
+/* Status-based event styling - Using solid borders and opacity */
 .fc-event[data-status="pending"] {
-  border: 2px dashed rgba(255, 255, 255, 0.8) !important;
   opacity: 0.85;
 }
 
 .fc-event[data-status="confirmed"] {
-  border: 2px solid rgba(255, 255, 255, 0.9) !important;
   opacity: 1;
 }
 
 .fc-event[data-status="completed"] {
-  opacity: 0.7;
-  border: 2px solid rgba(255, 255, 255, 0.6) !important;
+  opacity: 0.65;
 }
 
 .fc-event[data-status="cancelled"] {
-  opacity: 0.4;
+  opacity: 0.35;
   text-decoration: line-through;
-  border: 2px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 .fc-event[data-status="no_show"] {
   opacity: 0.5;
-  border: 2px dashed rgba(239, 68, 68, 0.8) !important;
+  position: relative;
 }
 
 /* Responsive adjustments - Clean Design */
@@ -403,6 +481,31 @@
 
   .fc .fc-col-header-cell {
     padding: 0.5rem 0.25rem;
+    font-size: 0.7rem;
+  }
+
+  /* Larger touch targets for mobile */
+  .fc .fc-event {
+    min-height: 2.5rem;
+    padding: 4px 8px;
+  }
+
+  .fc .fc-daygrid-day {
+    min-height: 4rem;
+  }
+
+  /* Hide service and staff names on mobile in compact view */
+  .fc .fc-event-service,
+  .fc .fc-event-staff {
+    display: none;
+  }
+
+  /* Keep only essential info */
+  .fc .fc-event-time {
+    font-size: 0.65rem;
+  }
+
+  .fc .fc-event-title {
     font-size: 0.7rem;
   }
 }
@@ -443,6 +546,66 @@
 .fc .fc-day-disabled {
   background-color: var(--fc-neutral-bg-color);
   opacity: 0.4;
+}
+
+/* Business hours highlighting - Dim non-business hours */
+.fc .fc-non-business {
+  background-color: rgba(128, 128, 128, 0.15) !important;
+}
+
+/* Target the background cells for non-business hours */
+.fc-timegrid-col.fc-non-business {
+  background-color: rgba(128, 128, 128, 0.15) !important;
+}
+
+.fc .fc-timegrid-slot[data-time] {
+  position: relative;
+}
+
+/* Dim early morning (before 7 AM) and late evening (after 9 PM) */
+.fc .fc-timegrid-slot-lane[data-time^="00:"],
+.fc .fc-timegrid-slot-lane[data-time^="01:"],
+.fc .fc-timegrid-slot-lane[data-time^="02:"],
+.fc .fc-timegrid-slot-lane[data-time^="03:"],
+.fc .fc-timegrid-slot-lane[data-time^="04:"],
+.fc .fc-timegrid-slot-lane[data-time^="05:"],
+.fc .fc-timegrid-slot-lane[data-time^="06:"],
+.fc .fc-timegrid-slot-lane[data-time^="21:"],
+.fc .fc-timegrid-slot-lane[data-time^="22:"],
+.fc .fc-timegrid-slot-lane[data-time^="23:"] {
+  background-color: rgba(128, 128, 128, 0.15) !important;
+}
+
+.fc .fc-timegrid-slot[data-time^="00:"],
+.fc .fc-timegrid-slot[data-time^="01:"],
+.fc .fc-timegrid-slot[data-time^="02:"],
+.fc .fc-timegrid-slot[data-time^="03:"],
+.fc .fc-timegrid-slot[data-time^="04:"],
+.fc .fc-timegrid-slot[data-time^="05:"],
+.fc .fc-timegrid-slot[data-time^="06:"],
+.fc .fc-timegrid-slot[data-time^="21:"],
+.fc .fc-timegrid-slot[data-time^="22:"],
+.fc .fc-timegrid-slot[data-time^="23:"] {
+  background-color: rgba(128, 128, 128, 0.15) !important;
+}
+
+/* Today column enhancement */
+.fc .fc-day-today {
+  background-color: hsl(var(--accent) / 0.15) !important;
+  position: relative;
+}
+
+.fc .fc-timegrid-col.fc-day-today {
+  background-color: hsl(var(--accent) / 0.1) !important;
+}
+
+.fc .fc-col-header-cell.fc-day-today {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  font-weight: 700;
+}
+
+.fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: hsl(var(--primary));
 }
 
 /* Event resize handles */
