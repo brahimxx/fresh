@@ -339,7 +339,7 @@ export default function GiftCardsPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Gift Card</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel gift card "{cancelGiftCard?.code}"? 
+              Are you sure you want to cancel gift card &quot;{cancelGiftCard?.code}&quot;? 
               The remaining balance of {formatCurrency(cancelGiftCard?.balance)} will be voided.
             </AlertDialogDescription>
           </AlertDialogHeader>

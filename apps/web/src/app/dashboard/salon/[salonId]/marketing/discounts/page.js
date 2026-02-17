@@ -369,7 +369,7 @@ export default function DiscountsPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Discount</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the discount code "{deleteDiscount?.code}"? 
+              Are you sure you want to delete the discount code &quot;{deleteDiscount?.code}&quot;? 
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

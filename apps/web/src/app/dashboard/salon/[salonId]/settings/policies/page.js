@@ -230,7 +230,7 @@ export default function PoliciesPage() {
             No-Show Fee
           </CardTitle>
           <CardDescription>
-            Charge clients who don't show up
+            Charge clients who don&apos;t show up
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

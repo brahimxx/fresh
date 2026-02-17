@@ -466,7 +466,7 @@ export default function SalonProfilePage({ params }) {
                           </div>
                           {member.bio && (
                             <p className="text-sm text-muted-foreground mt-6 leading-relaxed bg-muted/30 p-4 rounded-2xl italic">
-                              "{member.bio}"
+                              &quot;{member.bio}&quot;
                             </p>
                           )}
                         </CardContent>

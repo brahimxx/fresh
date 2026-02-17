@@ -147,7 +147,7 @@ export function GiftCardDetail({ open, onOpenChange, giftCard }) {
               <div>
                 <h4 className="font-medium mb-2">Message</h4>
                 <p className="text-sm text-muted-foreground italic">
-                  "{giftCard.message}"
+                  &quot;{giftCard.message}&quot;
                 </p>
               </div>
             </>

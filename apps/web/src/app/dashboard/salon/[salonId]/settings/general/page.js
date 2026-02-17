@@ -151,7 +151,7 @@ export default function GeneralSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">General Settings</h1>
         <p className="text-muted-foreground">
-          Manage your salon's basic information
+          Manage your salon&apos;s basic information
         </p>
       </div>
       

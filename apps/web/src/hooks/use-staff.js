@@ -16,47 +16,47 @@ export var staffKeys = {
 // ============ STAFF QUERIES ============
 
 export function useStaff(salonId, options) {
-  if (!options) options = {};
+  var resolvedOptions = options ?? {};
   return useQuery({
     queryKey: staffKeys.list(salonId),
     queryFn: function() { return api.get('/salons/' + salonId + '/staff'); },
     enabled: !!salonId,
     select: function(response) { return response.data?.staff || []; },
-    ...options,
+    ...resolvedOptions,
   });
 }
 
 export function useStaffMember(staffId, options) {
-  if (!options) options = {};
+  var resolvedOptions = options ?? {};
   return useQuery({
     queryKey: staffKeys.detail(staffId),
     queryFn: function() { return api.get('/staff/' + staffId); },
     enabled: !!staffId,
     select: function(response) { return response.data; },
-    ...options,
+    ...resolvedOptions,
   });
 }
 
 export function useStaffSchedule(staffId, options) {
-  if (!options) options = {};
+  var resolvedOptions = options ?? {};
   return useQuery({
     queryKey: staffKeys.schedule(staffId),
     queryFn: function() { return api.get('/staff/' + staffId + '/schedule'); },
     enabled: !!staffId,
     select: function(response) { return response.data || []; },
-    ...options,
+    ...resolvedOptions,
   });
 }
 
 export function useAvailability(salonId, params, options) {
-  if (!params) params = {};
-  if (!options) options = {};
+  var resolvedParams = params ?? {};
+  var resolvedOptions = options ?? {};
   return useQuery({
-    queryKey: staffKeys.availability(salonId, params.date, params.serviceId),
-    queryFn: function() { return api.get('/salons/' + salonId + '/availability', params); },
-    enabled: !!salonId && !!params.date,
+    queryKey: staffKeys.availability(salonId, resolvedParams.date, resolvedParams.serviceId),
+    queryFn: function() { return api.get('/salons/' + salonId + '/availability', resolvedParams); },
+    enabled: !!salonId && !!resolvedParams.date,
     select: function(response) { return response.data || []; },
-    ...options,
+    ...resolvedOptions,
   });
 }
 
@@ -142,7 +142,7 @@ export function useUpdateStaffServices() {
 }
 
 export function useStaffServices(staffId, options) {
-  if (!options) options = {};
+  var resolvedOptions = options ?? {};
   return useQuery({
     queryKey: staffKeys.services(staffId),
     queryFn: function() { return api.get('/staff/' + staffId + '/services'); },
@@ -154,18 +154,18 @@ export function useStaffServices(staffId, options) {
       }
       return response.data?.serviceIds || []; 
     },
-    ...options,
+    ...resolvedOptions,
   });
 }
 
 export function useStaffCommissions(staffId, options) {
-  if (!options) options = {};
+  var resolvedOptions = options ?? {};
   return useQuery({
     queryKey: staffKeys.commissions(staffId),
     queryFn: function() { return api.get('/staff/' + staffId + '/commissions'); },
     enabled: !!staffId,
     select: function(response) { return response.data?.commissions || []; },
-    ...options,
+    ...resolvedOptions,
   });
 }
 

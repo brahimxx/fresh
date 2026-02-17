@@ -47,6 +47,11 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
   );
 
   function toggleService(service) {
+    // Prevent selecting services without available staff
+    if (!service.availableStaff || service.availableStaff.length === 0) {
+      return;
+    }
+
     var isSelected = selected.some(function (s) {
       return s.id === service.id;
     });
@@ -57,11 +62,11 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
       });
     } else {
       // Add service with first available staff as default
-      var defaultStaff = service.availableStaff && service.availableStaff[0];
-      newSelected = [...selected, { 
-        ...service, 
-        staffId: defaultStaff?.id || null,
-        staffName: defaultStaff?.name || null
+      var defaultStaff = service.availableStaff[0];
+      newSelected = [...selected, {
+        ...service,
+        staffId: defaultStaff.id,
+        staffName: defaultStaff.name
       }];
     }
     console.log("Service selection changed:", newSelected);
@@ -201,22 +206,27 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                   {catServices.map(function (service) {
                     var selectedService = selected.find(function (s) { return s.id === service.id; });
                     var isServiceSelected = !!selectedService;
-                    
+                    var hasNoStaff = !service.availableStaff || service.availableStaff.length === 0;
+
                     return (
                       <div
                         key={service.id}
                         className={
                           "p-5 rounded-lg border transition-all " +
-                          (isServiceSelected
+                          (hasNoStaff
+                            ? "border-border bg-muted/30 opacity-60 cursor-not-allowed"
+                            : isServiceSelected
                             ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                             : "border-border hover:border-primary/20 hover:bg-muted/30")
                         }
                       >
-                        <div 
+                        <div
                           onClick={function () {
-                            toggleService(service);
+                            if (!hasNoStaff) {
+                              toggleService(service);
+                            }
                           }}
-                          className="cursor-pointer active:scale-[0.98] transition-transform"
+                          className={hasNoStaff ? "cursor-not-allowed" : "cursor-pointer active:scale-[0.98] transition-transform"}
                         >
                           <div className="flex gap-4 min-h-[44px]">
                             <div className="flex-1 min-w-0">
@@ -233,6 +243,11 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                                   {service.description}
                                 </p>
                               )}
+                              {hasNoStaff && (
+                                <p className="text-sm text-destructive mt-1">
+                                  No staff available for this service
+                                </p>
+                              )}
                               <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
@@ -242,7 +257,7 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                             </div>
                             <div className="text-right">
                               <p className="font-semibold">
-                                ${parseFloat(service.price).toFixed(2)}
+                                ${(parseFloat(service.price) || 0).toFixed(2)}
                               </p>
                             </div>
                           </div>

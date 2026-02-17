@@ -29,14 +29,7 @@ const nextConfig = {
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
   },
   
-  // API body size limit (prevent DoS)
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
-  
-  // Bundle optimization
+  // Bundle optimization + server action body size limit (prevent DoS)
   experimental: {
     optimizePackageImports: [
       'lucide-react',

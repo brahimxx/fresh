@@ -304,7 +304,7 @@ export default function OnboardingPage() {
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold">Welcome to Fresh! 👋</h2>
                   <p className="text-muted-foreground max-w-md mx-auto">
-                    Let's get your salon set up in just a few steps. This will
+                    Let&apos;s get your salon set up in just a few steps. This will
                     only take a couple of minutes, and you can always customize
                     everything later.
                   </p>
@@ -672,7 +672,7 @@ export default function OnboardingPage() {
                     Invite Your Team
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Send invitations to your staff members. They'll receive an
+                    Send invitations to your staff members. They&apos;ll receive an
                     email to join your salon.
                   </p>
 
@@ -760,7 +760,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold">You're All Set! 🎉</h2>
+                  <h2 className="text-2xl font-bold">You&apos;re All Set! 🎉</h2>
                   <p className="text-muted-foreground max-w-md mx-auto">
                     Your salon is now ready to accept bookings. You can start
                     managing appointments right away!

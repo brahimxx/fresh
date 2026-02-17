@@ -95,7 +95,7 @@ export async function GET(request) {
         throw new Error('Invalid booking IDs detected');
       }
       bookingServices = await query(
-        `SELECT bs.*, sv.name as service_name
+        `SELECT bs.*, sv.name as service_name, bs.staff_id
          FROM booking_services bs
          JOIN services sv ON sv.id = bs.service_id
          WHERE bs.booking_id IN (${bookingIds.map(() => "?").join(",")})`,
@@ -133,6 +133,7 @@ export async function GET(request) {
           name: bs.service_name,
           price: bs.price,
           duration: bs.duration_minutes,
+          staffId: bs.staff_id,
         })),
     }));
 
@@ -228,20 +229,25 @@ export async function POST(request) {
     const endTimeStr = endDate.toTimeString().slice(0, 8);
 
     console.log(`[BOOKING] Checking: staffId=${staffId}, day=${dayOfWeek}, start=${timeStr}, end=${endTimeStr}`);
-    
-    // Check if appointment falls within staff working hours
-    // Staff shift must start at or before appointment start AND end at or after appointment end
+
+    // Check if staff works this day
     const workingHours = await getOne(
-      "SELECT * FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? AND start_time <= ? AND end_time >= ?",
-      [staffId, dayOfWeek, timeStr, endTimeStr]
+      "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?",
+      [staffId, dayOfWeek]
     );
 
     if (!workingHours) {
-      console.error(`[BOOKING ERROR] Staff not available: day=${dayOfWeek}, time=${timeStr}-${endTimeStr}`);
+      console.error(`[BOOKING ERROR] Staff not working on day ${dayOfWeek}`);
+      return error({ code: 'STAFF_UNAVAILABLE', message: "Staff is not working on this day" }, 409);
+    }
+
+    // Verify appointment time falls within working hours
+    if (timeStr < workingHours.start_time || endTimeStr > workingHours.end_time) {
+      console.error(`[BOOKING ERROR] Staff working hours: ${workingHours.start_time}-${workingHours.end_time}, requested: ${timeStr}-${endTimeStr}`);
       return error({ code: 'STAFF_UNAVAILABLE', message: "Staff is not working at this time" }, 409);
     }
-    
-    console.log(`[BOOKING] Working hours OK:`, workingHours);
+
+    console.log(`[BOOKING] Working hours OK: ${workingHours.start_time}-${workingHours.end_time}`);
 
     // Check for time off (outside transaction for faster fail)
     const timeOff = await getOne(

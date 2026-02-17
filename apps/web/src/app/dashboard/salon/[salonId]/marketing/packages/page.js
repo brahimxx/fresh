@@ -319,7 +319,7 @@ export default function PackagesPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Package</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deletePackage?.name}"? 
+              Are you sure you want to delete &quot;{deletePackage?.name}&quot;? 
               This will not affect already purchased packages.
             </AlertDialogDescription>
           </AlertDialogHeader>

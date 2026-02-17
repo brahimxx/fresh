@@ -22,6 +22,12 @@ export function DateTimeSelection({
   var [loadingSlots, setLoadingSlots] = useState(false);
   var [currentMonth, setCurrentMonth] = useState(new Date());
 
+  // Check if multiple staff are involved
+  var uniqueStaffIds = selectedServices && Array.isArray(selectedServices)
+    ? new Set(selectedServices.map(function(s) { return s.staffId; }).filter(Boolean))
+    : new Set();
+  var hasMultipleStaff = uniqueStaffIds.size > 1;
+
   // Calculate total duration
   var totalDuration =
     selectedServices && Array.isArray(selectedServices)
@@ -39,7 +45,7 @@ export function DateTimeSelection({
         selectedServicesLength: selectedServices?.length,
         isArray: Array.isArray(selectedServices)
       });
-      
+
       if (
         !selectedDate ||
         !selectedServices ||
@@ -47,6 +53,16 @@ export function DateTimeSelection({
         selectedServices.length === 0
       ) {
         console.log('Early return - missing required data');
+        return;
+      }
+
+      // Validate all services have staff assigned
+      var servicesWithoutStaff = selectedServices.filter(function(s) {
+        return !s.staffId;
+      });
+
+      if (servicesWithoutStaff.length > 0) {
+        console.log('Cannot load slots - services missing staff:', servicesWithoutStaff);
         return;
       }
 
@@ -58,11 +74,11 @@ export function DateTimeSelection({
           var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
           var day = String(selectedDate.getDate()).padStart(2, '0');
           var dateStr = year + '-' + month + '-' + day;
-          
+
           // Build services parameter with staff assignments
           var servicesParam = selectedServices
-            .map(function(s) { 
-              return s.id + ':' + (s.staffId || ''); 
+            .map(function(s) {
+              return s.id + ':' + s.staffId;
             })
             .join(',');
 
@@ -227,10 +243,24 @@ export function DateTimeSelection({
       <CardHeader>
         <CardTitle>Select Date & Time</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Choose when you'd like your appointment
+          Choose when you&apos;d like your appointment
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
+        {hasMultipleStaff && (
+          <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex-shrink-0 mt-0.5">
+              <Clock className="h-4 w-4 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Multiple Staff Booking</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Showing times when all selected staff members are available together for your services.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Calendar */}
         <div>
           {/* Month Navigation */}
@@ -422,7 +452,9 @@ export function DateTimeSelection({
                 <div>
                   <p className="font-medium text-sm">No times available</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Try selecting a different date or check back later
+                    {selectedServices.length > 1
+                      ? "We couldn't find a time when all selected staff are available together. Try selecting a different date or consider booking services separately."
+                      : "Try selecting a different date or contact the salon for assistance."}
                   </p>
                 </div>
               </div>

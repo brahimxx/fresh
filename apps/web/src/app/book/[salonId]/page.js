@@ -13,6 +13,7 @@ import {
   MapPin,
   Phone,
   Star,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { DateTimeSelection } from "@/components/booking-widget/datetime-selectio
 import { BookingAuth } from "@/components/booking-widget/booking-auth";
 import { BookingConfirmation } from "@/components/booking-widget/booking-confirmation";
 import { useAuth } from "@/providers/auth-provider";
+import api from "@/lib/api-client";
 
 var STEPS = [
   { id: "services", label: "Services", icon: Scissors },
@@ -54,6 +56,9 @@ export default function BookingPage({ params }) {
   var [bookingNotes, setBookingNotes] = useState("");
   var [bookingComplete, setBookingComplete] = useState(false);
   var [bookingResult, setBookingResult] = useState(null);
+  var [isBooking, setIsBooking] = useState(false);
+  var [isVerifyingSlot, setIsVerifyingSlot] = useState(false);
+  var [slotVerified, setSlotVerified] = useState(false);
 
   // Load salon data
   useEffect(
@@ -80,13 +85,88 @@ export default function BookingPage({ params }) {
     [salonId]
   );
 
+  // Warn user about unsaved changes
+  useEffect(
+    function () {
+      function handleBeforeUnload(e) {
+        if (selectedServices.length > 0 && !bookingComplete) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      }
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return function () {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    },
+    [selectedServices, bookingComplete]
+  );
+
+  // Verify slot availability when reaching confirmation step
+  useEffect(
+    function () {
+      if (currentStep !== 3 || !selectedDate || !selectedTime || !selectedServices.length) {
+        return;
+      }
+
+      async function verifySlot() {
+        setIsVerifyingSlot(true);
+        setSlotVerified(false);
+
+        try {
+          var year = selectedDate.getFullYear();
+          var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          var day = String(selectedDate.getDate()).padStart(2, '0');
+          var dateStr = year + '-' + month + '-' + day;
+
+          var servicesParam = selectedServices
+            .map(function(s) { return s.id + ':' + s.staffId; })
+            .join(',');
+
+          var res = await fetch(
+            "/api/widget/" + salonId + "/availability?date=" + dateStr +
+            "&services=" + encodeURIComponent(servicesParam)
+          );
+
+          if (res.ok) {
+            var data = await res.json();
+            var slots = data.data?.slots || [];
+            var selectedStartTime = selectedTime.split("-")[0];
+            var isAvailable = slots.some(function(slot) {
+              return slot.startTime === selectedStartTime;
+            });
+
+            setSlotVerified(isAvailable);
+
+            if (!isAvailable) {
+              setErrorMsg("This time slot is no longer available. Please select a different time.");
+              setCurrentStep(1);
+            }
+          }
+        } catch (error) {
+          console.error("Slot verification failed:", error);
+          // Allow proceeding on verification error
+          setSlotVerified(true);
+        } finally {
+          setIsVerifyingSlot(false);
+        }
+      }
+
+      verifySlot();
+    },
+    [currentStep, salonId, selectedDate, selectedTime, selectedServices]
+  );
+
   // Calculate totals
   var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    return sum + (s.duration || 0);
+    var duration = parseInt(s.duration) || 0;
+    return sum + duration;
   }, 0) : 0;
 
   var totalPrice = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    return sum + parseFloat(s.price || 0);
+    var price = parseFloat(s.price);
+    return sum + (isNaN(price) ? 0 : price);
   }, 0) : 0;
 
   function handleNext() {
@@ -124,12 +204,15 @@ export default function BookingPage({ params }) {
       return;
     }
 
+    setIsBooking(true);
+    setErrorMsg(null);
+
     try {
       // Parse the selected time to get startTime
       var startTime = selectedTime.split("-")[0]; // Remove any suffix if present
 
       // Get token for authenticated request
-      var token = localStorage.getItem("auth_token");
+      var token = api.getToken();
 
       // Prepare services with staff assignments
       var servicesWithStaff = selectedServices.map(function(service) {
@@ -161,10 +244,10 @@ export default function BookingPage({ params }) {
       } else {
         var errorData = await res.json();
         // Handle both string and object error formats
-        var errorMessage = typeof errorData.error === 'string' 
-          ? errorData.error 
+        var errorMessage = typeof errorData.error === 'string'
+          ? errorData.error
           : (errorData.error?.message || "Unable to complete booking");
-        
+
         if (errorMessage.includes("not available")) {
           setErrorMsg("This time slot is no longer available. Please select a different time.");
         } else if (errorMessage.includes("conflict")) {
@@ -173,12 +256,14 @@ export default function BookingPage({ params }) {
           setErrorMsg(errorMessage + ". Please try again or contact the salon.");
         }
         // Go back to datetime selection
-        setCurrentStep(2);
+        setCurrentStep(1);
       }
     } catch (error) {
       console.error("Booking failed:", error);
       setErrorMsg("Network error. Please check your connection and try again.");
-      setCurrentStep(2);
+      setCurrentStep(1);
+    } finally {
+      setIsBooking(false);
     }
   }
 
@@ -234,7 +319,6 @@ export default function BookingPage({ params }) {
             salon={salon}
             booking={bookingResult}
             selectedServices={selectedServices}
-            selectedStaff={selectedStaff}
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             user={user}
@@ -346,7 +430,7 @@ export default function BookingPage({ params }) {
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
         {/* Error Alert */}
-        {errorMsg && currentStep !== 0 && (
+        {errorMsg && (
           <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex gap-3">
               <div className="flex-shrink-0 mt-0.5">
@@ -407,6 +491,20 @@ export default function BookingPage({ params }) {
                   <CardTitle>Review Your Booking</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {isVerifyingSlot && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <span className="text-sm text-blue-700 dark:text-blue-300">Verifying availability...</span>
+                    </div>
+                  )}
+
+                  {!isVerifyingSlot && slotVerified && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <span className="text-sm text-green-700 dark:text-green-300">Time slot confirmed available</span>
+                    </div>
+                  )}
+
                   <div>
                     <h4 className="font-medium mb-2">Services</h4>
                     {selectedServices.map(function (service) {
@@ -417,7 +515,7 @@ export default function BookingPage({ params }) {
                         >
                           <div className="flex justify-between">
                             <span className="font-medium">{service.name}</span>
-                            <span>${parseFloat(service.price).toFixed(2)}</span>
+                            <span>${(parseFloat(service.price) || 0).toFixed(2)}</span>
                           </div>
                           {service.staffName && (
                             <p className="text-sm text-muted-foreground mt-1">
@@ -501,7 +599,7 @@ export default function BookingPage({ params }) {
                               </p>
                             </div>
                             <p className="font-medium">
-                              ${parseFloat(service.price).toFixed(2)}
+                              ${(parseFloat(service.price) || 0).toFixed(2)}
                             </p>
                           </div>
                         );
@@ -555,20 +653,32 @@ export default function BookingPage({ params }) {
           </Button>
 
           {currentStep < STEPS.length - 1 ? (
-            <Button 
-              onClick={handleNext} 
+            <Button
+              onClick={handleNext}
               disabled={!canProceed()}
               className="min-h-[44px] transition-all"
             >
               Continue
             </Button>
           ) : (
-            <Button 
-              onClick={handleConfirmBooking} 
-              disabled={!canProceed()}
+            <Button
+              onClick={handleConfirmBooking}
+              disabled={!canProceed() || isBooking || isVerifyingSlot || (currentStep === 3 && !slotVerified)}
               className="min-h-[44px] transition-all"
             >
-              Confirm Booking
+              {isBooking ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Booking...
+                </>
+              ) : isVerifyingSlot ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Confirm Booking"
+              )}
             </Button>
           )}
         </div>

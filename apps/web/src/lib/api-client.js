@@ -58,8 +58,14 @@ class ApiClient {
     const data = await response.json();
 
     if (!response.ok) {
-      // Handle both { error: "message" } and { message: "message" } formats
-      const errorMessage = data.error || data.message || "Request failed";
+      // Handle:
+      // - { error: "message" }
+      // - { message: "message" }
+      // - { error: { message, code, details } } (our standard API shape)
+      const errorMessage =
+        (typeof data?.error === "string" ? data.error : data?.error?.message) ||
+        data?.message ||
+        "Request failed";
       const error = new Error(errorMessage);
       error.status = response.status;
       error.data = data;

@@ -376,7 +376,7 @@ export default function CampaignsPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteCampaign?.name}"? 
+              Are you sure you want to delete &quot;{deleteCampaign?.name}&quot;? 
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -398,7 +398,7 @@ export default function CampaignsPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Send Campaign</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to send "{sendCampaign?.name}" to{' '}
+              Are you sure you want to send &quot;{sendCampaign?.name}&quot; to{' '}
               {sendCampaign?.recipients_count || 0} recipients? 
               This action cannot be undone.
             </AlertDialogDescription>

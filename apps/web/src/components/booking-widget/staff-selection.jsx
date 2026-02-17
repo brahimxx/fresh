@@ -116,7 +116,7 @@ export function StaffSelection({
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                We'll assign the first available team member
+                We&apos;ll assign the first available team member
               </p>
             </div>
           </div>

@@ -353,7 +353,7 @@ export default function TeamPage({ params }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Team Member?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove "{deleteStaff?.name}" from your team. Their
+              This will remove &quot;{deleteStaff?.name}&quot; from your team. Their
               future appointments will need to be reassigned.
             </AlertDialogDescription>
           </AlertDialogHeader>

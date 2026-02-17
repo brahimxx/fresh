@@ -20,7 +20,6 @@ export function BookingConfirmation({
   booking,
   salon,
   selectedServices,
-  selectedStaff,
   selectedDate,
   selectedTime,
   user,
@@ -46,33 +45,34 @@ export function BookingConfirmation({
   var totalPrice =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-        return sum + parseFloat(s.price);
+        var price = parseFloat(s.price);
+        return sum + (isNaN(price) ? 0 : price);
       }, 0)
       : 0;
 
   var totalDuration =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-        return sum + (s.duration || 30);
+        var duration = parseInt(s.duration) || 30;
+        return sum + duration;
       }, 0)
       : 0;
 
   function addToCalendar(type) {
     var title = encodeURIComponent("Appointment at " + salon.name);
-    var startDate = new Date(selectedDate);
-    var timeParts = selectedTime.split(":");
-    startDate.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]));
 
+    // Parse the ISO timestamp from selectedTime (format: "ISO-timestamp-staffId")
+    var startTime = selectedTime.split("-")[0];
+    var startDate = new Date(startTime);
     var endDate = new Date(startDate.getTime() + totalDuration * 60000);
 
     var details = encodeURIComponent(
       "Services: " +
       selectedServices
         .map(function (s) {
-          return s.name;
+          return s.name + (s.staffName ? " with " + s.staffName : "");
         })
-        .join(", ") +
-      (selectedStaff ? "\nStaff: " + selectedStaff.name : "")
+        .join(", ")
     );
 
     var location = encodeURIComponent(salon.address || "");
@@ -120,12 +120,6 @@ export function BookingConfirmation({
           </div>
         )}
 
-        {/* Confirmation Email */}
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Mail className="h-4 w-4" />
-          <span>Confirmation sent to {user?.email}</span>
-        </div>
-
         <Separator />
 
         {/* Appointment Details */}
@@ -161,19 +155,17 @@ export function BookingConfirmation({
               </div>
             </div>
 
-            {/* Staff */}
-            {selectedStaff && (
+            {/* Staff - show if there's one primary staff */}
+            {selectedServices && selectedServices.length === 1 && selectedServices[0].staffName && (
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium">{selectedStaff.name}</p>
-                  {selectedStaff.title && (
-                    <p className="text-sm text-muted-foreground">
-                      {selectedStaff.title}
-                    </p>
-                  )}
+                  <p className="font-medium">{selectedServices[0].staffName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your stylist
+                  </p>
                 </div>
               </div>
             )}
@@ -198,10 +190,11 @@ export function BookingConfirmation({
                       <p className="font-medium">{service.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {service.duration} min
+                        {service.staffName && " • with " + service.staffName}
                       </p>
                     </div>
                     <p className="font-medium">
-                      ${parseFloat(service.price).toFixed(2)}
+                      ${(parseFloat(service.price) || 0).toFixed(2)}
                     </p>
                   </div>
                 );

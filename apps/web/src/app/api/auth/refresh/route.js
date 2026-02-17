@@ -45,7 +45,7 @@ export async function POST(request) {
     const newRefreshToken = await createToken({
       userId: user.id,
       type: 'refresh',
-    });
+    }, { expiresIn: '30d' });
 
     // Set cookies
     const cookieStore = await cookies();

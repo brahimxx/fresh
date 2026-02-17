@@ -74,7 +74,7 @@ export function ClientDetails({ details, onChange, errors }) {
             <p className="text-xs text-red-500">{errors.email}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            We'll send your booking confirmation here
+            We&apos;ll send your booking confirmation here
           </p>
         </div>
         

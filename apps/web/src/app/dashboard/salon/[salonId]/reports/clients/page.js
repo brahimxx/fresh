@@ -486,7 +486,7 @@ export default function ClientsReportPage() {
               At Risk Clients
             </CardTitle>
             <CardDescription>
-              Clients who haven't visited in over 60 days
+              Clients who haven&apos;t visited in over 60 days
             </CardDescription>
           </CardHeader>
           <CardContent>

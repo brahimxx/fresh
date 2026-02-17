@@ -62,7 +62,7 @@ export async function GET(request, { params }) {
 
     // Get booking services
     const services = await query(
-      `SELECT bs.*, sv.name as service_name
+      `SELECT bs.*, sv.name as service_name, bs.staff_id
        FROM booking_services bs
        JOIN services sv ON sv.id = bs.service_id
        WHERE bs.booking_id = ?`,
@@ -106,6 +106,7 @@ export async function GET(request, { params }) {
         name: s.service_name,
         price: s.price,
         duration: s.duration_minutes,
+        staffId: s.staff_id,
       })),
       payment: payment
         ? {

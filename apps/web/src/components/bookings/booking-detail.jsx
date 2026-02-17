@@ -115,11 +115,14 @@ export function BookingDetailSheet({ booking, open, onOpenChange, onReschedule }
               </div>
               <div>
                 <p className="font-medium">
-                  {booking.client_name || booking.clientName || 'Walk-in'}
+                  {booking.client
+                    ? `${booking.client.firstName || ''} ${booking.client.lastName || ''}`.trim()
+                    : (booking.client_name || booking.clientName || 'Walk-in')
+                  }
                 </p>
-                {(booking.client_email || booking.clientEmail) && (
+                {(booking.client?.email || booking.client_email ||booking.clientEmail) && (
                   <p className="text-sm text-muted-foreground">
-                    {booking.client_email || booking.clientEmail}
+                    {booking.client?.email || booking.client_email || booking.clientEmail}
                   </p>
                 )}
               </div>
@@ -130,18 +133,40 @@ export function BookingDetailSheet({ booking, open, onOpenChange, onReschedule }
           
           {/* Service Info */}
           <div className="space-y-3">
-            <h3 className="font-medium text-sm text-muted-foreground">Service</h3>
-            <div className="flex items-start gap-3">
-              <Scissors className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">
-                  {booking.service_name || booking.serviceName || 'Service'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {booking.duration || 30} minutes
-                </p>
+            <h3 className="font-medium text-sm text-muted-foreground">
+              {booking.services && booking.services.length > 1 ? 'Services' : 'Service'}
+            </h3>
+            {booking.services && booking.services.length > 0 ? (
+              <div className="space-y-2">
+                {booking.services.map((service, index) => (
+                  <div key={service.id || index} className="flex items-start gap-3">
+                    <Scissors className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {service.duration} minutes
+                        {service.staffId && booking.services.length > 1 && (
+                          <span> • Staff ID: {service.staffId}</span>
+                        )}
+                      </p>
+                    </div>
+                    <p className="font-medium">€{Number(service.price).toFixed(2)}</p>
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <Scissors className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="font-medium">
+                    {booking.service_name || booking.serviceName || 'Service'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {booking.duration || 30} minutes
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           
           <Separator />
@@ -168,7 +193,12 @@ export function BookingDetailSheet({ booking, open, onOpenChange, onReschedule }
             <h3 className="font-medium text-sm text-muted-foreground">Staff Member</h3>
             <div className="flex items-center gap-3">
               <UserCog className="h-5 w-5 text-muted-foreground" />
-              <span>{booking.staff_name || booking.staffName || 'Not assigned'}</span>
+              <span>
+                {booking.staff
+                  ? `${booking.staff.firstName || ''} ${booking.staff.lastName || ''}`.trim()
+                  : (booking.staff_name || booking.staffName || 'Not assigned')
+                }
+              </span>
             </div>
           </div>
           
