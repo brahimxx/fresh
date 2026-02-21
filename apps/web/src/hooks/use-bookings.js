@@ -48,27 +48,27 @@ export function useMyBookings(filter = "upcoming", options = {}) {
   });
 }
 
-// Fetch bookings list with filters  
+// Fetch bookings list with filters
 export function useBookings(filters = {}, options = {}) {
   return useQuery({
     queryKey: bookingKeys.list(filters),
     queryFn: async () => {
       const response = await api.get("/bookings", filters);
-      console.log('=== BOOKINGS API RESPONSE ===');
-      console.log('Full response:', response);
-      console.log('response.success:', response.success);
-      console.log('response.data:', response.data);
-      console.log('response.data.bookings:', response.data?.bookings);
+      console.log("=== BOOKINGS API RESPONSE ===");
+      console.log("Full response:", response);
+      console.log("response.success:", response.success);
+      console.log("response.data:", response.data);
+      console.log("response.data.bookings:", response.data?.bookings);
       return response;
     },
     select: (response) => {
-      console.log('=== BOOKINGS SELECT TRANSFORM ===');
-      console.log('Input to select:', response);
+      console.log("=== BOOKINGS SELECT TRANSFORM ===");
+      console.log("Input to select:", response);
       const result = {
         data: response.data?.bookings || [],
         pagination: response.data?.pagination || response.pagination,
       };
-      console.log('Output from select:', result);
+      console.log("Output from select:", result);
       return result;
     },
     staleTime: 1000 * 60, // Consider data fresh for 1 minute
@@ -98,7 +98,16 @@ export function useCreateBooking() {
       toast.success("Booking created successfully");
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to create booking");
+      // Validation errors (STAFF_UNAVAILABLE, STAFF_ON_LEAVE, CONFLICT) are handled inline in the form
+      // Only show toast for unexpected system errors
+      if (
+        !error.code ||
+        (error.code !== "STAFF_UNAVAILABLE" &&
+          error.code !== "STAFF_ON_LEAVE" &&
+          error.code !== "CONFLICT")
+      ) {
+        toast.error(error.message || "Failed to create booking");
+      }
     },
   });
 }
@@ -221,6 +230,23 @@ export function useAssignStaff() {
     },
     onError: (error) => {
       toast.error(error.message || "Failed to assign staff");
+    },
+  });
+}
+
+// Delete booking mutation (permanent deletion)
+export function useDeleteBooking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id) => api.delete("/bookings/" + id + "/permanent"),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) });
+      toast.success("Booking deleted permanently");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete booking");
     },
   });
 }

@@ -32,14 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -70,8 +62,13 @@ export function BookingFormDialog({
   var { salonId: contextSalonId } = useSalon();
   var salonId = propSalonId || contextSalonId;
   var [clientSearch, setClientSearch] = useState("");
+  var [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   var [selectedClient, setSelectedClient] = useState(null);
   var [showNewClient, setShowNewClient] = useState(false);
+  var [timeError, setTimeError] = useState("");
+  var [clientError, setClientError] = useState("");
+  var [formError, setFormError] = useState("");
+  var [isValidating, setIsValidating] = useState(false);
 
   var { data: services, isLoading: servicesLoading } = useServices(salonId);
   var { data: staff, isLoading: staffLoading } = useStaff(salonId);
@@ -93,8 +90,10 @@ export function BookingFormDialog({
       }
     }
   }, [staff]);
-  var { data: clients, isLoading: clientsLoading } =
-    useClientSearch(clientSearch);
+  var { data: clients, isLoading: clientsLoading } = useClientSearch(
+    clientSearch,
+    salonId,
+  );
 
   var createBooking = useCreateBooking();
   var createClient = useCreateClient();
@@ -114,6 +113,44 @@ export function BookingFormDialog({
     },
   });
 
+  // Reset form when dialog opens with a new date/time
+  useEffect(() => {
+    if (open && initialDate) {
+      const dateObj = new Date(initialDate);
+      const hours = dateObj.getHours();
+      const minutes = dateObj.getMinutes();
+
+      // Round to nearest 15-minute interval
+      const roundedMinutes = Math.round(minutes / 15) * 15;
+      const finalHours = roundedMinutes === 60 ? hours + 1 : hours;
+      const finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+
+      const hoursStr = finalHours.toString().padStart(2, "0");
+      const minutesStr = finalMinutes.toString().padStart(2, "0");
+      const timeString = `${hoursStr}:${minutesStr}`;
+
+      // Reset basic fields
+      form.resetField("clientId");
+      form.resetField("clientName");
+      form.resetField("clientEmail");
+      form.resetField("clientPhone");
+      form.resetField("serviceId");
+      form.resetField("staffId");
+      form.resetField("notes");
+
+      // Set date and time explicitly
+      form.setValue("date", dateObj);
+      form.setValue("time", timeString);
+
+      // Clear client selection
+      setSelectedClient(null);
+      setShowNewClient(false);
+      setClientError("");
+      setTimeError("");
+      setFormError("");
+    }
+  }, [open, initialDate, form]);
+
   var watchDate = form.watch("date");
   var watchServiceId = form.watch("serviceId");
 
@@ -121,20 +158,22 @@ export function BookingFormDialog({
   var filteredStaff =
     Array.isArray(staff) && watchServiceId
       ? staff.filter(function (member) {
+          // Convert watchServiceId to number for comparison
+          const serviceIdNum = parseInt(watchServiceId, 10);
           if (Array.isArray(member.service_ids)) {
-            return member.service_ids.includes(watchServiceId);
+            return member.service_ids.includes(serviceIdNum);
           }
           if (Array.isArray(member.services)) {
             return member.services.some(function (s) {
-              return s.id === watchServiceId;
+              return s.id === serviceIdNum;
             });
           }
           // Don't show staff without service assignments
           return false;
         })
       : Array.isArray(staff)
-      ? staff
-      : [];
+        ? staff
+        : [];
 
   // Don't fallback to showing all staff - if no staff can do the service, show empty
   var showAllStaff = false;
@@ -153,38 +192,71 @@ export function BookingFormDialog({
 
   function handleClientSelect(client) {
     setSelectedClient(client);
-    form.setValue("clientId", client.id);
-    form.setValue("clientName", client.first_name + " " + client.last_name);
+    form.setValue("clientId", String(client.id));
+    var firstName = client.firstName || client.first_name || "";
+    var lastName = client.lastName || client.last_name || "";
+    form.setValue("clientName", (firstName + " " + lastName).trim());
     setClientSearch("");
+    setClientDropdownOpen(false);
+    setClientError("");
   }
 
   function handleClearClient() {
     setSelectedClient(null);
     form.setValue("clientId", "");
     form.setValue("clientName", "");
+    setClientError("");
   }
 
   async function onSubmit(data) {
+    setTimeError("");
+    setClientError("");
+    setFormError("");
+    setIsValidating(true);
+
     try {
       var clientId = data.clientId;
 
+      // Guard: must have selected an existing client OR be in new-client mode with a name
+      if (!clientId && !showNewClient) {
+        setClientError("Please select an existing client or create a new one.");
+        setIsValidating(false);
+        return;
+      }
+
       // Create new client if needed
-      if (!clientId && showNewClient && data.clientName) {
-        var nameParts = data.clientName.split(" ");
-        var newClient = await createClient.mutateAsync({
-          salonId: salonId,
-          firstName: nameParts[0] || "",
-          lastName: nameParts.slice(1).join(" ") || "",
-          email: data.clientEmail || undefined,
-          phone: data.clientPhone || undefined,
-        });
-        clientId = newClient.data.id;
+      if (!clientId && showNewClient) {
+        if (!data.clientName?.trim()) {
+          setClientError("Please enter a name for the new client.");
+          setIsValidating(false);
+          return;
+        }
+
+        try {
+          var nameParts = data.clientName.trim().split(/\s+/);
+          var newClient = await createClient.mutateAsync({
+            salonId: salonId,
+            firstName: nameParts[0],
+            lastName: nameParts.slice(1).join(" ") || "",
+            email: data.clientEmail || undefined,
+            phone: data.clientPhone || undefined,
+          });
+          clientId = String(newClient.data.id);
+        } catch (clientErr) {
+          setClientError(
+            clientErr.message || "Failed to create client. Please try again.",
+          );
+          setIsValidating(false);
+          return;
+        }
       }
 
       // Get service duration
-      var service = services.find(function (s) {
-        return s.id === data.serviceId;
-      });
+      var service = Array.isArray(services)
+        ? services.find(function (s) {
+            return String(s.id) === String(data.serviceId);
+          })
+        : null;
       var duration = service ? service.duration : 30;
 
       // Calculate end time
@@ -198,14 +270,47 @@ export function BookingFormDialog({
         clientId: clientId,
         staffId: data.staffId,
         serviceIds: [data.serviceId], // Convert single serviceId to array
-        startDatetime: startDate.toISOString(),
-        endDatetime: endDate.toISOString(),
+        // Format as local time (no Z / no UTC conversion).
+        // Using toISOString() here would shift the hour to UTC and store
+        // the wrong time in the database for UTC+1 Algeria.
+        startDatetime: format(startDate, "yyyy-MM-dd'T'HH:mm:ss"),
+        endDatetime: format(endDate, "yyyy-MM-dd'T'HH:mm:ss"),
         notes: data.notes || undefined,
       });
 
       onOpenChange(false);
     } catch (error) {
       console.error("Booking error:", error);
+
+      // api-client stores the parsed JSON body in error.data
+      var code = error.code || error.data?.code;
+
+      // Handle specific error codes with friendly inline messages
+      if (code === "STAFF_UNAVAILABLE") {
+        setTimeError(
+          error.message ||
+            "The selected staff member is not working at this time",
+        );
+      } else if (code === "STAFF_ON_LEAVE") {
+        setTimeError(
+          "The selected staff member is on time off during this period",
+        );
+      } else if (
+        code === "CONFLICT" ||
+        error.message?.includes("not available")
+      ) {
+        setTimeError(
+          "This time slot is already booked. Please choose another time.",
+        );
+      } else if (code === "STAFF_SERVICE_MISMATCH") {
+        setFormError("The selected staff cannot perform this service.");
+      } else if (error.message) {
+        setFormError(error.message);
+      } else {
+        setFormError("Failed to create booking. Please try again.");
+      }
+    } finally {
+      setIsValidating(false);
     }
   }
 
@@ -229,7 +334,20 @@ export function BookingFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, function (errors) {
+            // Surface the first Zod validation error so the user knows what's wrong
+            var firstError = Object.values(errors)[0];
+            if (firstError?.message) setFormError(firstError.message);
+          })}
+          className="space-y-4"
+        >
+          {/* General error banner */}
+          {formError && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </div>
+          )}
           {/* Client Selection */}
           <div className="space-y-2">
             <Label>Client</Label>
@@ -238,7 +356,8 @@ export function BookingFormDialog({
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    {selectedClient.first_name} {selectedClient.last_name}
+                    {selectedClient.firstName || selectedClient.first_name}{" "}
+                    {selectedClient.lastName || selectedClient.last_name}
                   </span>
                 </div>
                 <Button
@@ -273,6 +392,7 @@ export function BookingFormDialog({
                   size="sm"
                   onClick={function () {
                     setShowNewClient(false);
+                    setClientError("");
                   }}
                 >
                   Search existing client
@@ -280,57 +400,69 @@ export function BookingFormDialog({
               </div>
             ) : (
               <div className="space-y-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search clients..."
-                        className="pl-10"
-                        value={clientSearch}
-                        onChange={function (e) {
-                          setClientSearch(e.target.value);
-                        }}
-                      />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search clients..."
+                    className="pl-10"
+                    value={clientSearch}
+                    onChange={function (e) {
+                      var val = e.target.value;
+                      setClientSearch(val);
+                      setClientDropdownOpen(val.length >= 2);
+                    }}
+                    onFocus={function () {
+                      if (clientSearch.length >= 2) setClientDropdownOpen(true);
+                    }}
+                    onBlur={function () {
+                      // Delay so mousedown on a result item fires first
+                      setTimeout(function () {
+                        setClientDropdownOpen(false);
+                      }, 150);
+                    }}
+                  />
+                  {clientDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover shadow-md">
+                      {clientsLoading ? (
+                        <div className="p-2">
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      ) : clients && clients.length > 0 ? (
+                        <div className="max-h-48 overflow-y-auto py-1">
+                          {clients.map(function (client) {
+                            return (
+                              <button
+                                key={client.id}
+                                type="button"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                                onMouseDown={function (e) {
+                                  // Prevent input blur before selection registers
+                                  e.preventDefault();
+                                  handleClientSelect(client);
+                                }}
+                              >
+                                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">
+                                  {client.firstName || client.first_name}{" "}
+                                  {client.lastName || client.last_name}
+                                </span>
+                                {client.email && (
+                                  <span className="ml-auto text-muted-foreground text-xs truncate">
+                                    {client.email}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-sm text-muted-foreground">
+                          No clients found
+                        </div>
+                      )}
                     </div>
-                  </PopoverTrigger>
-                  {clientSearch.length >= 2 && (
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandList>
-                          {clientsLoading ? (
-                            <div className="p-2">
-                              <Skeleton className="h-8 w-full" />
-                            </div>
-                          ) : clients && clients.length > 0 ? (
-                            <CommandGroup>
-                              {clients.map(function (client) {
-                                return (
-                                  <CommandItem
-                                    key={client.id}
-                                    onSelect={function () {
-                                      handleClientSelect(client);
-                                    }}
-                                  >
-                                    <User className="mr-2 h-4 w-4" />
-                                    {client.first_name} {client.last_name}
-                                    {client.email && (
-                                      <span className="ml-2 text-muted-foreground text-sm">
-                                        {client.email}
-                                      </span>
-                                    )}
-                                  </CommandItem>
-                                );
-                              })}
-                            </CommandGroup>
-                          ) : (
-                            <CommandEmpty>No clients found</CommandEmpty>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
                   )}
-                </Popover>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -338,6 +470,7 @@ export function BookingFormDialog({
                   className="w-full"
                   onClick={function () {
                     setShowNewClient(true);
+                    setClientError("");
                   }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -346,6 +479,10 @@ export function BookingFormDialog({
               </div>
             )}
           </div>
+
+          {clientError && (
+            <p className="text-sm text-destructive -mt-2">{clientError}</p>
+          )}
 
           {/* Service Selection */}
           <div className="space-y-2">
@@ -483,9 +620,12 @@ export function BookingFormDialog({
                 value={form.watch("time")}
                 onValueChange={function (val) {
                   form.setValue("time", val);
+                  setTimeError(""); // Clear custom error when time changes
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  className={timeError ? "border-destructive" : ""}
+                >
                   <SelectValue placeholder="Select time" />
                 </SelectTrigger>
                 <SelectContent>
@@ -504,6 +644,9 @@ export function BookingFormDialog({
                 <p className="text-sm text-destructive">
                   {form.formState.errors.time.message}
                 </p>
+              )}
+              {timeError && (
+                <p className="text-sm text-destructive">{timeError}</p>
               )}
             </div>
           </div>
@@ -527,8 +670,13 @@ export function BookingFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createBooking.isPending}>
-              {createBooking.isPending ? "Creating..." : "Create Booking"}
+            <Button
+              type="submit"
+              disabled={createBooking.isPending || isValidating}
+            >
+              {createBooking.isPending || isValidating
+                ? "Creating..."
+                : "Create Booking"}
             </Button>
           </DialogFooter>
         </form>

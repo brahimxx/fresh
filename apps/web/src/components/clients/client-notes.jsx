@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { format } from 'date-fns';
-import { Plus, Trash2, MessageSquare } from 'lucide-react';
+import { useState } from "react";
+import { format } from "date-fns";
+import { Plus, Trash2, MessageSquare } from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,52 +17,62 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
-import { useClientNotes, useAddClientNote, useDeleteClientNote } from '@/hooks/use-clients';
+import {
+  useClientNotes,
+  useAddClientNote,
+  useDeleteClientNote,
+} from "@/hooks/use-clients";
 
 export function ClientNotes({ clientId }) {
-  var [newNote, setNewNote] = useState('');
+  var [newNote, setNewNote] = useState("");
   var [isAdding, setIsAdding] = useState(false);
   var [deleteNoteId, setDeleteNoteId] = useState(null);
-  
+
   var { data: notes, isLoading } = useClientNotes(clientId);
   var addNote = useAddClientNote();
   var deleteNote = useDeleteClientNote();
-  
+
   function handleAddNote() {
     if (!newNote.trim()) return;
-    
+
     addNote.mutate(
       { clientId: clientId, content: newNote.trim() },
       {
-        onSuccess: function() {
-          setNewNote('');
+        onSuccess: function () {
+          setNewNote("");
           setIsAdding(false);
         },
-      }
+      },
     );
   }
-  
+
   function handleDeleteNote() {
     if (deleteNoteId) {
       deleteNote.mutate(
         { clientId: clientId, noteId: deleteNoteId },
         {
-          onSuccess: function() {
+          onSuccess: function () {
             setDeleteNoteId(null);
           },
-        }
+        },
       );
     }
   }
-  
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg">Notes</CardTitle>
         {!isAdding && (
-          <Button variant="ghost" size="sm" onClick={function() { setIsAdding(true); }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={function () {
+              setIsAdding(true);
+            }}
+          >
             <Plus className="h-4 w-4 mr-1" />
             Add
           </Button>
@@ -75,29 +85,34 @@ export function ClientNotes({ clientId }) {
             <Textarea
               placeholder="Write a note..."
               value={newNote}
-              onChange={function(e) { setNewNote(e.target.value); }}
+              onChange={function (e) {
+                setNewNote(e.target.value);
+              }}
               rows={3}
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
-                onClick={function() { setIsAdding(false); setNewNote(''); }}
+                onClick={function () {
+                  setIsAdding(false);
+                  setNewNote("");
+                }}
               >
                 Cancel
               </Button>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={handleAddNote}
                 disabled={!newNote.trim() || addNote.isPending}
               >
-                {addNote.isPending ? 'Saving...' : 'Save Note'}
+                {addNote.isPending ? "Saving..." : "Save Note"}
               </Button>
             </div>
           </div>
         )}
-        
+
         {/* Notes List */}
         {isLoading ? (
           <div className="space-y-3">
@@ -106,19 +121,30 @@ export function ClientNotes({ clientId }) {
           </div>
         ) : notes && notes.length > 0 ? (
           <div className="space-y-3">
-            {notes.map(function(note) {
+            {notes.map(function (note) {
               return (
-                <div key={note.id} className="group relative bg-muted/50 rounded-lg p-3">
-                  <p className="text-sm whitespace-pre-wrap pr-8">{note.content}</p>
+                <div
+                  key={note.id}
+                  className="group relative bg-muted/50 rounded-lg p-3"
+                >
+                  <p className="text-sm whitespace-pre-wrap pr-8">
+                    {note.content}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {note.created_at && format(new Date(note.created_at), 'MMM d, yyyy HH:mm')}
-                    {note.created_by_name && (' • ' + note.created_by_name)}
+                    {note.created_at &&
+                      format(
+                        new Date(String(note.created_at).replace(" ", "T")),
+                        "MMM d, yyyy HH:mm",
+                      )}
+                    {note.created_by_name && " • " + note.created_by_name}
                   </p>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={function() { setDeleteNoteId(note.id); }}
+                    onClick={function () {
+                      setDeleteNoteId(note.id);
+                    }}
                   >
                     <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
                   </Button>
@@ -131,11 +157,13 @@ export function ClientNotes({ clientId }) {
             <MessageSquare className="h-8 w-8 text-muted-foreground/50 mb-2" />
             <p className="text-sm text-muted-foreground">No notes yet</p>
             {!isAdding && (
-              <Button 
-                variant="link" 
-                size="sm" 
+              <Button
+                variant="link"
+                size="sm"
                 className="mt-1"
-                onClick={function() { setIsAdding(true); }}
+                onClick={function () {
+                  setIsAdding(true);
+                }}
               >
                 Add the first note
               </Button>
@@ -143,9 +171,14 @@ export function ClientNotes({ clientId }) {
           </div>
         )}
       </CardContent>
-      
+
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteNoteId} onOpenChange={function(open) { if (!open) setDeleteNoteId(null); }}>
+      <AlertDialog
+        open={!!deleteNoteId}
+        onOpenChange={function (open) {
+          if (!open) setDeleteNoteId(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Note?</AlertDialogTitle>
@@ -155,7 +188,7 @@ export function ClientNotes({ clientId }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteNote}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

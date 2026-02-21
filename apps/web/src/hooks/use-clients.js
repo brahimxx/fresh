@@ -27,12 +27,21 @@ export var clientKeys = {
   },
 };
 
-export function useClientSearch(query, options) {
+export function useClientSearch(query, salonId, options) {
+  // Support legacy two-arg call: useClientSearch(query, options)
+  if (salonId && typeof salonId === "object") {
+    options = salonId;
+    salonId = null;
+  }
   if (!options) options = {};
   return useQuery({
-    queryKey: clientKeys.search(query),
+    queryKey: clientKeys.search(query + (salonId ? "|" + salonId : "")),
     queryFn: function () {
-      return api.get("/clients", { search: query, limit: 10 });
+      return api.get("/clients", {
+        search: query,
+        limit: 10,
+        salon_id: salonId,
+      });
     },
     enabled: !!(query && query.length >= 2),
     select: function (response) {
@@ -65,12 +74,21 @@ export function useClients(filters, options) {
   });
 }
 
-export function useClient(id, options) {
+export function useClient(id, salonId, options) {
+  // Support legacy two-arg call: useClient(id, options)
+  if (salonId && typeof salonId === "object") {
+    options = salonId;
+    salonId = null;
+  }
   if (!options) options = {};
   return useQuery({
-    queryKey: clientKeys.detail(id),
+    queryKey: salonId
+      ? [...clientKeys.detail(id), salonId]
+      : clientKeys.detail(id),
     queryFn: function () {
-      return api.get("/clients/" + id);
+      var url = "/clients/" + id;
+      if (salonId) url += "?salon_id=" + salonId;
+      return api.get(url);
     },
     enabled: !!id,
     select: function (response) {
@@ -206,7 +224,7 @@ export function useDeleteClientNote() {
   return useMutation({
     mutationFn: function (params) {
       return api.delete(
-        "/clients/" + params.clientId + "/notes/" + params.noteId
+        "/clients/" + params.clientId + "/notes/" + params.noteId,
       );
     },
     onSuccess: function (response, variables) {

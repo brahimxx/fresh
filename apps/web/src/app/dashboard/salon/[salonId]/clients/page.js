@@ -99,26 +99,32 @@ export default function ClientsPage({ params }) {
   var clients = data?.data || [];
   var pagination = data?.pagination || { total: 0, pages: 1 };
 
-  var handleViewClient = useCallback(function(client) {
-    router.push("./clients/" + client.id);
-  }, [router]);
+  var handleViewClient = useCallback(
+    function (client) {
+      router.push("./clients/" + client.id);
+    },
+    [router],
+  );
 
-  var handleEditClient = useCallback(function(client) {
+  var handleEditClient = useCallback(function (client) {
     setEditClient(client);
   }, []);
 
-  var handleDeleteConfirm = useCallback(function() {
-    if (deleteClient) {
-      deleteClientMutation.mutate(
-        { id: deleteClient.id, salonId: salonId },
-        {
-          onSuccess: function () {
-            setDeleteClient(null);
+  var handleDeleteConfirm = useCallback(
+    function () {
+      if (deleteClient) {
+        deleteClientMutation.mutate(
+          { id: deleteClient.id, salonId: salonId },
+          {
+            onSuccess: function () {
+              setDeleteClient(null);
+            },
           },
-        }
-      );
-    }
-  }, [deleteClient, deleteClientMutation, salonId]);
+        );
+      }
+    },
+    [deleteClient, deleteClientMutation, salonId],
+  );
 
   return (
     <div className="space-y-6">
@@ -150,53 +156,53 @@ export default function ClientsPage({ params }) {
 
       {/* Filters */}
       {!error && (
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search clients..."
-            value={search}
-            onChange={function (e) {
-              setSearch(e.target.value);
-            }}
-            className="pl-10"
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search clients..."
+              value={search}
+              onChange={function (e) {
+                setSearch(e.target.value);
+              }}
+              className="pl-10"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="-name">Name (Z-A)</SelectItem>
+              <SelectItem value="-created_at">Newest First</SelectItem>
+              <SelectItem value="created_at">Oldest First</SelectItem>
+              <SelectItem value="-last_visit">Recent Visit</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name">Name (A-Z)</SelectItem>
-            <SelectItem value="-name">Name (Z-A)</SelectItem>
-            <SelectItem value="-created_at">Newest First</SelectItem>
-            <SelectItem value="created_at">Oldest First</SelectItem>
-            <SelectItem value="-last_visit">Recent Visit</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       )}
 
       {/* Stats Cards */}
       {!error && !isLoading && (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Total Clients</p>
-          <p className="text-2xl font-bold">{pagination.total || 0}</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground">Total Clients</p>
+            <p className="text-2xl font-bold">{pagination.total || 0}</p>
+          </div>
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground">New This Month</p>
+            <p className="text-2xl font-bold">-</p>
+          </div>
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground">Active</p>
+            <p className="text-2xl font-bold">-</p>
+          </div>
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground">Avg. Spend</p>
+            <p className="text-2xl font-bold">-</p>
+          </div>
         </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">New This Month</p>
-          <p className="text-2xl font-bold">-</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Active</p>
-          <p className="text-2xl font-bold">-</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Avg. Spend</p>
-          <p className="text-2xl font-bold">-</p>
-        </div>
-      </div>
       )}
 
       {/* Table */}
@@ -205,22 +211,24 @@ export default function ClientsPage({ params }) {
       ) : !error && clients.length === 0 ? (
         <EmptyClients onAdd={() => setCreateOpen(true)} />
       ) : !error ? (
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Last Visit</TableHead>
-              <TableHead>Total Visits</TableHead>
-              <TableHead>Total Spent</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {clients.map(function (client) {
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Last Visit</TableHead>
+                <TableHead>Total Visits</TableHead>
+                <TableHead>Total Spent</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clients.map(function (client) {
                 var name =
-                  (client.first_name || "") + " " + (client.last_name || "");
+                  (client.firstName || client.first_name || "") +
+                  " " +
+                  (client.lastName || client.last_name || "");
                 name = name.trim() || client.name || "Unknown";
 
                 return (
@@ -276,19 +284,32 @@ export default function ClientsPage({ params }) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {client.last_visit ? (
-                        format(new Date(client.last_visit), "MMM d, yyyy")
+                      {client.lastVisitDate || client.last_visit ? (
+                        format(
+                          new Date(
+                            String(
+                              client.lastVisitDate || client.last_visit,
+                            ).replace(" ", "T"),
+                          ),
+                          "MMM d, yyyy",
+                        )
                       ) : (
                         <span className="text-muted-foreground">Never</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {client.total_visits || client.visit_count || 0}
+                      {client.totalVisits ??
+                        client.total_visits ??
+                        client.visit_count ??
+                        0}
                     </TableCell>
                     <TableCell>
                       EUR{" "}
                       {Number(
-                        client.total_spent || client.lifetime_value || 0
+                        client.totalSpent ??
+                          client.total_spent ??
+                          client.lifetime_value ??
+                          0,
                       ).toFixed(2)}
                     </TableCell>
                     <TableCell
@@ -334,11 +355,10 @@ export default function ClientsPage({ params }) {
                     </TableCell>
                   </TableRow>
                 );
-              })
-            }
-          </TableBody>
-        </Table>
-      </div>
+              })}
+            </TableBody>
+          </Table>
+        </div>
       ) : null}
 
       {/* Pagination */}

@@ -75,18 +75,24 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
         end: format(end, "yyyy-MM-dd"),
       };
     },
-    [currentDate, currentView]
+    [currentDate, currentView],
   );
 
   // Fetch bookings
-  var { data: bookings, isLoading: bookingsLoading, error: bookingsError, refetch: refetchBookings } = useCalendarBookings(
-    salonId,
-    dateRange.start,
-    dateRange.end
-  );
+  var {
+    data: bookings,
+    isLoading: bookingsLoading,
+    error: bookingsError,
+    refetch: refetchBookings,
+  } = useCalendarBookings(salonId, dateRange.start, dateRange.end);
 
   // Fetch staff
-  var { data: staff, isLoading: staffLoading, error: staffError, refetch: refetchStaff } = useStaff(salonId);
+  var {
+    data: staff,
+    isLoading: staffLoading,
+    error: staffError,
+    refetch: refetchStaff,
+  } = useStaff(salonId);
 
   // Build staff color map (use database colors or fallback to generated)
   var staffColorMap = useMemo(
@@ -97,7 +103,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           var fallbackColor = getStaffColor(index);
           var hex = member.color || fallbackColor.hex;
           var name = fallbackColor.name; // Use the fallback name based on index
-          
+
           // If member has a custom color, try to find matching color name
           if (member.color) {
             var matchingColor = getStaffColor(0); // Default
@@ -111,13 +117,13 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             }
             name = matchingColor.name;
           }
-          
+
           map[member.id] = { hex: hex, name: name };
         });
       }
       return map;
     },
-    [staff]
+    [staff],
   );
 
   // Convert bookings to calendar events
@@ -139,23 +145,30 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           var clientName = booking.client
             ? booking.client.firstName + " " + booking.client.lastName
             : "Walk-in";
-          
+
           // Format services for display
           var servicesText = "";
           if (booking.services && booking.services.length > 0) {
-            servicesText = booking.services.map(function(s) { return s.name; }).join(", ");
+            servicesText = booking.services
+              .map(function (s) {
+                return s.name;
+              })
+              .join(", ");
           }
-          
+
           // Format time
-          var startTime = new Date(booking.startDatetime);
-          var endTime = new Date(booking.endDatetime);
-          var timeText = format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
-          
+          var startTime = new Date(
+            (booking.startDatetime || "").replace(" ", "T"),
+          );
+          var endTime = new Date((booking.endDatetime || "").replace(" ", "T"));
+          var timeText =
+            format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
+
           return {
             id: booking.id,
             title: clientName,
-            start: booking.startDatetime,
-            end: booking.endDatetime,
+            start: (booking.startDatetime || "").replace(" ", "T"),
+            end: (booking.endDatetime || "").replace(" ", "T"),
             backgroundColor: staffColor.hex,
             borderColor: staffColor.hex,
             extendedProps: {
@@ -164,12 +177,14 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
               status: booking.status,
               servicesText: servicesText,
               timeText: timeText,
-              staffName: booking.staff ? booking.staff.firstName + " " + booking.staff.lastName : "",
+              staffName: booking.staff
+                ? booking.staff.firstName + " " + booking.staff.lastName
+                : "",
             },
           };
         });
     },
-    [bookings, selectedStaff, staffColorMap]
+    [bookings, selectedStaff, staffColorMap],
   );
 
   // Calendar navigation handlers
@@ -203,7 +218,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       if (onDateClick) onDateClick(arg.date);
       if (onNewBooking) onNewBooking({ date: arg.date });
     },
-    [onDateClick, onNewBooking]
+    [onDateClick, onNewBooking],
   );
 
   var handleEventClick = useCallback(
@@ -211,7 +226,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       var booking = arg.event.extendedProps.booking;
       if (onEventClick) onEventClick(booking);
     },
-    [onEventClick]
+    [onEventClick],
   );
 
   var handleEventDrop = useCallback(
@@ -232,10 +247,10 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           onError: function () {
             arg.revert();
           },
-        }
+        },
       );
     },
-    [rescheduleBooking]
+    [rescheduleBooking],
   );
 
   // Staff filter toggle
@@ -262,19 +277,23 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       } else if (currentView === "timeGridWeek") {
         var weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
         var weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-        
+
         // If same month, show "Dec 16 - 22, 2024"
         if (weekStart.getMonth() === weekEnd.getMonth()) {
-          return format(weekStart, "MMM d") + " - " + format(weekEnd, "d, yyyy");
+          return (
+            format(weekStart, "MMM d") + " - " + format(weekEnd, "d, yyyy")
+          );
         }
         // If different months, show "Dec 30 - Jan 5, 2024"
-        return format(weekStart, "MMM d") + " - " + format(weekEnd, "MMM d, yyyy");
+        return (
+          format(weekStart, "MMM d") + " - " + format(weekEnd, "MMM d, yyyy")
+        );
       } else {
         // Day view
         return format(currentDate, "MMMM d, yyyy");
       }
     },
-    [currentDate, currentView]
+    [currentDate, currentView],
   );
 
   // Quick action handlers
@@ -282,14 +301,14 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
     function (booking) {
       if (onEventClick) onEventClick(booking);
     },
-    [onEventClick]
+    [onEventClick],
   );
 
   var handleConfirmBooking = useCallback(
     function (booking) {
       confirmBooking.mutate(booking.id);
     },
-    [confirmBooking]
+    [confirmBooking],
   );
 
   var handleCompleteBooking = useCallback(
@@ -299,7 +318,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
         data: { status: "completed" },
       });
     },
-    [updateBooking]
+    [updateBooking],
   );
 
   var handleCancelBookingAction = useCallback(
@@ -308,73 +327,83 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
         cancelBooking.mutate(booking.id);
       }
     },
-    [cancelBooking]
+    [cancelBooking],
   );
 
   // Center current time on mount and view changes
-  useEffect(function () {
-    if (!calendarRef.current || !events) return;
-    
-    var api = calendarRef.current.getApi();
-    var view = api.view;
-    
-    // Only apply to time grid views
-    if (view.type.includes('timeGrid')) {
-      // Reset scroll flag when view changes
-      hasScrolledRef.current = false;
-      
-      var scrollTimeout = setTimeout(function() {
-        if (hasScrolledRef.current) return;
-        
-        var scrollerEl = calendarRef.current?.elRef?.current?.querySelector('.fc-scroller-liquid-absolute');
-        if (scrollerEl && scrollerEl.scrollHeight > 0) {
-          var scrollerHeight = scrollerEl.clientHeight;
-          var now = new Date();
-          var hours = now.getHours();
-          var minutes = now.getMinutes();
-          
-          // Calculate total minutes from midnight
-          var currentMinutes = hours * 60 + minutes;
-          
-          // Total day minutes (24 hours)
-          var totalMinutes = 24 * 60;
-          
-          // Calculate the pixel position
-          var totalHeight = scrollerEl.scrollHeight;
-          var currentPosition = (currentMinutes / totalMinutes) * totalHeight;
-          
-          // Scroll to position that centers the current time
-          scrollerEl.scrollTop = currentPosition - (scrollerHeight / 2);
-          hasScrolledRef.current = true;
-        }
-      }, 300);
-      
-      return function() {
-        clearTimeout(scrollTimeout);
-      };
-    }
-  }, [currentView, events]);
+  useEffect(
+    function () {
+      if (!calendarRef.current || !events) return;
+
+      var api = calendarRef.current.getApi();
+      var view = api.view;
+
+      // Only apply to time grid views
+      if (view.type.includes("timeGrid")) {
+        // Reset scroll flag when view changes
+        hasScrolledRef.current = false;
+
+        var scrollTimeout = setTimeout(function () {
+          if (hasScrolledRef.current) return;
+
+          var scrollerEl = calendarRef.current?.elRef?.current?.querySelector(
+            ".fc-scroller-liquid-absolute",
+          );
+          if (scrollerEl && scrollerEl.scrollHeight > 0) {
+            var scrollerHeight = scrollerEl.clientHeight;
+            var now = new Date();
+            var hours = now.getHours();
+            var minutes = now.getMinutes();
+
+            // Calculate total minutes from midnight
+            var currentMinutes = hours * 60 + minutes;
+
+            // Total day minutes (24 hours)
+            var totalMinutes = 24 * 60;
+
+            // Calculate the pixel position
+            var totalHeight = scrollerEl.scrollHeight;
+            var currentPosition = (currentMinutes / totalMinutes) * totalHeight;
+
+            // Scroll to position that centers the current time
+            scrollerEl.scrollTop = currentPosition - scrollerHeight / 2;
+            hasScrolledRef.current = true;
+          }
+        }, 300);
+
+        return function () {
+          clearTimeout(scrollTimeout);
+        };
+      }
+    },
+    [currentView, events],
+  );
 
   // Update current time display dynamically
-  useEffect(function () {
-    var updateCurrentTime = function() {
-      var nowLine = calendarRef.current?.elRef?.current?.querySelector('.fc-timegrid-now-indicator-line');
-      if (nowLine) {
-        var now = new Date();
-        var timeStr = format(now, 'HH:mm');
-        nowLine.setAttribute('data-time', timeStr);
-      }
-    };
+  useEffect(
+    function () {
+      var updateCurrentTime = function () {
+        var nowLine = calendarRef.current?.elRef?.current?.querySelector(
+          ".fc-timegrid-now-indicator-line",
+        );
+        if (nowLine) {
+          var now = new Date();
+          var timeStr = format(now, "HH:mm");
+          nowLine.setAttribute("data-time", timeStr);
+        }
+      };
 
-    // Wait for calendar to render, then update
-    var timeout = setTimeout(updateCurrentTime, 100);
-    var interval = setInterval(updateCurrentTime, 60000); // Update every minute
+      // Wait for calendar to render, then update
+      var timeout = setTimeout(updateCurrentTime, 100);
+      var interval = setInterval(updateCurrentTime, 60000); // Update every minute
 
-    return function() {
-      clearTimeout(timeout);
-      clearInterval(interval);
-    };
-  }, [events]);
+      return function () {
+        clearTimeout(timeout);
+        clearInterval(interval);
+      };
+    },
+    [events],
+  );
 
   if (bookingsLoading || staffLoading) {
     return <CalendarSkeleton />;
@@ -384,7 +413,11 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
     return (
       <DataError
         title="Failed to load calendar"
-        message={bookingsError ? "Unable to fetch bookings" : "Unable to fetch staff members"}
+        message={
+          bookingsError
+            ? "Unable to fetch bookings"
+            : "Unable to fetch staff members"
+        }
         onRetry={bookingsError ? refetchBookings : refetchStaff}
         error={bookingsError || staffError}
       />
@@ -537,21 +570,21 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
           slotDuration="00:15:00"
           slotLabelInterval="01:00:00"
           slotLabelFormat={{
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
           }}
           eventTimeFormat={{
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
           }}
           allDaySlot={false}
           height="100%"
           businessHours={{
             daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-            startTime: '07:00',
-            endTime: '21:00'
+            startTime: "07:00",
+            endTime: "21:00",
           }}
           scrollTime="00:00:00"
           scrollTimeReset={false}
@@ -565,7 +598,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             var timeText = arg.event.extendedProps.timeText;
             var staffName = arg.event.extendedProps.staffName;
             var isTimeGrid = arg.view.type.includes("timeGrid");
-            
+
             return (
               <EventTooltip booking={booking}>
                 <div className="fc-event-main-frame w-full h-full relative group">

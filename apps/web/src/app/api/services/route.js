@@ -12,7 +12,7 @@ async function checkSalonAccess(salonId, userId, role) {
   if (salon.owner_id === userId) return true;
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager', 'owner') AND is_active = 1",
-    [salonId, userId]
+    [salonId, userId],
   );
   return !!staff;
 }
@@ -75,6 +75,7 @@ export async function POST(request) {
       price,
       buffer_time,
       display_order,
+      staff_ids,
     } = body;
 
     if (!salon_id) {
@@ -85,11 +86,20 @@ export async function POST(request) {
       return error("Service name is required", 400);
     }
 
+    const parsedDuration = Number(duration);
+    if (!duration || parsedDuration <= 0) {
+      return error("Duration must be greater than 0", 400);
+    }
+
+    if (price !== undefined && price !== null && Number(price) < 0) {
+      return error("Price cannot be negative", 400);
+    }
+
     // Check salon access
     const hasAccess = await checkSalonAccess(
       salon_id,
       session.userId,
-      session.role
+      session.role,
     );
     if (!hasAccess) {
       return forbidden("Not authorized to add services to this salon");
@@ -107,7 +117,7 @@ export async function POST(request) {
         price || 0,
         buffer_time || 0,
         display_order || 0,
-      ]
+      ],
     );
 
     const newService = await getOne(
@@ -115,8 +125,28 @@ export async function POST(request) {
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id
        WHERE s.id = ?`,
-      [result.insertId]
+      [result.insertId],
     );
+
+    // Assign staff members if provided
+    if (Array.isArray(staff_ids) && staff_ids.length > 0) {
+      // Verify every staff member belongs to the same salon
+      const validStaff = await query(
+        `SELECT id FROM staff WHERE salon_id = ? AND id IN (${staff_ids.map(() => "?").join(",")}) AND is_active = 1`,
+        [salon_id, ...staff_ids],
+      );
+      if (validStaff.length !== staff_ids.length) {
+        return error(
+          "One or more staff members do not belong to this salon",
+          400,
+        );
+      }
+      const values = staff_ids.map((sid) => [result.insertId, sid]);
+      await query(
+        "INSERT IGNORE INTO service_staff (service_id, staff_id) VALUES ?",
+        [values],
+      );
+    }
 
     return created({
       id: newService.id,
@@ -130,6 +160,7 @@ export async function POST(request) {
       bufferTime: newService.buffer_time_minutes,
       displayOrder: newService.display_order,
       isActive: newService.is_active,
+      staffIds: Array.isArray(staff_ids) ? staff_ids : [],
     });
   } catch (err) {
     console.error("Create service error:", err);

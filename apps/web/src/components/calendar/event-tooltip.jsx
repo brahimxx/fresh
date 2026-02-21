@@ -12,8 +12,8 @@ import { Clock, DollarSign, User, Phone, Mail, FileText } from "lucide-react";
 export function EventTooltip({ booking, children }) {
   if (!booking) return children;
 
-  var startTime = new Date(booking.startDatetime);
-  var endTime = new Date(booking.endDatetime);
+  var startTime = new Date((booking.startDatetime || "").replace(" ", "T"));
+  var endTime = new Date((booking.endDatetime || "").replace(" ", "T"));
   var duration = Math.round((endTime - startTime) / (1000 * 60)); // minutes
 
   return (
@@ -105,12 +105,12 @@ export function EventTooltip({ booking, children }) {
                     booking.status === "confirmed"
                       ? "text-green-600"
                       : booking.status === "pending"
-                      ? "text-yellow-600"
-                      : booking.status === "completed"
-                      ? "text-blue-600"
-                      : booking.status === "cancelled"
-                      ? "text-red-600"
-                      : ""
+                        ? "text-yellow-600"
+                        : booking.status === "completed"
+                          ? "text-blue-600"
+                          : booking.status === "cancelled"
+                            ? "text-red-600"
+                            : ""
                   }
                 >
                   {booking.status.charAt(0).toUpperCase() +

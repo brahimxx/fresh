@@ -1,11 +1,20 @@
-import { query, getOne } from '@/lib/db';
-import { getSession, requireAuth } from '@/lib/auth';
-import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { getSession, requireAuth } from "@/lib/auth";
+import {
+  success,
+  error,
+  unauthorized,
+  notFound,
+  forbidden,
+} from "@/lib/response";
 
 // Helper to check if user owns the salon
 async function checkSalonOwnership(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
+  if (role === "admin") return true;
+  const salon = await getOne(
+    "SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL",
+    [salonId],
+  );
   return salon && salon.owner_id === userId;
 }
 
@@ -20,20 +29,26 @@ export async function GET(request, { params }) {
               COUNT(DISTINCT r.id) as review_count
        FROM salons s
        LEFT JOIN reviews r ON r.salon_id = s.id
-       WHERE s.id = ?
+       WHERE s.id = ? AND s.deleted_at IS NULL
        GROUP BY s.id`,
-      [id]
+      [id],
     );
 
     if (!salon) {
-      return notFound('Salon not found');
+      return notFound("Salon not found");
     }
 
     // Get salon settings
-    const settings = await getOne('SELECT * FROM salon_settings WHERE salon_id = ?', [id]);
+    const settings = await getOne(
+      "SELECT * FROM salon_settings WHERE salon_id = ?",
+      [id],
+    );
 
     // Get salon photos
-    const photos = await query('SELECT id, image_url, is_cover FROM salon_photos WHERE salon_id = ?', [id]);
+    const photos = await query(
+      "SELECT id, image_url, is_cover FROM salon_photos WHERE salon_id = ?",
+      [id],
+    );
 
     // Get services grouped by category
     const categories = await query(
@@ -51,7 +66,7 @@ export async function GET(request, { params }) {
        LEFT JOIN services s ON s.category_id = sc.id AND s.is_active = 1
        WHERE sc.salon_id = ?
        GROUP BY sc.id`,
-      [id]
+      [id],
     );
 
     // Get staff
@@ -60,7 +75,7 @@ export async function GET(request, { params }) {
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? AND st.is_active = 1`,
-      [id]
+      [id],
     );
 
     return success({
@@ -81,11 +96,11 @@ export async function GET(request, { params }) {
       createdAt: salon.created_at,
       settings: settings
         ? {
-          cancellationPolicyHours: settings.cancellation_policy_hours,
-          noShowFee: settings.no_show_fee,
-          depositRequired: settings.deposit_required,
-          depositPercentage: settings.deposit_percentage,
-        }
+            cancellationPolicyHours: settings.cancellation_policy_hours,
+            noShowFee: settings.no_show_fee,
+            depositRequired: settings.deposit_required,
+            depositPercentage: settings.deposit_percentage,
+          }
         : null,
       photos: photos.map((p) => ({
         id: p.id,
@@ -95,7 +110,10 @@ export async function GET(request, { params }) {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
-        services: (typeof c.services === 'string' ? JSON.parse(c.services) : c.services || []).filter((s) => s.id !== null),
+        services: (typeof c.services === "string"
+          ? JSON.parse(c.services)
+          : c.services || []
+        ).filter((s) => s.id !== null),
       })),
       staff: staff.map((s) => ({
         id: s.id,
@@ -106,8 +124,8 @@ export async function GET(request, { params }) {
       })),
     });
   } catch (err) {
-    console.error('Get salon error:', err);
-    return error('Failed to get salon', 500);
+    console.error("Get salon error:", err);
+    return error("Failed to get salon", 500);
   }
 }
 
@@ -119,7 +137,7 @@ export async function PUT(request, { params }) {
 
     const isOwner = await checkSalonOwnership(id, session.userId, session.role);
     if (!isOwner) {
-      return forbidden('Not authorized to update this salon');
+      return forbidden("Not authorized to update this salon");
     }
 
     const body = await request.json();
@@ -149,10 +167,22 @@ export async function PUT(request, { params }) {
         longitude = COALESCE(?, longitude),
         is_marketplace_enabled = COALESCE(?, is_marketplace_enabled)
        WHERE id = ?`,
-      [name, description, phone, email, address, city, country, latitude, longitude, isMarketplaceEnabled, id]
+      [
+        name,
+        description,
+        phone,
+        email,
+        address,
+        city,
+        country,
+        latitude,
+        longitude,
+        isMarketplaceEnabled,
+        id,
+      ],
     );
 
-    const salon = await getOne('SELECT * FROM salons WHERE id = ?', [id]);
+    const salon = await getOne("SELECT * FROM salons WHERE id = ?", [id]);
 
     return success({
       id: salon.id,
@@ -168,33 +198,154 @@ export async function PUT(request, { params }) {
       isMarketplaceEnabled: salon.is_marketplace_enabled,
     });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    console.error('Update salon error:', err);
-    return error('Failed to update salon', 500);
+    if (err.message === "Unauthorized") return unauthorized();
+    console.error("Update salon error:", err);
+    return error("Failed to update salon", 500);
   }
 }
 
-// DELETE /api/salons/[id] - Delete salon
+// DELETE /api/salons/[id] - Soft delete salon
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get("force") === "true";
 
     const isOwner = await checkSalonOwnership(id, session.userId, session.role);
     if (!isOwner) {
-      return forbidden('Not authorized to delete this salon');
+      return forbidden("Not authorized to delete this salon");
     }
 
-    // Delete related records first
-    await query('DELETE FROM salon_settings WHERE salon_id = ?', [id]);
-    await query('DELETE FROM salon_photos WHERE salon_id = ?', [id]);
-    await query('DELETE FROM service_categories WHERE salon_id = ?', [id]);
-    await query('DELETE FROM salons WHERE id = ?', [id]);
+    // Check if salon exists and is not already deleted
+    const salon = await getOne(
+      "SELECT id, name, deleted_at FROM salons WHERE id = ?",
+      [id],
+    );
+    if (!salon) {
+      return notFound("Salon not found");
+    }
+    if (salon.deleted_at) {
+      return error("Salon is already deleted", 400);
+    }
 
-    return success({ message: 'Salon deleted successfully' });
+    // Pre-deletion checks (unless force=true)
+    if (!force) {
+      // Check for pending or confirmed future bookings
+      const pendingBookings = await query(
+        `SELECT id, start_datetime, status 
+         FROM bookings 
+         WHERE salon_id = ? 
+           AND status IN ('pending', 'confirmed') 
+           AND start_datetime > NOW()
+           AND deleted_at IS NULL
+         LIMIT 5`,
+        [id],
+      );
+
+      // Check for active gift cards with balance
+      const activeGiftCards = await query(
+        `SELECT id, code, remaining_balance 
+         FROM gift_cards 
+         WHERE salon_id = ? 
+           AND remaining_balance > 0 
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND status = 'active'
+         LIMIT 5`,
+        [id],
+      );
+
+      // Check for active packages with remaining uses
+      const activePackages = await query(
+        `SELECT cp.id, p.name, cp.remaining_uses 
+         FROM client_packages cp
+         JOIN packages p ON p.id = cp.package_id
+         WHERE cp.salon_id = ? 
+           AND cp.remaining_uses > 0
+           AND cp.status = 'active'
+           AND (cp.expires_at IS NULL OR cp.expires_at > NOW())
+         LIMIT 5`,
+        [id],
+      );
+
+      const blockers = [];
+      if (pendingBookings.length > 0) {
+        blockers.push({
+          type: "bookings",
+          count: pendingBookings.length,
+          message: `${pendingBookings.length} pending/confirmed future booking(s)`,
+          items: pendingBookings.map((b) => ({
+            id: b.id,
+            datetime: b.start_datetime,
+            status: b.status,
+          })),
+        });
+      }
+      if (activeGiftCards.length > 0) {
+        blockers.push({
+          type: "giftCards",
+          count: activeGiftCards.length,
+          message: `${activeGiftCards.length} active gift card(s) with balance`,
+          items: activeGiftCards.map((g) => ({
+            id: g.id,
+            code: g.code,
+            balance: g.remaining_balance,
+          })),
+        });
+      }
+      if (activePackages.length > 0) {
+        blockers.push({
+          type: "packages",
+          count: activePackages.length,
+          message: `${activePackages.length} active package(s) with remaining uses`,
+          items: activePackages.map((p) => ({
+            id: p.id,
+            name: p.name,
+            remaining: p.remaining_uses,
+          })),
+        });
+      }
+
+      if (blockers.length > 0) {
+        return error(
+          "Cannot delete salon. Please resolve the following issues first or use force=true to proceed anyway.",
+          409,
+          { blockers },
+        );
+      }
+    }
+
+    // Soft delete: set deleted_at timestamp
+    await query(
+      `UPDATE salons SET 
+         deleted_at = NOW(), 
+         deleted_by = ?,
+         is_active = 0,
+         is_marketplace_enabled = 0,
+         status = 'deleted'
+       WHERE id = ?`,
+      [session.userId, id],
+    );
+
+    // Deactivate all staff members for this salon
+    await query("UPDATE staff SET is_active = 0 WHERE salon_id = ?", [id]);
+
+    // Cancel all pending future bookings
+    await query(
+      `UPDATE bookings SET status = 'cancelled' 
+       WHERE salon_id = ? 
+         AND status IN ('pending', 'confirmed')
+         AND start_datetime > NOW()`,
+      [id],
+    );
+
+    return success({
+      message: "Salon deleted successfully",
+      deletedAt: new Date().toISOString(),
+    });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    console.error('Delete salon error:', err);
-    return error('Failed to delete salon', 500);
+    if (err.message === "Unauthorized") return unauthorized();
+    console.error("Delete salon error:", err);
+    return error("Failed to delete salon", 500);
   }
 }

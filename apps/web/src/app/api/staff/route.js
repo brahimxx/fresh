@@ -12,7 +12,7 @@ async function checkSalonAccess(salonId, userId, role) {
   if (salon.owner_id === userId) return true;
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager') AND is_active = 1",
-    [salonId, userId]
+    [salonId, userId],
   );
   return !!staff;
 }
@@ -40,6 +40,28 @@ export async function GET(request) {
 
     const staffMembers = await query(sql, params);
 
+    // Get service assignments for all staff members
+    const staffIds = staffMembers.map((s) => s.id);
+    let serviceAssignments = [];
+
+    if (staffIds.length > 0) {
+      serviceAssignments = await query(
+        `SELECT staff_id, service_id 
+         FROM service_staff 
+         WHERE staff_id IN (${staffIds.map(() => "?").join(",")})`,
+        staffIds,
+      );
+    }
+
+    // Group service IDs by staff ID
+    const servicesByStaff = {};
+    serviceAssignments.forEach((assignment) => {
+      if (!servicesByStaff[assignment.staff_id]) {
+        servicesByStaff[assignment.staff_id] = [];
+      }
+      servicesByStaff[assignment.staff_id].push(assignment.service_id);
+    });
+
     return success({
       data: staffMembers.map((s) => ({
         id: s.id,
@@ -57,6 +79,7 @@ export async function GET(request) {
         displayOrder: s.display_order,
         isActive: s.is_active,
         isVisible: s.is_visible,
+        service_ids: servicesByStaff[s.id] || [],
       })),
     });
   } catch (err) {
@@ -115,7 +138,7 @@ export async function POST(request) {
     const hasAccess = await checkSalonAccess(
       salon_id,
       session.userId,
-      session.role
+      session.role,
     );
     if (!hasAccess) {
       return forbidden("Not authorized to add staff to this salon");
@@ -134,9 +157,9 @@ export async function POST(request) {
         const passwordHash = await bcrypt.hash(tempPassword, 10);
 
         const userResult = await query(
-        `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
+          `INSERT INTO users (email, password_hash, first_name, last_name, phone, role)
          VALUES (?, ?, ?, ?, ?, 'staff')`,
-          [email, passwordHash, firstName, lastName || null, phone || null]
+          [email, passwordHash, firstName, lastName || null, phone || null],
         );
         user = { id: userResult.insertId };
       }
@@ -158,7 +181,7 @@ export async function POST(request) {
           firstName,
           lastName || null,
           phone || null,
-        ]
+        ],
       );
       user = { id: userResult.insertId };
     }
@@ -166,7 +189,7 @@ export async function POST(request) {
     // Check if staff already exists for this salon
     const existingStaff = await getOne(
       "SELECT id FROM staff WHERE salon_id = ? AND user_id = ?",
-      [salon_id, user.id]
+      [salon_id, user.id],
     );
 
     if (existingStaff) {
@@ -192,7 +215,7 @@ export async function POST(request) {
         employmentType || "employee",
         notes || null,
         isVisible !== false ? 1 : 0,
-      ]
+      ],
     );
 
     const staffId = result.insertId;
@@ -200,10 +223,9 @@ export async function POST(request) {
     // Add service assignments if provided
     if (serviceIds && serviceIds.length > 0) {
       const serviceValues = serviceIds.map((serviceId) => [serviceId, staffId]);
-      await query(
-        `INSERT INTO service_staff (service_id, staff_id) VALUES ?`,
-        [serviceValues]
-      );
+      await query(`INSERT INTO service_staff (service_id, staff_id) VALUES ?`, [
+        serviceValues,
+      ]);
     }
 
     // Add emergency contact if provided
@@ -217,7 +239,7 @@ export async function POST(request) {
           emergencyContact.relationship || null,
           emergencyContact.phonePrimary || null,
           emergencyContact.email || null,
-        ]
+        ],
       );
     }
 
@@ -226,7 +248,7 @@ export async function POST(request) {
        FROM staff s
        JOIN users u ON u.id = s.user_id
        WHERE s.id = ?`,
-      [staffId]
+      [staffId],
     );
 
     return created({

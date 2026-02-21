@@ -74,7 +74,7 @@ export default function ClientDetailPage({ params }) {
   var [editOpen, setEditOpen] = useState(false);
   var [deleteOpen, setDeleteOpen] = useState(false);
 
-  var { data: client, isLoading, error } = useClient(clientId);
+  var { data: client, isLoading, error } = useClient(clientId, salonId);
   var deleteClient = useDeleteClient();
 
   function handleDelete() {
@@ -84,7 +84,7 @@ export default function ClientDetailPage({ params }) {
         onSuccess: function () {
           router.push("../clients");
         },
-      }
+      },
     );
   }
 
@@ -120,8 +120,11 @@ export default function ClientDetailPage({ params }) {
   }
 
   var name =
-    ((client.first_name || "") + " " + (client.last_name || "")).trim() ||
-    "Unknown";
+    (
+      (client.firstName || client.first_name || "") +
+      " " +
+      (client.lastName || client.last_name || "")
+    ).trim() || "Unknown";
 
   return (
     <div className="space-y-6">
@@ -147,8 +150,16 @@ export default function ClientDetailPage({ params }) {
             <h1 className="text-2xl font-bold">{name}</h1>
             <p className="text-muted-foreground">
               Client since{" "}
-              {client.created_at
-                ? format(new Date(client.created_at), "MMM yyyy")
+              {client.createdAt || client.created_at
+                ? format(
+                    new Date(
+                      String(client.createdAt || client.created_at).replace(
+                        " ",
+                        "T",
+                      ),
+                    ),
+                    "MMM yyyy",
+                  )
                 : "Unknown"}
             </p>
           </div>
@@ -184,7 +195,10 @@ export default function ClientDetailPage({ params }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {client.total_visits || client.visit_count || 0}
+              {client.salonStats?.totalVisits ??
+                client.total_visits ??
+                client.visit_count ??
+                0}
             </div>
           </CardContent>
         </Card>
@@ -195,9 +209,12 @@ export default function ClientDetailPage({ params }) {
           <CardContent>
             <div className="text-2xl font-bold">
               EUR{" "}
-              {Number(client.total_spent || client.lifetime_value || 0).toFixed(
-                2
-              )}
+              {Number(
+                client.salonStats?.totalSpent ??
+                  client.total_spent ??
+                  client.lifetime_value ??
+                  0,
+              ).toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -207,8 +224,15 @@ export default function ClientDetailPage({ params }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {client.last_visit
-                ? format(new Date(client.last_visit), "MMM d")
+              {client.salonStats?.lastVisitDate || client.last_visit
+                ? format(
+                    new Date(
+                      String(
+                        client.salonStats?.lastVisitDate || client.last_visit,
+                      ).replace(" ", "T"),
+                    ),
+                    "MMM d",
+                  )
                 : "Never"}
             </div>
           </CardContent>
@@ -220,9 +244,11 @@ export default function ClientDetailPage({ params }) {
           <CardContent>
             <div className="text-2xl font-bold">
               EUR{" "}
-              {client.total_visits > 0
+              {(client.salonStats?.totalVisits ?? client.total_visits ?? 0) > 0
                 ? (
-                    Number(client.total_spent || 0) / client.total_visits
+                    Number(
+                      client.salonStats?.totalSpent ?? client.total_spent ?? 0,
+                    ) / (client.salonStats?.totalVisits ?? client.total_visits)
                   ).toFixed(2)
                 : "0.00"}
             </div>
@@ -267,9 +293,11 @@ export default function ClientDetailPage({ params }) {
                   <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div className="text-sm">
                     {client.address && <p>{client.address}</p>}
-                    {(client.city || client.postal_code) && (
+                    {(client.city ||
+                      client.postal_code ||
+                      client.postalCode) && (
                       <p className="text-muted-foreground">
-                        {[client.city, client.postal_code]
+                        {[client.city, client.postalCode || client.postal_code]
                           .filter(Boolean)
                           .join(", ")}
                       </p>
@@ -277,11 +305,18 @@ export default function ClientDetailPage({ params }) {
                   </div>
                 </div>
               )}
-              {client.date_of_birth && (
+              {(client.dateOfBirth || client.date_of_birth) && (
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">
-                    {format(new Date(client.date_of_birth), "MMMM d, yyyy")}
+                    {format(
+                      new Date(
+                        String(
+                          client.dateOfBirth || client.date_of_birth,
+                        ).replace(" ", "T"),
+                      ),
+                      "MMMM d, yyyy",
+                    )}
                   </span>
                 </div>
               )}

@@ -1,22 +1,28 @@
-import { query, getOne } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
-import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
+import {
+  success,
+  error,
+  unauthorized,
+  notFound,
+  forbidden,
+} from "@/lib/response";
 
 // Helper to check salon access via service
 async function checkServiceAccess(serviceId, userId, role) {
-  if (role === 'admin') return true;
+  if (role === "admin") return true;
   const service = await getOne(
     `SELECT s.salon_id, sa.owner_id
      FROM services s
      JOIN salons sa ON sa.id = s.salon_id
      WHERE s.id = ?`,
-    [serviceId]
+    [serviceId],
   );
   if (!service) return false;
   if (service.owner_id === userId) return true;
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
-    [service.salon_id, userId]
+    [service.salon_id, userId],
   );
   return !!staff;
 }
@@ -31,11 +37,11 @@ export async function GET(request, { params }) {
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id
        WHERE s.id = ?`,
-      [serviceId]
+      [serviceId],
     );
 
     if (!service) {
-      return notFound('Service not found');
+      return notFound("Service not found");
     }
 
     // Get assigned staff
@@ -45,7 +51,7 @@ export async function GET(request, { params }) {
        JOIN staff st ON st.id = ss.staff_id
        JOIN users u ON u.id = st.user_id
        WHERE ss.service_id = ?`,
-      [serviceId]
+      [serviceId],
     );
 
     return success({
@@ -64,8 +70,8 @@ export async function GET(request, { params }) {
       })),
     });
   } catch (err) {
-    console.error('Get service error:', err);
-    return error('Failed to get service', 500);
+    console.error("Get service error:", err);
+    return error("Failed to get service", 500);
   }
 }
 
@@ -75,13 +81,25 @@ export async function PUT(request, { params }) {
     const session = await requireAuth();
     const { serviceId } = await params;
 
-    const hasAccess = await checkServiceAccess(serviceId, session.userId, session.role);
+    const hasAccess = await checkServiceAccess(
+      serviceId,
+      session.userId,
+      session.role,
+    );
     if (!hasAccess) {
-      return forbidden('Not authorized to update this service');
+      return forbidden("Not authorized to update this service");
     }
 
     const body = await request.json();
     const { name, categoryId, duration, price, isActive, staffIds } = body;
+
+    if (duration !== undefined && duration !== null && Number(duration) <= 0) {
+      return error("Duration must be greater than 0", 400);
+    }
+
+    if (price !== undefined && price !== null && Number(price) < 0) {
+      return error("Price cannot be negative", 400);
+    }
 
     await query(
       `UPDATE services SET
@@ -91,19 +109,48 @@ export async function PUT(request, { params }) {
         price = COALESCE(?, price),
         is_active = COALESCE(?, is_active)
        WHERE id = ?`,
-      [name, categoryId, duration, price, isActive, serviceId]
+      [name, categoryId, duration, price, isActive, serviceId],
     );
 
     // Update staff assignments if provided
     if (staffIds !== undefined) {
-      await query('DELETE FROM service_staff WHERE service_id = ?', [serviceId]);
+      // Resolve the salon this service belongs to
+      const svc = await getOne("SELECT salon_id FROM services WHERE id = ?", [
+        serviceId,
+      ]);
+
+      if (staffIds.length > 0) {
+        // Verify every staff member belongs to the same salon as the service
+        const validStaff = await query(
+          `SELECT id FROM staff WHERE salon_id = ? AND id IN (${staffIds.map(() => "?").join(",")}) AND is_active = 1`,
+          [svc.salon_id, ...staffIds],
+        );
+        if (validStaff.length !== staffIds.length) {
+          return error(
+            "One or more staff members do not belong to this salon",
+            400,
+          );
+        }
+      }
+
+      await query("DELETE FROM service_staff WHERE service_id = ?", [
+        serviceId,
+      ]);
       for (const staffId of staffIds) {
-        await query('INSERT INTO service_staff (service_id, staff_id) VALUES (?, ?)', [serviceId, staffId]);
+        await query(
+          "INSERT INTO service_staff (service_id, staff_id) VALUES (?, ?)",
+          [serviceId, staffId],
+        );
       }
     }
 
-    const service = await getOne('SELECT * FROM services WHERE id = ?', [serviceId]);
-    const assignedStaff = await query('SELECT staff_id FROM service_staff WHERE service_id = ?', [serviceId]);
+    const service = await getOne("SELECT * FROM services WHERE id = ?", [
+      serviceId,
+    ]);
+    const assignedStaff = await query(
+      "SELECT staff_id FROM service_staff WHERE service_id = ?",
+      [serviceId],
+    );
 
     return success({
       id: service.id,
@@ -115,9 +162,9 @@ export async function PUT(request, { params }) {
       staffIds: assignedStaff.map((s) => s.staff_id),
     });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    console.error('Update service error:', err);
-    return error('Failed to update service', 500);
+    if (err.message === "Unauthorized") return unauthorized();
+    console.error("Update service error:", err);
+    return error("Failed to update service", 500);
   }
 }
 
@@ -127,18 +174,22 @@ export async function DELETE(request, { params }) {
     const session = await requireAuth();
     const { serviceId } = await params;
 
-    const hasAccess = await checkServiceAccess(serviceId, session.userId, session.role);
+    const hasAccess = await checkServiceAccess(
+      serviceId,
+      session.userId,
+      session.role,
+    );
     if (!hasAccess) {
-      return forbidden('Not authorized to delete this service');
+      return forbidden("Not authorized to delete this service");
     }
 
-    await query('DELETE FROM service_staff WHERE service_id = ?', [serviceId]);
-    await query('DELETE FROM services WHERE id = ?', [serviceId]);
+    await query("DELETE FROM service_staff WHERE service_id = ?", [serviceId]);
+    await query("DELETE FROM services WHERE id = ?", [serviceId]);
 
-    return success({ message: 'Service deleted successfully' });
+    return success({ message: "Service deleted successfully" });
   } catch (err) {
-    if (err.message === 'Unauthorized') return unauthorized();
-    console.error('Delete service error:', err);
-    return error('Failed to delete service', 500);
+    if (err.message === "Unauthorized") return unauthorized();
+    console.error("Delete service error:", err);
+    return error("Failed to delete service", 500);
   }
 }

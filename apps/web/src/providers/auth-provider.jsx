@@ -24,14 +24,18 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      const token = api.getToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      // Always call /auth/me — the server authenticates via HttpOnly cookie.
+      // Do NOT gate this on the localStorage token: if the cookie is valid the
+      // user IS authenticated even when localStorage has been cleared (e.g. after
+      // a hard refresh in a private window, or after storage was wiped).
       const response = await api.get("/auth/me");
+      // Sync the in-memory token cache with whatever localStorage holds so that
+      // the Bearer header is injected correctly on subsequent requests.
+      const token = api.getToken();
+      if (token) api.setToken(token);
       setUser(response.data);
     } catch (error) {
+      // 401 / network error → not authenticated
       api.clearToken();
       setUser(null);
     } finally {

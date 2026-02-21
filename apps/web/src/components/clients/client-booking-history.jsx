@@ -53,8 +53,21 @@ export function ClientBookingHistory({ clientId, salonId }) {
 
   function handleViewBooking(bookingId) {
     router.push(
-      "/dashboard/salon/" + salonId + "/bookings?selected=" + bookingId
+      "/dashboard/salon/" + salonId + "/bookings?selected=" + bookingId,
     );
+  }
+
+  // MySQL returns datetimes as "YYYY-MM-DD HH:MM:SS" (space separator).
+  // new Date() requires ISO 8601 "YYYY-MM-DDTHH:MM:SS" — replace the space.
+  function parseBookingDate(value) {
+    if (!value) return new Date(NaN);
+    return new Date(String(value).replace(" ", "T"));
+  }
+
+  function safeFormat(date, fmt, fallback) {
+    if (fallback === undefined) fallback = "—";
+    if (!date || isNaN(date.getTime())) return fallback;
+    return format(date, fmt);
   }
 
   // Separate upcoming and past bookings
@@ -64,8 +77,10 @@ export function ClientBookingHistory({ clientId, salonId }) {
 
   if (bookings) {
     bookings.forEach(function (booking) {
-      var bookingDate = new Date(
-        booking.start_datetime || booking.startDateTime
+      var bookingDate = parseBookingDate(
+        booking.start_datetime ||
+          booking.startDatetime ||
+          booking.startDateTime,
       );
       if (
         bookingDate > now &&
@@ -109,12 +124,21 @@ export function ClientBookingHistory({ clientId, salonId }) {
                 </h3>
                 <div className="space-y-3">
                   {upcomingBookings.map(function (booking) {
-                    var startTime = new Date(
-                      booking.start_datetime || booking.startDateTime
+                    var startTime = parseBookingDate(
+                      booking.start_datetime ||
+                        booking.startDatetime ||
+                        booking.startDateTime,
                     );
                     var statusConfig =
                       STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
                     var StatusIcon = statusConfig.icon;
+                    var serviceName =
+                      booking.service_name ||
+                      booking.serviceName ||
+                      (booking.services &&
+                        booking.services[0] &&
+                        booking.services[0].name) ||
+                      "Service";
 
                     return (
                       <div
@@ -128,17 +152,13 @@ export function ClientBookingHistory({ clientId, salonId }) {
                           <Scissors className="h-6 w-6 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {booking.service_name ||
-                              booking.serviceName ||
-                              "Service"}
-                          </p>
+                          <p className="font-medium truncate">{serviceName}</p>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            <span>{format(startTime, "EEE, MMM d")}</span>
+                            <span>{safeFormat(startTime, "EEE, MMM d")}</span>
                             <span>•</span>
                             <Clock className="h-3 w-3" />
-                            <span>{format(startTime, "HH:mm")}</span>
+                            <span>{safeFormat(startTime, "HH:mm")}</span>
                           </div>
                         </div>
                         <Badge className={statusConfig.className}>
@@ -161,12 +181,21 @@ export function ClientBookingHistory({ clientId, salonId }) {
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3 pr-4">
                     {pastBookings.map(function (booking) {
-                      var startTime = new Date(
-                        booking.start_datetime || booking.startDateTime
+                      var startTime = parseBookingDate(
+                        booking.start_datetime ||
+                          booking.startDatetime ||
+                          booking.startDateTime,
                       );
                       var statusConfig =
                         STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
                       var StatusIcon = statusConfig.icon;
+                      var serviceName =
+                        booking.service_name ||
+                        booking.serviceName ||
+                        (booking.services &&
+                          booking.services[0] &&
+                          booking.services[0].name) ||
+                        "Service";
 
                       return (
                         <div
@@ -181,21 +210,21 @@ export function ClientBookingHistory({ clientId, salonId }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">
-                              {booking.service_name ||
-                                booking.serviceName ||
-                                "Service"}
+                              {serviceName}
                             </p>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{format(startTime, "MMM d, yyyy")}</span>
+                              <span>
+                                {safeFormat(startTime, "MMM d, yyyy")}
+                              </span>
                               <span>•</span>
-                              <span>{format(startTime, "HH:mm")}</span>
+                              <span>{safeFormat(startTime, "HH:mm")}</span>
                               {(booking.total_price || booking.totalPrice) && (
                                 <>
                                   <span>•</span>
                                   <span>
                                     EUR{" "}
                                     {Number(
-                                      booking.total_price || booking.totalPrice
+                                      booking.total_price || booking.totalPrice,
                                     ).toFixed(2)}
                                   </span>
                                 </>

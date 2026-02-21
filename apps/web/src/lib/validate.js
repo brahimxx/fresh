@@ -11,11 +11,11 @@ export const emailSchema = z
   .email("Invalid email address")
   .regex(
     /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-    "Invalid email format"
+    "Invalid email format",
   )
   .refine(
     (email) => !email.includes("..") && !email.startsWith("."),
-    "Invalid email format"
+    "Invalid email format",
   )
   .transform((email) => email.toLowerCase());
 export const phoneSchema = z
@@ -30,7 +30,10 @@ export const passwordSchema = z
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[0-9]/, "Password must contain at least one number")
-  .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character");
+  .regex(
+    /[^a-zA-Z0-9]/,
+    "Password must contain at least one special character",
+  );
 export const idSchema = z.coerce.number().int().positive("Invalid ID");
 export const dateSchema = z
   .string()
@@ -38,9 +41,12 @@ export const dateSchema = z
 export const timeSchema = z
   .string()
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Invalid time format (HH:MM)");
+// local: true allows "YYYY-MM-DDTHH:mm:ss" without a Z/offset suffix.
+// This is needed because the frontend sends local-time strings (no UTC conversion)
+// to avoid the 1-hour shift that .toISOString() would introduce for UTC+1 Algeria.
 export const datetimeSchema = z
   .string()
-  .datetime({ message: "Invalid datetime format" });
+  .datetime({ local: true, message: "Invalid datetime format" });
 
 // ============================================================
 // Auth Schemas
@@ -85,7 +91,10 @@ export const createBookingSchema = z.object({
   serviceIds: z.array(idSchema).min(1, "At least one service is required"),
   startDatetime: datetimeSchema,
   endDatetime: datetimeSchema,
-  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
+  notes: z
+    .string()
+    .max(1000, "Notes must be less than 1000 characters")
+    .optional(),
   source: z.enum(["marketplace", "direct", "widget"]).default("marketplace"),
 });
 

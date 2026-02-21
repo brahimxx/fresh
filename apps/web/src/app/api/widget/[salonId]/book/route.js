@@ -1,4 +1,4 @@
-import { query, getOne, transaction } from "@/lib/db";
+import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
   success,
@@ -12,9 +12,7 @@ import {
   widgetBookingSchema,
   formatValidationErrors,
 } from "@/lib/validate";
-
-// Algeria timezone (UTC+1, no DST)
-const TIMEZONE_OFFSET = 1 * 60; // minutes
+import { createSafeBooking, BookingError } from "@/lib/booking";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
 export async function POST(request, { params }) {
@@ -25,7 +23,7 @@ export async function POST(request, { params }) {
 
     const salon = await getOne(
       "SELECT id, name, is_marketplace_enabled FROM salons WHERE id = ?",
-      [salonId]
+      [salonId],
     );
     if (!salon) {
       return notFound("Salon not found");
@@ -33,10 +31,13 @@ export async function POST(request, { params }) {
 
     const widgetSettings = await getOne(
       "SELECT * FROM widget_settings WHERE salon_id = ?",
-      [salonId]
+      [salonId],
     );
     if (!widgetSettings || !widgetSettings.enabled) {
-      return error({ code: 'WIDGET_DISABLED', message: "Booking widget is not available" }, 403);
+      return error(
+        { code: "WIDGET_DISABLED", message: "Booking widget is not available" },
+        403,
+      );
     }
 
     const body = await request.json();
@@ -44,13 +45,25 @@ export async function POST(request, { params }) {
 
     // Validate services array
     if (!services || !Array.isArray(services) || services.length === 0) {
-      return error({ code: 'VALIDATION_ERROR', message: "At least one service is required" }, 400);
+      return error(
+        {
+          code: "VALIDATION_ERROR",
+          message: "At least one service is required",
+        },
+        400,
+      );
     }
 
     // Validate each service has required fields
     for (let svc of services) {
       if (!svc.serviceId || !svc.staffId) {
-        return error({ code: 'VALIDATION_ERROR', message: "Each service must have serviceId and staffId" }, 400);
+        return error(
+          {
+            code: "VALIDATION_ERROR",
+            message: "Each service must have serviceId and staffId",
+          },
+          400,
+        );
       }
     }
 
@@ -65,19 +78,31 @@ export async function POST(request, { params }) {
     for (let svc of services) {
       const service = await getOne(
         "SELECT id, duration_minutes, price, name FROM services WHERE id = ? AND salon_id = ? AND is_active = 1",
-        [svc.serviceId, salonId]
+        [svc.serviceId, salonId],
       );
       if (!service) {
-        return error({ code: 'SERVICE_UNAVAILABLE', message: `Service ${svc.serviceId} not found or inactive` }, 404);
+        return error(
+          {
+            code: "SERVICE_UNAVAILABLE",
+            message: `Service ${svc.serviceId} not found or inactive`,
+          },
+          404,
+        );
       }
 
       // Verify staff can perform this service
       const staffCheck = await getOne(
         "SELECT service_id FROM service_staff WHERE service_id = ? AND staff_id = ?",
-        [svc.serviceId, svc.staffId]
+        [svc.serviceId, svc.staffId],
       );
       if (!staffCheck) {
-        return error({ code: 'INVALID_STAFF', message: `Staff ${svc.staffId} cannot perform service: ${service.name}` }, 400);
+        return error(
+          {
+            code: "INVALID_STAFF",
+            message: `Staff ${svc.staffId} cannot perform service: ${service.name}`,
+          },
+          400,
+        );
       }
 
       totalDuration += service.duration_minutes;
@@ -86,31 +111,25 @@ export async function POST(request, { params }) {
         ...svc,
         duration: service.duration_minutes,
         price: service.price,
-        name: service.name
+        name: service.name,
       });
     }
 
-    // Calculate end time based on total duration
+    // Calculate end time from DB service durations — totalDuration is computed
+    // from DB records above so this is authoritative, not frontend-controlled.
     const startDateTime = new Date(startTime);
     const endDateTime = new Date(
-      startDateTime.getTime() + totalDuration * 60000
+      startDateTime.getTime() + totalDuration * 60000,
     );
-    
-    // Adjust for Algeria timezone (UTC+1) for storage
-    const startAlgeria = new Date(startDateTime.getTime() + TIMEZONE_OFFSET * 60000);
-    const endAlgeria = new Date(endDateTime.getTime() + TIMEZONE_OFFSET * 60000);
-    
-    const startDatetimeFormatted = startAlgeria
-      .toISOString()
-      .slice(0, 19)
-      .replace("T", " ");
-    const endDatetimeFormatted = endAlgeria
-      .toISOString()
-      .slice(0, 19)
-      .replace("T", " ");
+
+    // Format as local time using getters — do NOT use toISOString() which
+    // converts to UTC and would store the wrong hour for UTC+1 Algeria.
+    const pad = (n) => String(n).padStart(2, "0");
+    const startDatetimeFormatted = `${startDateTime.getFullYear()}-${pad(startDateTime.getMonth() + 1)}-${pad(startDateTime.getDate())} ${pad(startDateTime.getHours())}:${pad(startDateTime.getMinutes())}:${pad(startDateTime.getSeconds())}`;
+    const endDatetimeFormatted = `${endDateTime.getFullYear()}-${pad(endDateTime.getMonth() + 1)}-${pad(endDateTime.getDate())} ${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}:${pad(endDateTime.getSeconds())}`;
 
     // Get unique staff IDs for conflict checking
-    const staffIds = [...new Set(services.map(s => s.staffId))];
+    const staffIds = [...new Set(services.map((s) => s.staffId))];
 
     // Check working hours for all staff
     // Use the ORIGINAL startDateTime for day/time checks (not the UTC-adjusted version)
@@ -118,34 +137,52 @@ export async function POST(request, { params }) {
     const timeStr = startDateTime.toTimeString().slice(0, 8); // HH:MM:SS in local Algeria time
     const endTimeStr = endDateTime.toTimeString().slice(0, 8);
 
-    console.log(`[WIDGET BOOKING] Multiple services: ${serviceDetails.map(s => s.name).join(", ")}`);
-    console.log(`[WIDGET BOOKING] Staff IDs: ${staffIds.join(", ")}, total duration: ${totalDuration} min`);
-    console.log(`[WIDGET BOOKING] Checking availability: day=${dayOfWeek}, time=${timeStr}-${endTimeStr}`);
+    console.log(
+      `[WIDGET BOOKING] Multiple services: ${serviceDetails.map((s) => s.name).join(", ")}`,
+    );
+    console.log(
+      `[WIDGET BOOKING] Staff IDs: ${staffIds.join(", ")}, total duration: ${totalDuration} min`,
+    );
+    console.log(
+      `[WIDGET BOOKING] Checking availability: day=${dayOfWeek}, time=${timeStr}-${endTimeStr}`,
+    );
 
     for (let staffId of staffIds) {
-      console.log(`[WIDGET BOOKING] Checking staff ${staffId} on day ${dayOfWeek}`);
+      console.log(
+        `[WIDGET BOOKING] Checking staff ${staffId} on day ${dayOfWeek}`,
+      );
 
       // Check if staff works this day (without restrictive time conditions)
       let workingHours = await getOne(
         "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?",
-        [staffId, dayOfWeek]
+        [staffId, dayOfWeek],
       );
 
       console.log(`[WIDGET BOOKING] Staff hours from DB:`, workingHours);
 
       if (!workingHours) {
         // Fallback to business hours
-        console.log(`[WIDGET BOOKING] No staff hours, trying business hours for salon ${salonId}`);
+        console.log(
+          `[WIDGET BOOKING] No staff hours, trying business hours for salon ${salonId}`,
+        );
         workingHours = await getOne(
           "SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0",
-          [salonId, dayOfWeek]
+          [salonId, dayOfWeek],
         );
         console.log(`[WIDGET BOOKING] Business hours from DB:`, workingHours);
       }
 
       if (!workingHours) {
-        console.error(`[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} not working on day ${dayOfWeek}`);
-        return error({ code: 'STAFF_UNAVAILABLE', message: `Staff ${staffId} is not working on this day` }, 409);
+        console.error(
+          `[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} not working on day ${dayOfWeek}`,
+        );
+        return error(
+          {
+            code: "STAFF_UNAVAILABLE",
+            message: `Staff ${staffId} is not working on this day`,
+          },
+          409,
+        );
       }
 
       // Debug: show exact comparison values
@@ -157,123 +194,94 @@ export async function POST(request, { params }) {
         startTimeType: typeof timeStr,
         dbStartTimeType: typeof workingHours.start_time,
         startComparison: `${timeStr} < ${workingHours.start_time} = ${timeStr < workingHours.start_time}`,
-        endComparison: `${endTimeStr} > ${workingHours.end_time} = ${endTimeStr > workingHours.end_time}`
+        endComparison: `${endTimeStr} > ${workingHours.end_time} = ${endTimeStr > workingHours.end_time}`,
       });
 
-      // Verify appointment time falls within working hours
-      if (timeStr < workingHours.start_time || endTimeStr > workingHours.end_time) {
-        console.error(`[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} working hours: ${workingHours.start_time}-${workingHours.end_time}, requested: ${timeStr}-${endTimeStr}`);
-        return error({ code: 'STAFF_UNAVAILABLE', message: `Staff ${staffId} is not working at this time` }, 409);
+      // Verify appointment time falls within working hours.
+      // Split into two branches so the message describes the exact problem.
+      if (timeStr < workingHours.start_time) {
+        console.error(
+          `[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} doesn't start until ${workingHours.start_time}, requested ${timeStr}`,
+        );
+        return error(
+          {
+            code: "STAFF_UNAVAILABLE",
+            message: `Staff doesn't start working until ${workingHours.start_time.slice(0, 5)}. Please choose a time at or after ${workingHours.start_time.slice(0, 5)}.`,
+          },
+          409,
+        );
+      }
+      if (endTimeStr > workingHours.end_time) {
+        console.error(
+          `[WIDGET BOOKING] ❌ FAILED: Service exceeds shift — shift ends ${workingHours.end_time}, booking would end ${endTimeStr}`,
+        );
+        return error(
+          {
+            code: "SERVICE_EXCEEDS_SHIFT",
+            message: `This service would end at ${endTimeStr.slice(0, 5)}, but the staff's shift ends at ${workingHours.end_time.slice(0, 5)}. Please choose an earlier start time.`,
+          },
+          409,
+        );
       }
 
-      console.log(`[WIDGET BOOKING] ✅ Staff ${staffId} is available: ${workingHours.start_time}-${workingHours.end_time}`);
+      console.log(
+        `[WIDGET BOOKING] ✅ Staff ${staffId} is available: ${workingHours.start_time}-${workingHours.end_time}`,
+      );
     }
 
-    console.log(`[WIDGET BOOKING] Creating booking: ${startDatetimeFormatted} to ${endDatetimeFormatted}`);
-    
-    const result = await transaction(async (conn) => {
-      // Check conflicts for all staff members involved
-      for (let staffId of staffIds) {
-        const [conflicts] = await conn.execute(
-          `SELECT b.id, b.start_datetime, b.end_datetime
-           FROM bookings b
-           JOIN booking_services bs ON bs.booking_id = b.id
-           WHERE bs.staff_id = ?
-           AND b.status NOT IN ('cancelled', 'no_show')
-           AND b.start_datetime < ? AND b.end_datetime > ?
-           FOR UPDATE`,
-          [staffId, endDatetimeFormatted, startDatetimeFormatted]
-        );
+    console.log(
+      `[WIDGET BOOKING] Creating booking: ${startDatetimeFormatted} to ${endDatetimeFormatted}`,
+    );
 
-        if (conflicts.length > 0) {
-          throw new Error(`CONFLICT: Staff ${staffId} is not available at this time`);
-        }
-      }
-      
-      console.log(`[WIDGET BOOKING] No conflicts for any staff, proceeding with booking creation`);
+    // Primary staff = the staff assigned to the first service
+    const primaryStaffId = services[0].staffId;
 
-      // Create or update salon_clients relationship
-      const [existing] = await conn.execute(
-        "SELECT salon_id FROM salon_clients WHERE salon_id = ? AND client_id = ?",
-        [salonId, clientId]
-      );
+    // createSafeBooking handles the full transaction:
+    //   FOR UPDATE conflict check, time-off check, insert, salon_clients upsert.
+    const result = await createSafeBooking({
+      salonId: Number(salonId),
+      clientId,
+      primaryStaffId,
+      startDatetime: startDatetimeFormatted,
+      endDatetime: endDatetimeFormatted,
+      services: serviceDetails.map((s) => ({
+        serviceId: s.serviceId,
+        staffId: s.staffId,
+        price: s.price,
+        duration: s.duration,
+      })),
+      notes: notes || null,
+      source: "marketplace",
+      isMarketplaceEnabled: !!salon.is_marketplace_enabled,
+    });
 
-      const isNewClient = existing.length === 0;
+    const { bookingId, isNewClient } = result;
 
-      if (isNewClient) {
-        await conn.execute(
-          "INSERT INTO salon_clients (salon_id, client_id, first_visit_date, last_visit_date, total_visits) VALUES (?, ?, NOW(), NOW(), 1)",
-          [salonId, clientId]
-        );
-      } else {
-        await conn.execute(
-          "UPDATE salon_clients SET last_visit_date = NOW(), total_visits = total_visits + 1 WHERE salon_id = ? AND client_id = ?",
-          [salonId, clientId]
-        );
-      }
-
-      // Create booking with primary staff (first service's staff)
-      const primaryStaffId = services[0].staffId;
-      
-      const [bookingResult] = await conn.execute(
-        `INSERT INTO bookings (
-          salon_id, client_id, staff_id, start_datetime, end_datetime, 
-          status, source, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, 'pending', 'marketplace', ?, NOW())`,
-        [
-          salonId,
-          clientId,
-          primaryStaffId,
-          startDatetimeFormatted,
-          endDatetimeFormatted,
-          notes || null,
-        ]
-      );
-
-      const bookingId = bookingResult.insertId;
-
-      // Add all services with their assigned staff
-      for (let svc of serviceDetails) {
-        await conn.execute(
-          "INSERT INTO booking_services (booking_id, service_id, staff_id, price, duration_minutes) VALUES (?, ?, ?, ?, ?)",
-          [bookingId, svc.serviceId, svc.staffId, svc.price, svc.duration]
-        );
-      }
-
-      // Create platform fee if new client from marketplace
-      if (isNewClient && salon.is_marketplace_enabled) {
-        await conn.execute(
-          "INSERT INTO platform_fees (booking_id, salon_id, type, amount, is_paid) VALUES (?, ?, 'new_client', ?, 0)",
-          [bookingId, salonId, totalPrice * 0.2]
-        );
-      }
-
-      // Get user info for notification
-      const [userRows] = await conn.execute(
-        "SELECT first_name, last_name FROM users WHERE id = ?",
-        [clientId]
-      );
-      const clientName = userRows[0]
-        ? `${userRows[0].first_name} ${userRows[0].last_name}`
+    // Notification for salon owner — runs OUTSIDE the booking transaction.
+    // A notification failure must never roll back a successfully created booking.
+    try {
+      const [[ownerRow]] = await query(
+        "SELECT first_name, last_name FROM users WHERE id = ? LIMIT 1",
+        [clientId],
+      ).then((rows) => [rows]);
+      const clientName = ownerRow
+        ? `${ownerRow.first_name} ${ownerRow.last_name}`
         : "A customer";
-
-      // Create notification for salon owner
-      await conn.execute(
+      await query(
         `INSERT INTO notifications (user_id, type, title, message, sent_at)
          SELECT s.owner_id, 'push', 'New Booking', ?, NOW()
-         FROM salons s WHERE s.id = ?`,
+           FROM salons s WHERE s.id = ?`,
         [
-          `New booking from ${clientName} on ${startDateTime.toLocaleDateString()} - ${serviceDetails.map(s => s.name).join(", ")}`,
+          `New booking from ${clientName} on ${startDateTime.toLocaleDateString()} - ${serviceDetails.map((s) => s.name).join(", ")}`,
           salonId,
-        ]
+        ],
       );
-
-      return {
-        bookingId,
-        clientId,
-        isNewClient,
-      };
-    });
+    } catch (notifErr) {
+      console.error(
+        "[WIDGET BOOKING] Notification insert failed (non-fatal):",
+        notifErr,
+      );
+    }
 
     return created({
       success: true,
@@ -302,12 +310,18 @@ export async function POST(request, { params }) {
     });
   } catch (err) {
     if (err.message === "Unauthorized") {
-      return unauthorized({ code: 'UNAUTHORIZED', message: "Please sign in to complete your booking" });
+      return unauthorized({
+        code: "UNAUTHORIZED",
+        message: "Please sign in to complete your booking",
+      });
     }
-    if (err.message.startsWith("CONFLICT:")) {
-      return error({ code: 'BOOKING_CONFLICT', message: err.message.replace("CONFLICT: ", "") }, 409);
+    if (err instanceof BookingError) {
+      return error({ code: err.code, message: err.message }, err.httpStatus);
     }
     console.error("Widget booking error:", err);
-    return error({ code: 'INTERNAL_SERVER_ERROR', message: "Failed to create booking" }, 500);
+    return error(
+      { code: "INTERNAL_SERVER_ERROR", message: "Failed to create booking" },
+      500,
+    );
   }
 }

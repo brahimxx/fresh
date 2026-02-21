@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, ChevronDown, Building2 } from "lucide-react";
+import { Bell, Search, ChevronDown, Building2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,13 +16,26 @@ import { useAuth } from "@/providers/auth-provider";
 import { useSalon } from "@/providers/salon-provider";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api-client";
+import { useRouter } from "next/navigation";
 
 export function Header() {
   const { user, logout } = useAuth();
-  const { salon } = useSalon();
+  const { salon, salonId } = useSalon();
+  const router = useRouter();
+
+  // Fetch all user's salons for the switcher
+  const { data: userSalons = [] } = useQuery({
+    queryKey: ["user-salons", user?.id],
+    queryFn: () => api.get("/salons"),
+    enabled: !!user?.id,
+    select: (response) => response.data?.salons || [],
+  });
 
   const initials = user
-    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""
+    ? `${user.first_name?.[0] || ""}${
+        user.last_name?.[0] || ""
       }`.toUpperCase() || "U"
     : "U";
 
@@ -42,8 +55,8 @@ export function Header() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        {/* Continue Setup Button - Show only if onboarding not completed */}
-        {user && !user.onboarding_completed && salon && (
+        {/* Salon Switcher - Show if user owns salons */}
+        {user && salon && userSalons.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
@@ -55,10 +68,21 @@ export function Header() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Switch Salon</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Building2 className="mr-2 h-4 w-4" />
-                {salon.name}
-              </DropdownMenuItem>
+              {userSalons.map((s) => (
+                <DropdownMenuItem
+                  key={s.id}
+                  onClick={() => router.push(`/dashboard/salon/${s.id}`)}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    <span className="truncate">{s.name}</span>
+                  </div>
+                  {s.id === Number(salonId) && (
+                    <Check className="h-4 w-4 text-primary" />
+                  )}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/locations/new">+ Add New Location</Link>
