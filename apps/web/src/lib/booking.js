@@ -53,9 +53,10 @@ export class BookingError extends Error {
  * @param {number}  data.primaryStaffId     Primary staff on the bookings row
  * @param {string}  data.startDatetime      "YYYY-MM-DD HH:MM:SS" — local business time
  * @param {string}  data.endDatetime        "YYYY-MM-DD HH:MM:SS" — local business time
- * @param {Array}   data.services           [{ serviceId, staffId?, price, duration }]
+ * @param {Array}   data.services           [{ serviceId, staffId?, price, duration, bufferTime? }]
  *                    staffId defaults to primaryStaffId when omitted.
  * @param {string}  [data.notes]
+ * @param {string}  [data.status]           'pending' | 'confirmed' (default: 'confirmed')
  * @param {string}  [data.source]           'marketplace' | 'direct' | 'widget'
  * @param {boolean} [data.isMarketplaceEnabled]  Whether to create platform_fees row
  *
@@ -71,6 +72,7 @@ export async function createSafeBooking({
   endDatetime,
   services,
   notes = null,
+  status = "confirmed",
   source = "direct",
   isMarketplaceEnabled = false,
 }) {
@@ -100,13 +102,25 @@ export async function createSafeBooking({
         400,
       );
     }
+    // Price snapshots must be non-negative — a negative price would corrupt totals
+    if (parseFloat(svc.price ?? 0) < 0) {
+      throw new BookingError(
+        "INVALID_PRICE",
+        `Service #${svc.serviceId} has an invalid price`,
+        400,
+      );
+    }
   }
 
-  // Compute total duration from the services array — this is authoritative.
+  // Compute total duration and buffer from the services array — this is authoritative.
   // The caller's endDatetime is intentionally ignored: a malicious or stale
   // client could send start=10:00, end=23:00 to block the whole day.
   const totalDuration = services.reduce(
     (sum, s) => sum + Number(s.duration || 0),
+    0,
+  );
+  const totalBuffer = services.reduce(
+    (sum, s) => sum + Number(s.bufferTime || 0),
     0,
   );
   const totalPrice = services.reduce(
@@ -123,7 +137,7 @@ export async function createSafeBooking({
   }
 
   // Parse startDatetime as LOCAL calendar time (no trailing Z → not UTC).
-  // Derive endDate from DB duration — never parse the caller's endDatetime.
+  // Derive endDate from DB duration + buffer — never parse the caller's endDatetime.
   const startDate = parseMySQLDatetime(startDatetime);
 
   if (!startDate)
@@ -133,7 +147,29 @@ export async function createSafeBooking({
       400,
     );
 
-  const endDate = new Date(startDate.getTime() + totalDuration * 60000);
+  const endDate = new Date(startDate.getTime() + (totalDuration + totalBuffer) * 60000);
+
+  // Explicit start < end assertion (implicit from totalDuration > 0, but made
+  // explicit so any future code path that changes duration logic fails loudly).
+  if (endDate <= startDate) {
+    throw new BookingError(
+      "INVALID_DURATION",
+      "Computed end time is not after start time",
+      400,
+    );
+  }
+
+  // Reject bookings that start more than 24 h in the past — catches clocks
+  // skewed by timezone bugs or stale retries, without blocking same-day
+  // retrospective corrections a receptionist might legitimately need.
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  if (startDate.getTime() < Date.now() - ONE_DAY_MS) {
+    throw new BookingError(
+      "DATETIME_TOO_FAR_IN_PAST",
+      "Booking start time cannot be more than 24 hours in the past",
+      400,
+    );
+  }
 
   // Canonical "YYYY-MM-DD HH:MM:SS" strings used in every query parameter.
   // Use local-time getters (not toISOString) to avoid UTC offset shifts.
@@ -203,31 +239,33 @@ export async function createSafeBooking({
     }
   }
 
-  // ── Step 2b: Staff–service authorisation ─────────────────────────────────
+  // ── Step 2b: Staff–service authorisation (batch) ───────────────────────
   //
-  // Each service must be explicitly assigned to the staff member who will
-  // perform it.  We verify this in service_staff BEFORE opening a transaction
-  // so we fail fast without ever acquiring locks.
-  //
-  // This is the authoritative check — it runs regardless of which route calls
-  // createSafeBooking, so no caller can bypass it by omitting its own guard.
+  // Build a single query covering all unique (effectiveStaffId, serviceId) pairs.
+  // This replaces the previous serial loop (1 query per service → 1 query total).
 
-  for (const svc of services) {
-    const effectiveStaffId = svc.staffId || primaryStaffId;
+  const svcPairs = services.map((svc) => ({
+    staffId:   Number(svc.staffId || primaryStaffId),
+    serviceId: Number(svc.serviceId),
+  }));
+  // Deduplicate (same pair can appear if client sends duplicates)
+  const uniquePairs = [...new Map(svcPairs.map((p) => [`${p.staffId}:${p.serviceId}`, p])).values()];
 
+  if (uniquePairs.length > 0) {
+    const whereClauses = uniquePairs.map(() => "(staff_id = ? AND service_id = ?)").join(" OR ");
     const [ssRows] = await pool.execute(
-      `SELECT 1 FROM service_staff
-        WHERE service_id = ? AND staff_id = ?
-        LIMIT 1`,
-      [svc.serviceId, effectiveStaffId],
+      `SELECT staff_id, service_id FROM service_staff WHERE ${whereClauses}`,
+      uniquePairs.flatMap((p) => [p.staffId, p.serviceId]),
     );
-
-    if (ssRows.length === 0) {
-      throw new BookingError(
-        "STAFF_SERVICE_MISMATCH",
-        `Staff #${effectiveStaffId} is not authorised to perform service #${svc.serviceId}`,
-        400,
-      );
+    const found = new Set(ssRows.map((r) => `${r.staff_id}:${r.service_id}`));
+    for (const { staffId: sId, serviceId: svId } of uniquePairs) {
+      if (!found.has(`${sId}:${svId}`)) {
+        throw new BookingError(
+          "STAFF_SERVICE_MISMATCH",
+          `Staff #${sId} is not authorised to perform service #${svId}`,
+          400,
+        );
+      }
     }
   }
 
@@ -326,66 +364,52 @@ export async function createSafeBooking({
       `INSERT INTO bookings
          (salon_id, client_id, staff_id, start_datetime, end_datetime,
           status, source, notes, created_at)
-       VALUES (?, ?, ?, ?, ?, 'confirmed', ?, ?, NOW())`,
-      [salonId, clientId, primaryStaffId, startFmt, endFmt, source, notes],
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [salonId, clientId, primaryStaffId, startFmt, endFmt, status, source, notes],
     );
 
     const bookingId = bookingResult.insertId;
 
-    // Insert booking_services — each service with its own staff assignment.
-    // Defaults to primaryStaffId when the service has no per-service override.
-    for (const svc of services) {
-      await conn.execute(
-        `INSERT INTO booking_services
-           (booking_id, service_id, staff_id, price, duration_minutes)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          bookingId,
-          svc.serviceId,
-          svc.staffId || primaryStaffId,
-          svc.price,
-          svc.duration,
-        ],
-      );
-    }
+    // Insert all booking_services in one multi-row statement instead of a
+    // serial loop — N round-trips → 1 round-trip regardless of service count.
+    const bsRows = services.map((svc) => [
+      bookingId,
+      svc.serviceId,
+      svc.staffId || primaryStaffId,
+      svc.price,
+      svc.duration,
+    ]);
+    const bsPlaceholders = bsRows.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    await conn.execute(
+      `INSERT INTO booking_services
+         (booking_id, service_id, staff_id, price, duration_minutes)
+       VALUES ${bsPlaceholders}`,
+      bsRows.flat(),
+    );
 
-    // Upsert salon_clients — track whether this client is new to this salon
-    const [existingRows] = await conn.execute(
-      `SELECT salon_id
-         FROM salon_clients
-        WHERE salon_id  = ?
-          AND client_id = ?
-        LIMIT 1`,
+    // Upsert salon_clients atomically — eliminates the SELECT + branch:
+    //   affectedRows = 1 → new row inserted (new client)
+    //   affectedRows = 2 → duplicate key, existing row updated
+    const [scResult] = await conn.execute(
+      `INSERT INTO salon_clients
+         (salon_id, client_id, first_visit_date, last_visit_date, total_visits, is_active)
+       VALUES (?, ?, NOW(), NOW(), 1, 1)
+       ON DUPLICATE KEY UPDATE
+         is_active       = 1,
+         last_visit_date = NOW(),
+         total_visits    = total_visits + 1`,
       [salonId, clientId],
     );
 
-    const isNewClient = existingRows.length === 0;
+    const isNewClient = scResult.affectedRows === 1;
 
-    if (isNewClient) {
+    // Platform acquisition fee for first-time marketplace clients
+    if (isNewClient && source === "marketplace" && isMarketplaceEnabled) {
       await conn.execute(
-        `INSERT INTO salon_clients
-           (salon_id, client_id, first_visit_date, last_visit_date, total_visits)
-         VALUES (?, ?, NOW(), NOW(), 1)`,
-        [salonId, clientId],
-      );
-
-      // Platform acquisition fee for new clients via marketplace
-      if (source === "marketplace" && isMarketplaceEnabled) {
-        await conn.execute(
-          `INSERT INTO platform_fees
-             (booking_id, salon_id, type, amount, is_paid)
-           VALUES (?, ?, 'new_client', ?, 0)`,
-          [bookingId, salonId, (totalPrice * 0.2).toFixed(2)],
-        );
-      }
-    } else {
-      await conn.execute(
-        `UPDATE salon_clients
-            SET last_visit_date = NOW(),
-                total_visits    = total_visits + 1
-          WHERE salon_id  = ?
-            AND client_id = ?`,
-        [salonId, clientId],
+        `INSERT INTO platform_fees
+           (booking_id, salon_id, type, amount, is_paid)
+         VALUES (?, ?, 'new_client', ?, 0)`,
+        [bookingId, salonId, (totalPrice * 0.2).toFixed(2)],
       );
     }
 

@@ -29,7 +29,7 @@ export async function GET(request, { params }) {
       SELECT s.*, GROUP_CONCAT(ss.staff_id) as staff_ids
       FROM services s
       LEFT JOIN service_staff ss ON ss.service_id = s.id
-      WHERE s.salon_id = ?
+      WHERE s.salon_id = ? AND s.deleted_at IS NULL
     `;
     const serviceParams = [id];
 
@@ -37,23 +37,28 @@ export async function GET(request, { params }) {
       serviceSql += ' AND s.is_active = 1';
     }
 
-    serviceSql += ' GROUP BY s.id ORDER BY s.name';
+    serviceSql += ' GROUP BY s.id ORDER BY s.display_order ASC, s.name ASC';
 
     const services = await query(serviceSql, serviceParams);
+
+    const mapService = (s) => ({
+      id: s.id,
+      name: s.name,
+      duration: s.duration_minutes,
+      durationMinutes: s.duration_minutes,
+      price: s.price,
+      bufferTime: s.buffer_time_minutes || 0,
+      bufferTimeMinutes: s.buffer_time_minutes || 0,
+      isActive: s.is_active,
+      staffIds: s.staff_ids ? s.staff_ids.split(',').map(Number) : [],
+    });
 
     const categorizedServices = categories.map((category) => ({
       id: category.id,
       name: category.name,
       services: services
         .filter((s) => s.category_id === category.id)
-        .map((s) => ({
-          id: s.id,
-          name: s.name,
-          duration: s.duration_minutes,
-          price: s.price,
-          isActive: s.is_active,
-          staffIds: s.staff_ids ? s.staff_ids.split(',').map(Number) : [],
-        })),
+        .map(mapService),
     }));
 
     // Include uncategorized services
@@ -62,14 +67,7 @@ export async function GET(request, { params }) {
       categorizedServices.push({
         id: null,
         name: 'Uncategorized',
-        services: uncategorized.map((s) => ({
-          id: s.id,
-          name: s.name,
-          duration: s.duration_minutes,
-          price: s.price,
-          isActive: s.is_active,
-          staffIds: s.staff_ids ? s.staff_ids.split(',').map(Number) : [],
-        })),
+        services: uncategorized.map(mapService),
       });
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import {
   Tooltip,
   TooltipContent,
@@ -12,9 +12,12 @@ import { Clock, DollarSign, User, Phone, Mail, FileText } from "lucide-react";
 export function EventTooltip({ booking, children }) {
   if (!booking) return children;
 
-  var startTime = new Date((booking.startDatetime || "").replace(" ", "T"));
-  var endTime = new Date((booking.endDatetime || "").replace(" ", "T"));
-  var duration = Math.round((endTime - startTime) / (1000 * 60)); // minutes
+  var rawStart = booking.start || booking.startDatetime || "";
+  var rawEnd = booking.end || booking.endDatetime || "";
+  var startTime = new Date(rawStart.replace(" ", "T"));
+  var endTime = new Date(rawEnd.replace(" ", "T"));
+  var hasValidDates = isValid(startTime) && isValid(endTime);
+  var duration = hasValidDates ? Math.round((endTime - startTime) / (1000 * 60)) : null;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -67,11 +70,13 @@ export function EventTooltip({ booking, children }) {
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>
-                  {format(startTime, "h:mm a")} – {format(endTime, "h:mm a")}
+                  {hasValidDates
+                    ? `${format(startTime, "h:mm a")} – ${format(endTime, "h:mm a")}`
+                    : "—"}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="ml-5">{duration} minutes</span>
+                <span className="ml-5">{duration != null ? `${duration} minutes` : ""}</span>
               </div>
             </div>
 

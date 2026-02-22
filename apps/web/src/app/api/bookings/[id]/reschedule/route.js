@@ -47,30 +47,47 @@ export async function PUT(request, { params }) {
       return error('New start time is required');
     }
 
-    const newStart = new Date(newStartTime);
+    const newStart = new Date(String(newStartTime).replace(' ', 'T'));
     const now = new Date();
 
     if (newStart <= now) {
       return error('New time must be in the future');
     }
 
-    // Get booking duration
+    // Get booking duration and buffer
     const [duration] = await query(
-      'SELECT SUM(duration_minutes) as total FROM booking_services WHERE booking_id = ?',
+      `SELECT SUM(bs.duration_minutes) as total_duration, SUM(s.buffer_time_minutes) as total_buffer
+       FROM booking_services bs
+       JOIN services s ON s.id = bs.service_id
+       WHERE bs.booking_id = ?`,
       [id]
     );
-    const totalDuration = parseInt(duration.total || 60);
-    const newEnd = new Date(newStart.getTime() + totalDuration * 60000);
+    const totalDuration = parseInt(duration.total_duration || 60);
+    const totalBuffer = parseInt(duration.total_buffer || 0);
+    const newEnd = new Date(newStart.getTime() + (totalDuration + totalBuffer) * 60000);
 
     // Check staff availability
     const staffId = newStaffId || booking.staff_id;
 
+    // Format as local time
+    const pad = (n) => String(n).padStart(2, "0");
+    const startDatetimeFormatted = `${newStart.getFullYear()}-${pad(newStart.getMonth() + 1)}-${pad(newStart.getDate())} ${pad(newStart.getHours())}:${pad(newStart.getMinutes())}:${pad(newStart.getSeconds())}`;
+    const endDatetimeFormatted = `${newEnd.getFullYear()}-${pad(newEnd.getMonth() + 1)}-${pad(newEnd.getDate())} ${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:${pad(newEnd.getSeconds())}`;
+
     const conflict = await getOne(
-      `SELECT id FROM bookings 
-       WHERE staff_id = ? AND id != ?
-       AND status NOT IN ('cancelled', 'no_show')
-       AND start_datetime < ? AND end_datetime > ?`,
-      [staffId, id, newEnd.toISOString(), newStart.toISOString()]
+      `SELECT b.id FROM bookings b
+       WHERE b.id != ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
+       AND b.start_datetime < ? AND b.end_datetime > ?
+       AND (
+         b.staff_id = ?
+         OR EXISTS (
+           SELECT 1 FROM booking_services bs
+           WHERE bs.booking_id = b.id AND bs.staff_id = ?
+         )
+       )`,
+      [id, endDatetimeFormatted, startDatetimeFormatted, staffId, staffId]
     );
 
     if (conflict) {
@@ -85,7 +102,7 @@ export async function PUT(request, { params }) {
         staff_id = ?,
         status = 'pending'
        WHERE id = ?`,
-      [newStart.toISOString(), newEnd.toISOString(), staffId, id]
+      [startDatetimeFormatted, endDatetimeFormatted, staffId, id]
     );
 
     // Create notification
@@ -104,8 +121,8 @@ export async function PUT(request, { params }) {
       message: 'Booking rescheduled successfully',
       booking: {
         id: parseInt(id),
-        startTime: newStart.toISOString(),
-        endTime: newEnd.toISOString(),
+        startTime: startDatetimeFormatted,
+        endTime: endDatetimeFormatted,
         staffId,
         status: 'pending',
       },

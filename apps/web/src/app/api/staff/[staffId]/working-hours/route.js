@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { validateShifts } from '@/lib/validate';
 
 // Helper to check if user can manage this staff
 async function canManageStaff(staffId, userId, role) {
@@ -65,11 +66,33 @@ export async function POST(request, { params }) {
       return error('Day of week, start time, and end time are required');
     }
 
-    // Check for existing entry for this day
-    const existing = await getOne(
-      'SELECT id FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?',
-      [staffId, dayOfWeek]
+    // Validate the new shift against existing shifts
+    const existingShifts = await query(
+      'SELECT id, day_of_week, start_time, end_time FROM staff_working_hours WHERE staff_id = ?',
+      [staffId]
     );
+
+    // Check for existing entry for this day
+    const existing = existingShifts.find(s => s.day_of_week === dayOfWeek);
+
+    const shiftsToValidate = existingShifts
+      .filter(s => s.id !== existing?.id) // Exclude the one being updated
+      .map(s => ({
+        day_of_week: s.day_of_week,
+        start_time: s.start_time,
+        end_time: s.end_time
+      }));
+    
+    shiftsToValidate.push({
+      day_of_week: dayOfWeek,
+      start_time: startTime,
+      end_time: endTime
+    });
+
+    const validation = validateShifts(shiftsToValidate);
+    if (!validation.valid) {
+      return error(validation.error, 400);
+    }
 
     if (existing) {
       // Update existing
@@ -119,6 +142,19 @@ export async function PUT(request, { params }) {
 
     if (!Array.isArray(workingHours)) {
       return error('Working hours must be an array');
+    }
+
+    // Prepare shifts for validation
+    const shiftsToSave = workingHours.map(wh => ({
+      day_of_week: wh.dayOfWeek,
+      start_time: wh.startTime,
+      end_time: wh.endTime
+    }));
+
+    // Validate shifts
+    const validation = validateShifts(shiftsToSave);
+    if (!validation.valid) {
+      return error(validation.error, 400);
     }
 
     // Delete existing working hours

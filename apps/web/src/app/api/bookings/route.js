@@ -122,8 +122,8 @@ export async function GET(request) {
             lastName: b.staff_last_name,
           }
         : null,
-      startDatetime: b.start_datetime,
-      endDatetime: b.end_datetime,
+      startDatetime: String(b.start_datetime).replace(' ', 'T'),
+      endDatetime: String(b.end_datetime).replace(' ', 'T'),
       status: b.status,
       source: b.source,
       createdAt: b.created_at,
@@ -171,7 +171,6 @@ export async function POST(request) {
       staffId,
       serviceIds,
       startDatetime,
-      endDatetime,
       notes,
       source,
     } = validation.data;
@@ -184,131 +183,103 @@ export async function POST(request) {
       );
     }
 
-    const services = await query(
-      `SELECT id, name, duration_minutes, price FROM services WHERE id IN (${serviceIds
-        .map(() => "?")
-        .join(",")}) AND salon_id = ? AND is_active = 1`,
-      [...serviceIds, salonId],
-    );
+    // ── Round 1: four independent fetches in parallel ──────────────────────
+    // services, staff, salon config, and client all carry no inter-dependency
+    // so we fire them all at once and wait once.
+    const [services, staffRecord, salon, clientRecord] = await Promise.all([
+      query(
+        `SELECT id, name, duration_minutes, buffer_time_minutes, price
+           FROM services
+          WHERE id IN (${serviceIds.map(() => "?").join(",")})
+            AND salon_id = ? AND is_active = 1 AND deleted_at IS NULL`,
+        [...serviceIds, salonId],
+      ),
+      getOne(
+        "SELECT id FROM staff WHERE id = ? AND salon_id = ? AND is_active = 1",
+        [staffId, salonId],
+      ),
+      getOne(
+        "SELECT is_marketplace_enabled FROM salons WHERE id = ? AND deleted_at IS NULL",
+        [salonId],
+      ),
+      getOne(
+        "SELECT id FROM users WHERE id = ? AND role != 'deleted'",
+        [clientId],
+      ),
+    ]);
 
-    if (services.length !== serviceIds.length) {
+    // Deduplicate serviceIds to prevent false-positive length mismatch
+    const uniqueServiceIds = [...new Set(serviceIds.map(Number))];
+
+    // Fail fast — ordered cheapest/most-likely-wrong first
+    if (!salon) {
+      return error({ code: "SALON_NOT_FOUND", message: "Salon not found" }, 404);
+    }
+    if (!clientRecord) {
+      return error(
+        { code: "CLIENT_NOT_FOUND", message: "Client not found" },
+        400,
+      );
+    }
+    if (services.length !== uniqueServiceIds.length) {
+      return error(
+        { code: "INVALID_SERVICES", message: "One or more services not found or inactive" },
+        400,
+      );
+    }
+    if (!staffRecord) {
       return error(
         {
-          code: "INVALID_SERVICES",
-          message: "One or more services not found or inactive",
+          code: "STAFF_UNAVAILABLE",
+          message: "Staff member not found, inactive, or does not belong to this salon",
         },
         400,
       );
     }
 
-    // Verify staff can perform these services
+    // ── Round 2: staff–service authorisation (needs uniqueServiceIds from round 1) ─
     const staffServices = await query(
-      `SELECT service_id FROM service_staff WHERE staff_id = ? AND service_id IN (${serviceIds
-        .map(() => "?")
-        .join(",")})`,
-      [staffId, ...serviceIds],
+      `SELECT service_id FROM service_staff
+        WHERE staff_id = ? AND service_id IN (${uniqueServiceIds.map(() => "?").join(",")})`,
+      [staffId, ...uniqueServiceIds],
     );
 
-    if (staffServices.length !== serviceIds.length) {
+    if (staffServices.length !== uniqueServiceIds.length) {
       return error(
         {
-          code: "INVALID_STAFF_SERVICE",
-          message: "Staff cannot perform one or more of the selected services",
+          code: "STAFF_SERVICE_MISMATCH",
+          message: "Staff member is not authorised to perform one or more of the selected services",
         },
         400,
       );
     }
 
-    const totalDuration = services.reduce(
-      (sum, s) => sum + s.duration_minutes,
-      0,
-    );
-    const totalPrice = services.reduce(
-      (sum, s) => sum + parseFloat(s.price),
-      0,
-    );
+    const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
+    const totalBuffer  = services.reduce((sum, s) => sum + (s.buffer_time_minutes || 0), 0);
+    const totalPrice   = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
 
-    // Parse as local time — the frontend sends "YYYY-MM-DDTHH:mm:ss" (no Z/offset).
-    // Node.js treats datetime strings without timezone as LOCAL time, so getDay()
-    // and toTimeString() below both return the correct local values.
-    const startDate = new Date(startDatetime);
-
-    // Always derive end time from DB service durations — never trust the
-    // frontend-provided endDatetime. The client could send a stale or incorrect
-    // value; totalDuration is computed from DB records above.
-    const pad = (n) => String(n).padStart(2, "0");
-    const endDate = new Date(startDate.getTime() + totalDuration * 60000);
-    const endDatetimeFormatted = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
-    // Pass through — do NOT call .toISOString() which converts to UTC.
+    // Normalise startDatetime to "YYYY-MM-DD HH:MM:SS" — no UTC conversion.
     const startDatetimeFormatted = startDatetime.slice(0, 19).replace("T", " ");
 
-    // Check staff working hours (outside transaction for faster fail)
-    const dayOfWeek = startDate.getDay();
-    const timeStr = startDate.toTimeString().slice(0, 8);
-    const endTimeStr = endDate.toTimeString().slice(0, 8);
+    // Derive endDatetime for the response; booking.js recomputes it internally.
+    const pad = (n) => String(n).padStart(2, "0");
+    const startDate = new Date(String(startDatetime).replace(" ", "T"));
+    const endDate   = new Date(startDate.getTime() + (totalDuration + totalBuffer) * 60000);
+    const endDatetimeFormatted = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
 
-    console.log(
-      `[BOOKING] Checking: staffId=${staffId}, day=${dayOfWeek}, start=${timeStr}, end=${endTimeStr}`,
-    );
-
-    // Check if staff works this day
-    const workingHours = await getOne(
-      "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?",
-      [staffId, dayOfWeek],
-    );
-
-    if (!workingHours) {
-      console.error(`[BOOKING ERROR] Staff not working on day ${dayOfWeek}`);
-      return error(
-        {
-          code: "STAFF_UNAVAILABLE",
-          message: "Staff is not working on this day",
-        },
-        409,
+    // Dashboard / direct bookings are always confirmed — a receptionist creating
+    // a booking in person never needs approval.  auto_confirm_bookings only
+    // applies to public-facing sources (widget, marketplace).
+    const resolvedSource = source || "direct";
+    let status;
+    if (resolvedSource === "direct") {
+      status = "confirmed";
+    } else {
+      const salonSettings = await getOne(
+        "SELECT auto_confirm_bookings FROM salon_settings WHERE salon_id = ?",
+        [salonId],
       );
-    }
-
-    // Verify appointment time falls within working hours.
-    // Split into two branches so the message describes the exact problem.
-    if (timeStr < workingHours.start_time) {
-      console.error(
-        `[BOOKING ERROR] Start before shift: staff works from ${workingHours.start_time}, requested ${timeStr}`,
-      );
-      return error(
-        {
-          code: "STAFF_UNAVAILABLE",
-          message: `Staff doesn't start working until ${workingHours.start_time.slice(0, 5)}. Please choose a time at or after ${workingHours.start_time.slice(0, 5)}.`,
-        },
-        409,
-      );
-    }
-    if (endTimeStr > workingHours.end_time) {
-      console.error(
-        `[BOOKING ERROR] Service exceeds shift: shift ends ${workingHours.end_time}, booking would end ${endTimeStr}`,
-      );
-      return error(
-        {
-          code: "SERVICE_EXCEEDS_SHIFT",
-          message: `This service would end at ${endTimeStr.slice(0, 5)}, but the staff's shift ends at ${workingHours.end_time.slice(0, 5)}. Please choose an earlier start time.`,
-        },
-        409,
-      );
-    }
-
-    console.log(
-      `[BOOKING] Working hours OK: ${workingHours.start_time}-${workingHours.end_time}`,
-    );
-
-    // Fetch salon to determine marketplace / platform-fee eligibility
-    const salon = await getOne(
-      "SELECT is_marketplace_enabled FROM salons WHERE id = ? AND deleted_at IS NULL",
-      [salonId],
-    );
-    if (!salon) {
-      return error(
-        { code: "SALON_NOT_FOUND", message: "Salon not found" },
-        404,
-      );
+      status = (salonSettings && salonSettings.auto_confirm_bookings) ? "confirmed" : "pending";
     }
 
     // Delegate to createSafeBooking — it handles the full transaction:
@@ -324,8 +295,10 @@ export async function POST(request) {
         staffId: staffId,
         price: s.price,
         duration: s.duration_minutes,
+        bufferTime: s.buffer_time_minutes || 0,
       })),
       notes: notes || null,
+      status,
       source,
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
     });
@@ -337,7 +310,7 @@ export async function POST(request) {
       staffId,
       startDatetime: startDatetimeFormatted,
       endDatetime: endDatetimeFormatted,
-      status: "confirmed",
+      status,
       source,
       totalDuration,
       totalPrice,

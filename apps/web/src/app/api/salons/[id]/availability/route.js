@@ -22,13 +22,32 @@ export async function GET(request, { params }) {
 
     // Get services duration if provided
     let totalDuration = 30; // Default 30 min slot
+    let totalBuffer = 0;
     if (serviceIds && serviceIds.length > 0) {
+      const uniqueServiceIds = [...new Set(serviceIds)];
       const services = await query(
-        `SELECT duration_minutes FROM services WHERE id IN (${serviceIds.map(() => '?').join(',')}) AND salon_id = ?`,
-        [...serviceIds, id]
+        `SELECT id, duration_minutes, buffer_time_minutes FROM services WHERE id IN (${uniqueServiceIds.map(() => '?').join(',')}) AND salon_id = ?`,
+        [...uniqueServiceIds, id]
       );
+      
       if (services.length > 0) {
-        totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
+        // Create a map for quick lookup
+        const serviceMap = new Map(services.map(s => [s.id, s]));
+        
+        // Calculate total duration based on the requested serviceIds array (handles duplicates)
+        totalDuration = 0;
+        totalBuffer = 0;
+        
+        for (const sId of serviceIds) {
+          const service = serviceMap.get(sId);
+          if (service) {
+            totalDuration += service.duration_minutes;
+            totalBuffer += (service.buffer_time_minutes || 0);
+          }
+        }
+        
+        // Fallback if no valid services found
+        if (totalDuration === 0) totalDuration = 30;
       }
     }
 
@@ -73,7 +92,7 @@ export async function GET(request, { params }) {
 
     // BATCH QUERY 2: Get all time off for all staff members at once
     const allTimeOff = await query(
-      `SELECT staff_id 
+      `SELECT staff_id, start_datetime, end_datetime 
        FROM staff_time_off 
        WHERE staff_id IN (${staffIds.map(() => '?').join(',')})
        AND DATE(start_datetime) <= ? 
@@ -81,18 +100,34 @@ export async function GET(request, { params }) {
       [...staffIds, date, date]
     );
     
-    // Create a set of staff IDs on time off
-    const timeOffStaffIds = new Set(allTimeOff.map(t => t.staff_id));
+    // Group time off by staff_id
+    const timeOffMap = new Map();
+    for (const timeOff of allTimeOff) {
+      if (!timeOffMap.has(timeOff.staff_id)) {
+        timeOffMap.set(timeOff.staff_id, []);
+      }
+      timeOffMap.get(timeOff.staff_id).push(timeOff);
+    }
 
     // BATCH QUERY 3: Get all bookings for all staff members at once
     const allBookings = await query(
-      `SELECT staff_id, start_datetime, end_datetime 
-       FROM bookings 
-       WHERE staff_id IN (${staffIds.map(() => '?').join(',')})
-       AND DATE(start_datetime) = ?
-       AND status NOT IN ('cancelled', 'no_show')
-       ORDER BY start_datetime`,
-      [...staffIds, date]
+      `SELECT b.staff_id, b.start_datetime, b.end_datetime 
+       FROM bookings b
+       WHERE b.staff_id IN (${staffIds.map(() => '?').join(',')})
+       AND DATE(b.start_datetime) = ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
+       
+       UNION
+       
+       SELECT bs.staff_id, b.start_datetime, b.end_datetime 
+       FROM bookings b
+       JOIN booking_services bs ON bs.booking_id = b.id
+       WHERE bs.staff_id IN (${staffIds.map(() => '?').join(',')})
+       AND DATE(b.start_datetime) = ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL`,
+      [...staffIds, date, ...staffIds, date]
     );
     
     // Group bookings by staff_id
@@ -106,58 +141,75 @@ export async function GET(request, { params }) {
 
     // Now process each staff member using the pre-fetched data
     const availability = [];
-    const slotInterval = 15; // 15 minute intervals
 
     for (const staff of staffMembers) {
       const staffName = `${staff.first_name} ${staff.last_name}`;
       
-      // Check working hours from map
+      // 1. Get working hours
       const workingHours = workingHoursMap.get(staff.id);
       if (!workingHours) {
         availability.push({ staffId: staff.id, staffName, slots: [] });
         continue;
       }
 
-      // Check time off from set
-      if (timeOffStaffIds.has(staff.id)) {
-        availability.push({ staffId: staff.id, staffName, slots: [] });
-        continue;
+      // 2. Remove: staff_time_off, existing bookings
+      const blockedPeriods = [];
+      
+      const timeOffs = timeOffMap.get(staff.id) || [];
+      for (const t of timeOffs) {
+        blockedPeriods.push({
+          start: new Date(String(t.start_datetime).replace(' ', 'T')),
+          end: new Date(String(t.end_datetime).replace(' ', 'T'))
+        });
       }
 
-      // Get bookings from map
       const bookings = bookingsMap.get(staff.id) || [];
+      for (const b of bookings) {
+        blockedPeriods.push({
+          start: new Date(String(b.start_datetime).replace(' ', 'T')),
+          end: new Date(String(b.end_datetime).replace(' ', 'T'))
+        });
+      }
 
-      // Generate available slots
+      // 3. Split into slots based on service duration
+      // 4. Apply buffer time
       const slots = [];
       const startTime = new Date(`${date}T${workingHours.start_time}`);
       const endTime = new Date(`${date}T${workingHours.end_time}`);
 
       let currentSlot = new Date(startTime);
+      const now = new Date();
+      const stepMinutes = totalDuration + totalBuffer;
 
-      while (currentSlot.getTime() + totalDuration * 60000 <= endTime.getTime()) {
+      while (currentSlot.getTime() + stepMinutes * 60000 <= endTime.getTime()) {
+        const slotStart = new Date(currentSlot);
         const slotEnd = new Date(currentSlot.getTime() + totalDuration * 60000);
+        const slotEndWithBuffer = new Date(currentSlot.getTime() + stepMinutes * 60000);
 
-        // Check if this slot conflicts with any booking
-        const isAvailable = !bookings.some((booking) => {
-          const bookingStart = new Date(booking.start_datetime);
-          const bookingEnd = new Date(booking.end_datetime);
+        // Skip past times
+        if (slotStart <= now) {
+          currentSlot = new Date(currentSlot.getTime() + stepMinutes * 60000);
+          continue;
+        }
 
-          return (
-            (currentSlot >= bookingStart && currentSlot < bookingEnd) ||
-            (slotEnd > bookingStart && slotEnd <= bookingEnd) ||
-            (currentSlot <= bookingStart && slotEnd >= bookingEnd)
-          );
-        });
+        // Check if this slot + buffer conflicts with any blocked period
+        // Standard overlap: existing.start < slot_end AND existing.end > slot_start
+        const isAvailable = !blockedPeriods.some((blocked) =>
+          blocked.start < slotEndWithBuffer && blocked.end > slotStart
+        );
 
         if (isAvailable) {
+          const pad = (n) => String(n).padStart(2, '0');
+          const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+          
           slots.push({
-            startTime: currentSlot.toTimeString().slice(0, 5),
-            endTime: slotEnd.toTimeString().slice(0, 5),
-            datetime: currentSlot.toISOString(),
+            startTime: `${pad(slotStart.getHours())}:${pad(slotStart.getMinutes())}`,
+            endTime: `${pad(slotEnd.getHours())}:${pad(slotEnd.getMinutes())}`,
+            datetime: formatLocal(slotStart),
           });
         }
 
-        currentSlot = new Date(currentSlot.getTime() + slotInterval * 60000);
+        currentSlot = new Date(currentSlot.getTime() + stepMinutes * 60000);
       }
 
       availability.push({ staffId: staff.id, staffName, slots });

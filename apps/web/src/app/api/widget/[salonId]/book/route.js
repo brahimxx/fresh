@@ -40,6 +40,12 @@ export async function POST(request, { params }) {
       );
     }
 
+    const salonSettings = await getOne(
+      "SELECT auto_confirm_bookings FROM salon_settings WHERE salon_id = ?",
+      [salonId],
+    );
+    const autoConfirm = salonSettings ? !!salonSettings.auto_confirm_bookings : false;
+
     const body = await request.json();
     const { services, startTime, notes } = body;
 
@@ -72,12 +78,13 @@ export async function POST(request, { params }) {
 
     // Verify all services exist and staff can perform them
     let totalDuration = 0;
+    let totalBuffer = 0;
     let totalPrice = 0;
     const serviceDetails = [];
 
     for (let svc of services) {
       const service = await getOne(
-        "SELECT id, duration_minutes, price, name FROM services WHERE id = ? AND salon_id = ? AND is_active = 1",
+        "SELECT id, duration_minutes, buffer_time_minutes, price, name FROM services WHERE id = ? AND salon_id = ? AND is_active = 1",
         [svc.serviceId, salonId],
       );
       if (!service) {
@@ -106,10 +113,12 @@ export async function POST(request, { params }) {
       }
 
       totalDuration += service.duration_minutes;
+      totalBuffer += (service.buffer_time_minutes || 0);
       totalPrice += parseFloat(service.price);
       serviceDetails.push({
         ...svc,
         duration: service.duration_minutes,
+        bufferTime: service.buffer_time_minutes || 0,
         price: service.price,
         name: service.name,
       });
@@ -117,9 +126,10 @@ export async function POST(request, { params }) {
 
     // Calculate end time from DB service durations — totalDuration is computed
     // from DB records above so this is authoritative, not frontend-controlled.
-    const startDateTime = new Date(startTime);
+    // We add totalBuffer to endDateTime so the buffer is blocked out in the calendar.
+    const startDateTime = new Date(String(startTime).replace(' ', 'T'));
     const endDateTime = new Date(
-      startDateTime.getTime() + totalDuration * 60000,
+      startDateTime.getTime() + (totalDuration + totalBuffer) * 60000,
     );
 
     // Format as local time using getters — do NOT use toISOString() which
@@ -249,8 +259,10 @@ export async function POST(request, { params }) {
         staffId: s.staffId,
         price: s.price,
         duration: s.duration,
+        bufferTime: s.bufferTime,
       })),
       notes: notes || null,
+      status: autoConfirm ? "confirmed" : "pending",
       source: "marketplace",
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
     });

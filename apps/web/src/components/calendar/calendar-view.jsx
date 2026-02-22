@@ -68,7 +68,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
         end = endOfWeek(currentDate, { weekStartsOn: 1 });
       } else {
         start = currentDate;
-        end = addDays(currentDate, 1);
+        end = currentDate;
       }
       return {
         start: format(start, "yyyy-MM-dd"),
@@ -134,17 +134,17 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       return bookings
         .filter(function (booking) {
           if (!selectedStaff || selectedStaff.length === 0) return true;
-          return selectedStaff.includes(booking.staff?.id);
+          return selectedStaff.includes(booking.staffId || booking.staff?.id);
         })
         .map(function (booking) {
-          var staffId = booking.staff?.id;
+          var staffId = booking.staffId || booking.staff?.id;
           var staffColor = staffColorMap[staffId] || {
             name: "blue",
             hex: "#3b82f6",
           };
-          var clientName = booking.client
+          var clientName = booking.title || (booking.client
             ? booking.client.firstName + " " + booking.client.lastName
-            : "Walk-in";
+            : "Walk-in");
 
           // Format services for display
           var servicesText = "";
@@ -158,17 +158,17 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
 
           // Format time
           var startTime = new Date(
-            (booking.startDatetime || "").replace(" ", "T"),
+            (booking.start || booking.startDatetime || "").replace(" ", "T"),
           );
-          var endTime = new Date((booking.endDatetime || "").replace(" ", "T"));
+          var endTime = new Date((booking.end || booking.endDatetime || "").replace(" ", "T"));
           var timeText =
             format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
 
           return {
             id: booking.id,
             title: clientName,
-            start: (booking.startDatetime || "").replace(" ", "T"),
-            end: (booking.endDatetime || "").replace(" ", "T"),
+            start: (booking.start || booking.startDatetime || "").replace(" ", "T"),
+            end: (booking.end || booking.endDatetime || "").replace(" ", "T"),
             backgroundColor: staffColor.hex,
             borderColor: staffColor.hex,
             extendedProps: {
@@ -177,9 +177,9 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
               status: booking.status,
               servicesText: servicesText,
               timeText: timeText,
-              staffName: booking.staff
+              staffName: booking.staffName || (booking.staff
                 ? booking.staff.firstName + " " + booking.staff.lastName
-                : "",
+                : ""),
             },
           };
         });

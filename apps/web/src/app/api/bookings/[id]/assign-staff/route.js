@@ -71,11 +71,19 @@ export async function PUT(request, { params }) {
 
     // Check for conflicts
     const conflict = await getOne(
-      `SELECT id FROM bookings 
-       WHERE staff_id = ? AND id != ?
-       AND status NOT IN ('cancelled', 'no_show')
-       AND start_datetime < ? AND end_datetime > ?`,
-      [staffId, id, booking.end_datetime, booking.start_datetime]
+      `SELECT b.id FROM bookings b
+       WHERE b.id != ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
+       AND b.start_datetime < ? AND b.end_datetime > ?
+       AND (
+         b.staff_id = ?
+         OR EXISTS (
+           SELECT 1 FROM booking_services bs
+           WHERE bs.booking_id = b.id AND bs.staff_id = ?
+         )
+       )`,
+      [id, booking.end_datetime, booking.start_datetime, staffId, staffId]
     );
 
     if (conflict) {

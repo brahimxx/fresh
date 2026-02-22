@@ -2,14 +2,20 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
 
-// Helper to check salon access
+// Any active staff member (owner, manager, or receptionist) may read clients.
+// The old guard (role='manager' only) locked out receptionists who use this
+// view every day to look up walk-in clients.
 async function checkSalonAccess(salonId, userId, role) {
   if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (salon && salon.owner_id === userId) return true;
+  const salon = await getOne(
+    'SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL',
+    [salonId],
+  );
+  if (!salon) return false;
+  if (salon.owner_id === userId) return true;
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
-    [salonId, userId]
+    'SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
+    [salonId, userId],
   );
   return !!staff;
 }
@@ -36,6 +42,7 @@ export async function GET(request, { params }) {
       FROM salon_clients sc
       JOIN users u ON u.id = sc.client_id
       WHERE sc.salon_id = ?
+        AND sc.is_active = 1
     `;
     const params_query = [id];
 
@@ -49,8 +56,8 @@ export async function GET(request, { params }) {
 
     const clients = await query(sql, params_query);
 
-    // Get total count
-    let countSql = 'SELECT COUNT(*) as total FROM salon_clients WHERE salon_id = ?';
+    // Get total count — only active relationships
+    let countSql = 'SELECT COUNT(*) as total FROM salon_clients WHERE salon_id = ? AND is_active = 1';
     const [{ total }] = await query(countSql, [id]);
 
     return success({

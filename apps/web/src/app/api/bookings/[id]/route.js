@@ -96,8 +96,8 @@ export async function GET(request, { params }) {
             role: staff.role,
           }
         : null,
-      startDatetime: booking.start_datetime,
-      endDatetime: booking.end_datetime,
+      startDatetime: String(booking.start_datetime).replace(' ', 'T'),
+      endDatetime: String(booking.end_datetime).replace(' ', 'T'),
       status: booking.status,
       source: booking.source,
       createdAt: booking.created_at,
@@ -167,18 +167,26 @@ export async function PUT(request, { params }) {
     }
 
     if (startDatetime) {
-      // Recalculate end datetime
+      // Recalculate end datetime including buffer time
       const services = await query(
-        'SELECT duration_minutes FROM booking_services WHERE booking_id = ?',
+        `SELECT bs.duration_minutes, s.buffer_time_minutes 
+         FROM booking_services bs
+         JOIN services s ON s.id = bs.service_id
+         WHERE bs.booking_id = ?`,
         [id]
       );
       const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
-      const startDate = new Date(startDatetime);
-      const endDate = new Date(startDate.getTime() + totalDuration * 60000);
-      const endDatetime = endDate.toISOString().slice(0, 19).replace('T', ' ');
+      const totalBuffer = services.reduce((sum, s) => sum + (s.buffer_time_minutes || 0), 0);
+      const startDate = new Date(String(startDatetime).replace(' ', 'T'));
+      const endDate = new Date(startDate.getTime() + (totalDuration + totalBuffer) * 60000);
+      
+      // Format as local time
+      const pad = (n) => String(n).padStart(2, "0");
+      const startDatetimeFormatted = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())} ${pad(startDate.getHours())}:${pad(startDate.getMinutes())}:${pad(startDate.getSeconds())}`;
+      const endDatetimeFormatted = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
 
       updates.push('start_datetime = ?', 'end_datetime = ?');
-      updateParams.push(startDatetime, endDatetime);
+      updateParams.push(startDatetimeFormatted, endDatetimeFormatted);
     }
 
     if (updates.length === 0) {

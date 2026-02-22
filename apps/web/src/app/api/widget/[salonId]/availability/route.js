@@ -1,9 +1,6 @@
 import { query, getOne } from '@/lib/db';
 import { success, error, notFound } from '@/lib/response';
 
-// Algeria timezone (UTC+1, no DST)
-const TIMEZONE_OFFSET = 1 * 60; // minutes
-
 // GET /api/widget/[salonId]/availability - Get available slots for widget
 export async function GET(request, { params }) {
   try {
@@ -46,10 +43,11 @@ export async function GET(request, { params }) {
     // Fetch service details for all services
     const servicesData = [];
     let totalDuration = 0;
+    let totalBuffer = 0;
     
     for (const pair of serviceStaffPairs) {
       const service = await getOne(
-        'SELECT id, duration_minutes, price FROM services WHERE id = ? AND salon_id = ?',
+        'SELECT id, duration_minutes, buffer_time_minutes, price FROM services WHERE id = ? AND salon_id = ?',
         [pair.serviceId, salonId]
       );
       if (!service) {
@@ -65,6 +63,7 @@ export async function GET(request, { params }) {
         staffId: pair.staffId
       });
       totalDuration += service.duration_minutes;
+      totalBuffer += (service.buffer_time_minutes || 0);
     }
 
     // Get unique staff IDs
@@ -84,7 +83,7 @@ export async function GET(request, { params }) {
       }
     }
 
-    const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+    const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
     const slots = [];
 
     // Batch fetch working hours for all staff at once
@@ -103,6 +102,7 @@ export async function GET(request, { params }) {
 
     // Build working hours map for each staff
     const staffWorkingHours = [];
+    const staffTimeOffs = {};
 
     for (const staffId of staffIds) {
       let workingHours = staffWorkingHoursData.find(row => row.staff_id === staffId);
@@ -122,21 +122,18 @@ export async function GET(request, { params }) {
       }
 
       // Check for time off with datetime granularity
-      const startDateTime = new Date(`${date}T${workingHours.start_time}Z`);
-      const endDateTime = new Date(`${date}T${workingHours.end_time}Z`);
+      const startDateTimeStr = `${date} ${workingHours.start_time}`;
+      const endDateTimeStr = `${date} ${workingHours.end_time}`;
 
-      const timeOff = await getOne(
-        `SELECT id FROM staff_time_off
+      const timeOffs = await query(
+        `SELECT start_datetime, end_datetime FROM staff_time_off
          WHERE staff_id = ?
          AND start_datetime < ?
          AND end_datetime > ?`,
-        [staffId, endDateTime.toISOString().slice(0, 19).replace('T', ' '), startDateTime.toISOString().slice(0, 19).replace('T', ' ')]
+        [staffId, endDateTimeStr, startDateTimeStr]
       );
 
-      if (timeOff) {
-        // Staff has time off during working hours
-        return success({ slots: [], message: `Staff ${staffId} has time off on this day` });
-      }
+      staffTimeOffs[staffId] = timeOffs;
 
       staffWorkingHours.push({
         staffId,
@@ -154,12 +151,9 @@ export async function GET(request, { params }) {
       return curr.endTime < earliest ? curr.endTime : earliest;
     }, staffWorkingHours[0].endTime);
 
-    // Create dates in UTC then adjust for Algeria timezone
-    const startTime = new Date(`${date}T${startTimeStr}Z`);
-    startTime.setMinutes(startTime.getMinutes() - TIMEZONE_OFFSET);
-    
-    const endTime = new Date(`${date}T${endTimeStr}Z`);
-    endTime.setMinutes(endTime.getMinutes() - TIMEZONE_OFFSET);
+    // Create dates in local time
+    const startTime = new Date(`${date}T${startTimeStr}`);
+    const endTime = new Date(`${date}T${endTimeStr}`);
     
     if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
       console.error('Invalid time format:', { start_time: startTimeStr, end_time: endTimeStr });
@@ -168,13 +162,21 @@ export async function GET(request, { params }) {
 
     // Get existing bookings for all staff on this date (batch query)
     const allBookings = await query(
-      `SELECT bs.staff_id, b.start_datetime, b.end_datetime
+      `SELECT b.staff_id, b.start_datetime, b.end_datetime
+       FROM bookings b
+       WHERE b.staff_id IN (?) AND DATE(b.start_datetime) = ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
+       
+       UNION
+       
+       SELECT bs.staff_id, b.start_datetime, b.end_datetime
        FROM bookings b
        JOIN booking_services bs ON bs.booking_id = b.id
        WHERE bs.staff_id IN (?) AND DATE(b.start_datetime) = ?
-       AND b.status NOT IN ('cancelled', 'no_show')
-       ORDER BY b.start_datetime`,
-      [staffIds, date]
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL`,
+      [staffIds, date, staffIds, date]
     );
 
     // Group bookings by staff
@@ -187,13 +189,14 @@ export async function GET(request, { params }) {
     let currentSlot = new Date(startTime);
 
     // Generate slots checking all staff availability
-    while (currentSlot.getTime() + totalDuration * 60000 <= endTime.getTime()) {
+    while (currentSlot.getTime() + (totalDuration + totalBuffer) * 60000 <= endTime.getTime()) {
       const slotStart = new Date(currentSlot);
       const slotEnd = new Date(currentSlot.getTime() + totalDuration * 60000);
+      const slotEndWithBuffer = new Date(currentSlot.getTime() + (totalDuration + totalBuffer) * 60000);
 
       // Skip past times
       if (slotStart <= now) {
-        currentSlot.setMinutes(currentSlot.getMinutes() + 15);
+        currentSlot.setMinutes(currentSlot.getMinutes() + (totalDuration + totalBuffer));
         continue;
       }
 
@@ -202,28 +205,41 @@ export async function GET(request, { params }) {
       
       for (const staffId of staffIds) {
         const bookings = staffBookings[staffId];
-        const hasConflict = bookings.some((booking) => {
-          const bookingStart = new Date(booking.start_datetime);
-          const bookingEnd = new Date(booking.end_datetime);
+        const timeOffs = staffTimeOffs[staffId] || [];
+        
+        const hasBookingConflict = bookings.some((booking) => {
+          const bookingStart = new Date(String(booking.start_datetime).replace(' ', 'T'));
+          const bookingEnd = new Date(String(booking.end_datetime).replace(' ', 'T'));
           
-          // Check overlap
-          return slotStart < bookingEnd && slotEnd > bookingStart;
+          // Check overlap with buffer
+          return slotStart < bookingEnd && slotEndWithBuffer > bookingStart;
         });
 
-        if (hasConflict) {
+        const hasTimeOffConflict = timeOffs.some((timeOff) => {
+          const timeOffStart = new Date(String(timeOff.start_datetime).replace(' ', 'T'));
+          const timeOffEnd = new Date(String(timeOff.end_datetime).replace(' ', 'T'));
+          
+          // Check overlap with buffer
+          return slotStart < timeOffEnd && slotEndWithBuffer > timeOffStart;
+        });
+
+        if (hasBookingConflict || hasTimeOffConflict) {
           allAvailable = false;
           break;
         }
       }
 
       if (allAvailable) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+        
         slots.push({
-          startTime: slotStart.toISOString(),
-          endTime: slotEnd.toISOString(),
+          startTime: formatLocal(slotStart),
+          endTime: formatLocal(slotEnd),
         });
       }
 
-      currentSlot.setMinutes(currentSlot.getMinutes() + 15);
+      currentSlot.setMinutes(currentSlot.getMinutes() + (totalDuration + totalBuffer));
     }
 
     return success({

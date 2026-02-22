@@ -46,7 +46,8 @@ export async function GET(request, { params }) {
       WHERE b.salon_id = ?
         AND DATE(b.start_datetime) >= ?
         AND DATE(b.start_datetime) <= ?
-        AND b.status NOT IN ('cancelled')
+        AND b.status != 'cancelled'
+        AND b.deleted_at IS NULL
     `;
     const bookingParams = [id, startDate, endDate];
 
@@ -97,8 +98,8 @@ export async function GET(request, { params }) {
         type: 'booking',
         id: b.id,
         title: `${b.client_first_name} ${b.client_last_name}`,
-        start: b.start_datetime,
-        end: b.end_datetime,
+        start: String(b.start_datetime).replace(' ', 'T'),
+        end: String(b.end_datetime).replace(' ', 'T'),
         status: b.status,
         staffId: b.staff_id,
         staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
@@ -113,8 +114,8 @@ export async function GET(request, { params }) {
         type: 'time_off',
         id: to.id,
         title: `Time Off - ${to.first_name} ${to.last_name}`,
-        start: to.start_datetime,
-        end: to.end_datetime,
+        start: String(to.start_datetime).replace(' ', 'T'),
+        end: String(to.end_datetime).replace(' ', 'T'),
         staffId: to.staff_id,
         staffName: `${to.first_name} ${to.last_name}`,
         reason: to.reason,

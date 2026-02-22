@@ -90,7 +90,8 @@ export const createBookingSchema = z.object({
   staffId: idSchema,
   serviceIds: z.array(idSchema).min(1, "At least one service is required"),
   startDatetime: datetimeSchema,
-  endDatetime: datetimeSchema,
+  // endDatetime is intentionally absent — the backend derives it from
+  // service durations and buffer times fetched from the DB.
   notes: z
     .string()
     .max(1000, "Notes must be less than 1000 characters")
@@ -328,4 +329,45 @@ export function createValidator(schema) {
     }
     return { data: result.data };
   };
+}
+
+/**
+ * Validate staff working hours shifts
+ * Rules:
+ * - start_time < end_time
+ * - no overlapping shifts same day
+ * - day_of_week correct (0-6)
+ * @param {Array<{day_of_week: number, start_time: string, end_time: string}>} shifts
+ * @returns {{ valid: boolean, error?: string }}
+ */
+export function validateShifts(shifts) {
+  const dayShifts = {};
+
+  for (const shift of shifts) {
+    const { day_of_week, start_time, end_time } = shift;
+
+    if (day_of_week < 0 || day_of_week > 6) {
+      return { valid: false, error: `Invalid day of week: ${day_of_week}` };
+    }
+
+    if (start_time >= end_time) {
+      return { valid: false, error: `Start time must be before end time for day ${day_of_week}` };
+    }
+
+    if (!dayShifts[day_of_week]) {
+      dayShifts[day_of_week] = [];
+    }
+
+    // Check for overlaps
+    for (const existing of dayShifts[day_of_week]) {
+      // Overlap condition: start1 < end2 AND start2 < end1
+      if (start_time < existing.end_time && existing.start_time < end_time) {
+        return { valid: false, error: `Overlapping shifts detected for day ${day_of_week}` };
+      }
+    }
+
+    dayShifts[day_of_week].push({ start_time, end_time });
+  }
+
+  return { valid: true };
 }

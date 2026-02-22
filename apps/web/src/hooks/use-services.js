@@ -36,7 +36,14 @@ export function useServices(salonId, options) {
       var categories = response.data?.categories || [];
       return categories.flatMap(function (cat) {
         return (cat.services || []).map(function (svc) {
-          return { ...svc, category_id: cat.id };
+          return {
+            ...svc,
+            category_id: cat.id,
+            categoryName: cat.name,
+            // normalise field names so form can use either spelling
+            duration_minutes: svc.durationMinutes || svc.duration,
+            buffer_time_minutes: svc.bufferTimeMinutes || svc.bufferTime || 0,
+          };
         });
       });
     },

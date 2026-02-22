@@ -8,6 +8,7 @@ if (process.env.MYSQL_URL) {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    dateStrings: true,
   });
 } else {
   pool = mysql.createPool({
@@ -19,6 +20,7 @@ if (process.env.MYSQL_URL) {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    dateStrings: true,
   });
 }
 

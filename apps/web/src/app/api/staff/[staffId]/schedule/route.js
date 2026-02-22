@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
+import { validateShifts } from '@/lib/validate';
 
 // Helper to check if user can manage this staff
 async function canManageStaff(staffId, userId, role) {
@@ -84,20 +85,36 @@ export async function PUT(request, { params }) {
       return error('Schedule must be an array');
     }
 
-    // Delete existing working hours
-    await query('DELETE FROM staff_working_hours WHERE staff_id = ?', [staffId]);
-
-    // Insert new working hours (only for enabled days)
+    // Prepare shifts for validation
+    const shiftsToSave = [];
     for (const day of schedule) {
       if (day.is_working && day.start_time && day.end_time) {
         const dayOfWeek = DAY_MAP[day.day_of_week];
         if (dayOfWeek !== undefined) {
-          await query(
-            'INSERT INTO staff_working_hours (staff_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
-            [staffId, dayOfWeek, day.start_time, day.end_time]
-          );
+          shiftsToSave.push({
+            day_of_week: dayOfWeek,
+            start_time: day.start_time,
+            end_time: day.end_time,
+          });
         }
       }
+    }
+
+    // Validate shifts
+    const validation = validateShifts(shiftsToSave);
+    if (!validation.valid) {
+      return error(validation.error, 400);
+    }
+
+    // Delete existing working hours
+    await query('DELETE FROM staff_working_hours WHERE staff_id = ?', [staffId]);
+
+    // Insert new working hours
+    for (const shift of shiftsToSave) {
+      await query(
+        'INSERT INTO staff_working_hours (staff_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
+        [staffId, shift.day_of_week, shift.start_time, shift.end_time]
+      );
     }
 
     // Return updated schedule

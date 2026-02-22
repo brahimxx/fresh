@@ -24,13 +24,12 @@ export function useCalendarBookings(salonId, startDate, endDate, options = {}) {
   return useQuery({
     queryKey: bookingKeys.calendar(salonId, startDate, endDate),
     queryFn: () =>
-      api.get("/bookings", {
-        salonId,
+      api.get(`/salons/${salonId}/calendar`, {
         startDate,
         endDate,
       }),
     enabled: !!salonId && !!startDate && !!endDate,
-    select: (response) => response.data?.bookings || [],
+    select: (response) => response.data?.events || [],
     staleTime: 1000 * 60 * 2, // Consider data fresh for 2 minutes
     ...options,
   });

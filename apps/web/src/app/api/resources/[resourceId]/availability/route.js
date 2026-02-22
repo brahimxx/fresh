@@ -21,7 +21,8 @@ export async function GET(request, { params }) {
        FROM bookings b
        JOIN booking_resources br ON br.booking_id = b.id
        WHERE br.resource_id = ? AND DATE(b.start_datetime) = ? 
-       AND b.status NOT IN ('cancelled', 'no_show')
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
        ORDER BY b.start_datetime`,
       [resourceId, date]
     );
