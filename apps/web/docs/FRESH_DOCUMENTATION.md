@@ -1,6 +1,6 @@
 # Fresh Salon Platform - Complete Documentation
 
-**Last Updated:** February 19, 2026
+**Last Updated:** February 22, 2026
 
 ---
 
@@ -71,9 +71,19 @@
 
 ### 2. Walk-in / Manual Booking (Dashboard)
 
-1. Receptionist/Staff opens Calendar or Clients.
-2. **Add Client:** Creates User (with optional placeholder email) + `salon_clients` record.
-3. **Create Booking:** Selects Client + Service + Time. Status defaults to `confirmed`.
+1. Receptionist opens Calendar or Clients panel.
+2. **Find or Create Client:** Calls `POST /api/clients`. The request goes through `findOrCreateClient()` in `src/lib/client.js` — the single authoritative dedup path:
+   - Phone match → `SELECT … FOR UPDATE` returns existing user.
+   - Email match → same.
+   - Neither → `INSERT` with `ER_DUP_ENTRY` race recovery.
+   - `salon_clients` row upserted in the same transaction (`ON DUPLICATE KEY UPDATE`).
+3. **Create Booking:** Selects Client + Service(s) + Staff + Time. Status defaults to `confirmed`.
+4. **Notes:** Per-salon notes live in `salon_clients.notes`, not in `users`.
+
+**Dedup guarantees:**
+- Same phone + concurrent POST → second request blocks on `FOR UPDATE` lock, reuses existing row.
+- Hard duplicate impossible: no route other than `lib/client.js` may INSERT into `users`.
+- Soft-deleted client re-books → `is_active = 1` set automatically in the same upsert.
 
 ### 3. Checkout & Payment
 
@@ -149,7 +159,10 @@ All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 | **Auth**        | `/auth/{login,register,me,logout}`          | `register` supports `type=professional` param.                                                                             |
 | **Salons**      | `/salons/[id]/{settings,hours,photos}`      | Includes soft delete via DELETE. Supports `?force=true` param.                                                             |
 | **Bookings**    | `/salons/[id]/bookings/[id]`                | Supports `reschedule`, `confirm`. Status: `pending, confirmed, completed, cancelled, no_show`. Permanent delete available. |
-| **Clients**     | `/salons/[id]/clients`                      | Links Users to Salons unique notes/history.                                                                                |
+| **Clients**     | `/api/clients` (POST, GET)                  | Create/find client via `findOrCreateClient()`. Smart search: phone→`idx_users_phone`, email→`uq_users_email`, name→prefix LIKE. |
+| **Client**      | `/api/clients/[id]` (GET, PUT, DELETE)      | GET: profile + salon stats. PUT: explicit-presence fields only, phone/email conflict checks (409). DELETE: soft-delete (`is_active=0`). |
+| **Client History** | `/api/clients/[id]/bookings?salonId=`    | Paginated booking history with services and staff names. `COUNT(*) OVER()` single round-trip.                              |
+| **CRM List**    | `/api/salons/[id]/clients`                  | Active clients only (`is_active=1`). Any active staff may access (manager AND receptionist).                               |
 | **Staff**       | `/salons/[id]/staff/{availability}`         | Manages profiles and working shifts.                                                                                       |
 | **Services**    | `/salons/[id]/services`                     | Grouped by Categories (`/api/categories`).                                                                                 |
 | **Payments**    | `/salons/[id]/payments`                     | Includes refunds and product sales.                                                                                        |
@@ -178,21 +191,26 @@ All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 
 ### Soft Delete Fields
 
-| Table    | Soft Delete Column         | Added    |
-| -------- | -------------------------- | -------- |
-| salons   | `deleted_at`, `deleted_by` | Feb 2026 |
-| bookings | `deleted_at`               | Jan 2026 |
-| services | `deleted_at`               | Jan 2026 |
-| products | `deleted_at`               | Jan 2026 |
+| Table          | Soft Delete Column         | Added       |
+| -------------- | -------------------------- | ----------- |
+| salons         | `deleted_at`, `deleted_by` | Feb 19 2026 |
+| bookings       | `deleted_at`               | Jan 2026    |
+| services       | `deleted_at`               | Jan 2026    |
+| products       | `deleted_at`               | Jan 2026    |
+| salon_clients  | `is_active` (0 = removed)  | Feb 22 2026 |
+
+> `salon_clients` uses `is_active` instead of `deleted_at` because the row must be re-activated (not re-inserted) when a removed client returns. `ON DUPLICATE KEY UPDATE is_active = 1` in a single upsert covers both the new-client and returning-client paths.
 
 ### Migrations History
 
-| Date       | Migration                                    | Description                  |
-| ---------- | -------------------------------------------- | ---------------------------- |
-| 2026-01-20 | `20260120_add_performance_indexes.sql`       | Performance indexes          |
-| 2026-01-21 | `20260121_add_default_working_hours.sql`     | Default staff hours          |
-| 2026-01-21 | `20260121_add_staff_to_booking_services.sql` | Per-service staff assignment |
-| 2026-02-19 | `20260219_add_salon_soft_delete.sql`         | Salon soft delete support    |
+| Date       | Migration                                      | Description                         |
+| ---------- | ---------------------------------------------- | ------------------------------------ |
+| 2026-01-20 | `20260120_add_performance_indexes.sql`         | Performance indexes                  |
+| 2026-01-21 | `20260121_add_default_working_hours.sql`       | Default staff hours                  |
+| 2026-01-21 | `20260121_add_staff_to_booking_services.sql`   | Per-service staff assignment         |
+| 2026-02-19 | `20260219_add_salon_soft_delete.sql`           | Salon soft delete support            |
+| 2026-02-22 | `20260222_add_client_search_indexes.sql`       | Client search indexes (phone, name)  |
+| 2026-02-22 | `20260222_add_salon_clients_soft_delete.sql`   | `is_active` + `updated_at` + index   |
 
 ### Data Management
 
@@ -277,6 +295,87 @@ All 11 identified vulnerabilities have been fixed (January 21, 2026).
 ---
 
 ## I) Recent Updates & Features
+
+### Client Management System (February 22, 2026)
+
+**Overview:** Full production-safe client management built across 9 steps. Covers creation, search, edit, history, deletion, deduplication, and performance.
+
+#### Core Library — `src/lib/client.js`
+
+The single authoritative path for finding or creating a client. No route file may INSERT into `users` directly.
+
+**`findOrCreateClient(data)`** — exported function:
+
+```
+phone provided → SELECT FOR UPDATE → found: patch name via COALESCE, reuse
+no match, email → SELECT FOR UPDATE → found: patch name+phone, reuse
+no match        → INSERT INTO users (role='client', password_hash='')
+                  ER_DUP_ENTRY race: re-SELECT winning row, no retry
+salonId given   → INSERT INTO salon_clients ON DUPLICATE KEY UPDATE is_active=1
+```
+
+Returns `{ userId, isNew, isNewToSalon }`.
+
+Also exports: `normalizePhone(raw)` (strips spaces/dashes/dots), `ClientError` (typed HTTP error).
+
+#### API Endpoints
+
+**`POST /api/clients`**
+- Validates: `salonId`, `firstName`, at least one of `phone` / `email`.
+- Delegates entirely to `findOrCreateClient()`. Route has zero INSERT logic.
+- Accepts camelCase and snake_case field names.
+- Response includes `isNew` and `isNewToSalon` flags.
+
+**`GET /api/clients?salonId=&search=&page=&limit=`**
+- Smart driving-table strategy based on input type:
+  - **Phone** (`/^[\d\s+\-.]+$/`) → drives `FROM users`, hits `idx_users_phone`
+  - **Email** (contains `@`) → drives `FROM users`, hits `uq_users_email`
+  - **Name / empty** → drives `FROM salon_clients`, hits `idx_salon_clients_active`
+- All LIKE patterns are `term%` (prefix) — never `%term%`.
+- `COUNT(*) OVER()` returns total in same query (no second round-trip).
+- Limit capped at 50. `is_active = 1` filter on all paths.
+
+**`GET /api/clients/[id]?salonId=`**
+- Returns user profile + `salonStats` (first visit, last visit, total visits).
+
+**`PUT /api/clients/[id]`**
+- Explicit-presence semantics: only fields sent are updated (missing fields untouched).
+- Phone/email conflict checks inside `FOR UPDATE` transaction → 409 `PHONE_TAKEN` / `EMAIL_TAKEN`.
+- Notes live in `salon_clients` (per-salon), not in `users`.
+
+**`DELETE /api/clients/[id]?salonId=`**
+- **Never hard-deletes.** Sets `salon_clients.is_active = 0`.
+- `users` row and all `bookings` rows untouched — history preserved.
+- Re-booking the same client auto-sets `is_active = 1` via upsert.
+
+**`GET /api/clients/[id]/bookings?salonId=`**
+- Paginated booking history: two-query strategy (bookings with window count + services batch IN()).
+
+#### Access Control
+
+All client endpoints accept **any active staff member** (manager or receptionist). The old `AND role='manager'` guard has been removed from every client route.
+
+#### Duplicate Prevention — Guarantee Map
+
+| Scenario | Mechanism |
+|---|---|
+| Same phone, concurrent POST | `SELECT … FOR UPDATE` serialises — second request blocks, reuses winner row |
+| Same email, no phone, concurrent POST | `FOR UPDATE` + `ER_DUP_ENTRY` catch + re-SELECT |
+| Staff writes own INSERT | `pool` not exported to route files — only `lib/client.js` holds it |
+| Duplicate `salon_clients` row | `PRIMARY KEY (salon_id, client_id)` + `ON DUPLICATE KEY UPDATE` |
+| Removed client returns | `is_active = 1` in every upsert — re-activated automatically |
+
+#### Indexes Added (Migration `20260222_add_client_search_indexes.sql`)
+
+| Index | Table | Used by |
+|---|---|---|
+| `idx_users_phone` | users | Phone search fast path |
+| `idx_users_first_name` | users | Name search |
+| `idx_users_last_name` | users | Name search |
+| `idx_bookings_client_salon_start` | bookings | Client booking history |
+| `idx_salon_clients_active` | salon_clients | CRM list + name search driving table |
+
+---
 
 ### Salon Soft Delete (February 19, 2026)
 
@@ -370,6 +469,20 @@ All 11 identified vulnerabilities have been fixed (January 21, 2026).
 
 ## J) Changelog
 
+### February 22, 2026
+
+- ✅ Built full client management system (`src/lib/client.js` + 4 route files)
+- ✅ `findOrCreateClient()` — single dedup path, phone FOR UPDATE → email FOR UPDATE → INSERT + race recovery
+- ✅ `POST /api/clients` — delegates entirely to lib, zero inline INSERT logic
+- ✅ `GET /api/clients` — smart driving-table search (phone/email drive FROM users, name/empty drive FROM salon_clients)
+- ✅ `PUT /api/clients/[id]` — explicit-presence fields, `PHONE_TAKEN`/`EMAIL_TAKEN` 409 conflict errors
+- ✅ `DELETE /api/clients/[id]` — soft-delete (`is_active=0`), never hard-deletes
+- ✅ `GET /api/clients/[id]/bookings` — paginated history, `COUNT(*) OVER()` single round-trip
+- ✅ `salon_clients` soft-delete: added `is_active`, `updated_at`, `idx_salon_clients_active`
+- ✅ Migrations: `20260222_add_client_search_indexes.sql`, `20260222_add_salon_clients_soft_delete.sql`
+- ✅ Removed `AND role='manager'` guard from all client routes — receptionists now have full access
+- ✅ `normalizePhone()` and `ClientError` exported from `lib/client.js`
+
 ### February 19, 2026
 
 - ✅ Implemented salon soft delete with pre-deletion checks
@@ -415,6 +528,7 @@ All 11 identified vulnerabilities have been fixed (January 21, 2026).
 3. **Multi-Currency:** Supported in `format.js` but UI assumes single salon currency.
 4. **Rate Limiter:** In-memory (single-server). Consider Redis for production.
 5. **Soft Delete Recovery:** No UI for restoring deleted salons (admin-only via DB).
+6. **Phone normalization:** `normalizePhone()` strips spaces/dashes/dots but does not convert local Algerian format (`0555…`) to E.164 (`+2135…`). Stored format depends on what the receptionist typed first.
 
 ---
 
@@ -427,6 +541,9 @@ All 11 identified vulnerabilities have been fixed (January 21, 2026).
 5. **Marketplace SEO:** Server-side metadata for salon profiles
 6. **Security Monitoring:** Logging for rate limit hits and failed auth attempts
 7. **Permanent Purge:** Background job to permanently delete after 90-day retention
+8. **Phone Normalization:** E.164 conversion (`+213…`) with country-code awareness for dedup across formats
+9. **Client Import:** Bulk CSV import via `findOrCreateClient()` (dedup-safe by design)
+10. **Salon Recovery UI:** Restore soft-deleted `salon_clients` rows (currently admin-only via DB update)
 
 ---
 
