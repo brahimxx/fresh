@@ -1,0 +1,40 @@
+# Implementation Plan: Salon Search (Step 1)
+
+## Goal Description
+Audit [api/marketplace/salons/route.js](file:///g:/React%20fresh/Third,%20Next.Js/fresh/apps/web/src/app/api/marketplace/salons/route.js) and enforce all required visibility rules on the base `WHERE` clause. Fix the N+1 query for service previews.
+
+## Findings
+
+### ❌ Gap 1 — Missing `is_active` and `deleted_at` filters
+The base `WHERE` clause currently is:
+```sql
+WHERE s.status = 'active' AND s.is_marketplace_enabled = 1
+```
+It **misses** `is_active = 1` and `deleted_at IS NULL`. A soft-deleted or manually-deactivated salon could still appear in search results.
+
+### ❌ Gap 2 — N+1 Query on Service Previews
+After the main search query, a per-salon service preview query is fired **for every result** in a `Promise.all` loop. With 20 results, that's 21 total DB queries per search request.
+
+This can be eliminated by using a **single JOIN** to fetch service names inline via `GROUP_CONCAT`.
+
+## Proposed Changes
+
+### [api/marketplace/salons/route.js](file:///g:/React%20fresh/Third,%20Next.Js/fresh/apps/web/src/app/api/marketplace/salons/route.js)
+#### 1. Fix WHERE clause
+Add `AND s.is_active = 1 AND s.deleted_at IS NULL` to the base `WHERE`.
+
+#### 2. Eliminate N+1 — inline service names via GROUP_CONCAT
+Replace the looped per-salon service queries with:
+```sql
+LEFT JOIN (
+  SELECT salon_id, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as services_preview
+  FROM services
+  WHERE is_active = 1 AND deleted_at IS NULL
+  GROUP BY salon_id
+) svc ON svc.salon_id = s.id
+```
+Then return `svc.services_preview` directly — reducing from `N+1` queries to **1 query total**.
+
+## Verification Plan
+1. Check the final SQL includes all 4 safety conditions.
+2. Confirm no per-salon loop queries remain.

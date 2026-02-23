@@ -137,7 +137,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { status, staffId, startDatetime } = body;
+    const { status, staffId, startDatetime, cancellationReason } = body;
 
     // Validate status transition
     const validTransitions = {
@@ -159,6 +159,17 @@ export async function PUT(request, { params }) {
     if (status) {
       updates.push('status = ?');
       updateParams.push(status);
+
+      if (status === 'cancelled') {
+        updates.push('cancelled_at = NOW()');
+        updates.push('cancelled_by = ?');
+        updateParams.push(session.userId);
+
+        if (cancellationReason) {
+          updates.push('cancellation_reason = ?');
+          updateParams.push(cancellationReason);
+        }
+      }
     }
 
     if (staffId) {
@@ -193,8 +204,8 @@ export async function PUT(request, { params }) {
       return error('No updates provided');
     }
 
-    updateParams.push(id);
-    await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ?`, updateParams);
+    updateParams.push(id, booking.salon_id);
+    await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`, updateParams);
 
     const updatedBooking = await getOne('SELECT * FROM bookings WHERE id = ?', [id]);
 
@@ -240,7 +251,18 @@ export async function DELETE(request, { params }) {
       }
     }
 
-    await query("UPDATE bookings SET status = 'cancelled' WHERE id = ?", [id]);
+    const { searchParams } = new URL(request.url);
+    const reason = searchParams.get('reason');
+
+    const updates = ['status = ?', 'cancelled_at = NOW()', 'cancelled_by = ?'];
+    const updateParams = ['cancelled', session.userId];
+    if (reason) {
+      updates.push('cancellation_reason = ?');
+      updateParams.push(reason);
+    }
+    updateParams.push(id, booking.salon_id);
+
+    await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`, updateParams);
 
     return success({ message: 'Booking cancelled successfully' });
   } catch (err) {

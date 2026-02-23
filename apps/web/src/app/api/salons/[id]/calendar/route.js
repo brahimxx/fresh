@@ -46,7 +46,6 @@ export async function GET(request, { params }) {
       WHERE b.salon_id = ?
         AND DATE(b.start_datetime) >= ?
         AND DATE(b.start_datetime) <= ?
-        AND b.status != 'cancelled'
         AND b.deleted_at IS NULL
     `;
     const bookingParams = [id, startDate, endDate];

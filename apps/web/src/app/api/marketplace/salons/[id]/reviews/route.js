@@ -6,21 +6,21 @@ export async function GET(request, { params }) {
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    
+
     const limit = parseInt(searchParams.get('limit')) || 20;
     const offset = parseInt(searchParams.get('offset')) || 0;
     const sort = searchParams.get('sort') || 'recent';
-    
+
     let orderBy = 'r.created_at DESC';
     if (sort === 'highest') {
       orderBy = 'r.rating DESC, r.created_at DESC';
     } else if (sort === 'lowest') {
       orderBy = 'r.rating ASC, r.created_at DESC';
     }
-    
+
     const reviews = await query(
       `SELECT 
-        r.id, r.rating, r.comment, r.created_at,
+        r.id, r.rating, r.comment, r.created_at, r.owner_reply,
         u.first_name as client_name,
         s.name as service_name,
         st.id as staff_id,
@@ -35,7 +35,7 @@ export async function GET(request, { params }) {
        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
       [id]
     );
-    
+
     // Get rating distribution
     const distribution = await query(
       `SELECT rating, COUNT(*) as count
@@ -45,12 +45,22 @@ export async function GET(request, { params }) {
        ORDER BY rating DESC`,
       [id]
     );
-    
+
+    // Get overall aggregates
+    const stats = await query(
+      `SELECT COALESCE(AVG(rating), 0) as average_rating, COUNT(*) as total_reviews
+       FROM reviews
+       WHERE salon_id = ? AND status = 'approved'`,
+      [id]
+    );
+
     return success({
       reviews: reviews,
-      distribution: distribution
+      distribution: distribution,
+      average_rating: parseFloat(stats[0].average_rating),
+      total_reviews: parseInt(stats[0].total_reviews)
     });
-    
+
   } catch (err) {
     console.error('Get salon reviews error:', err);
     return error('Failed to load reviews', 500);

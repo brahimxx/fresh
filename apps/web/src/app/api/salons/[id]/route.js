@@ -96,11 +96,11 @@ export async function GET(request, { params }) {
       createdAt: salon.created_at,
       settings: settings
         ? {
-            cancellationPolicyHours: settings.cancellation_policy_hours,
-            noShowFee: settings.no_show_fee,
-            depositRequired: settings.deposit_required,
-            depositPercentage: settings.deposit_percentage,
-          }
+          cancellationPolicyHours: settings.cancellation_policy_hours,
+          noShowFee: settings.no_show_fee,
+          depositRequired: settings.deposit_required,
+          depositPercentage: settings.deposit_percentage,
+        }
         : null,
       photos: photos.map((p) => ({
         id: p.id,
@@ -332,11 +332,15 @@ export async function DELETE(request, { params }) {
 
     // Cancel all pending future bookings
     await query(
-      `UPDATE bookings SET status = 'cancelled' 
+      `UPDATE bookings SET 
+         status = 'cancelled',
+         cancelled_at = NOW(),
+         cancelled_by = ?,
+         cancellation_reason = 'Salon deleted'
        WHERE salon_id = ? 
          AND status IN ('pending', 'confirmed')
          AND start_datetime > NOW()`,
-      [id],
+      [session.userId, id],
     );
 
     return success({
