@@ -39,7 +39,9 @@ export default function SalonProfilePage({ params }) {
   var [activeImageIndex, setActiveImageIndex] = useState(0);
 
   // --- Dynamic Data Calculations ---
-  var galleryImages = (salon && salon.gallery && salon.gallery.length > 0) ? salon.gallery : (salon && salon.cover_image_url ? [salon.cover_image_url] : []);
+  var galleryImages = (salon && salon.gallery && salon.gallery.length > 0) 
+    ? salon.gallery.map(g => g.image_url) 
+    : (salon && salon.cover_image_url ? [salon.cover_image_url] : []);
 
   // Calculate review distribution
   var starStats = [0, 0, 0, 0, 0, 0]; // 0-5

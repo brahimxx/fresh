@@ -13,6 +13,7 @@ import {
   formatValidationErrors,
 } from "@/lib/validate";
 import { createSafeBooking, BookingError } from "@/lib/booking";
+import { sendNotification } from "@/lib/notifications";
 
 // GET /api/bookings - Get bookings (filtered by user role)
 export async function GET(request) {
@@ -173,6 +174,8 @@ export async function POST(request) {
       startDatetime,
       notes,
       source,
+      discountCode,
+      giftCardCode,
     } = validation.data;
 
     // Get services to calculate total duration and price
@@ -203,7 +206,7 @@ export async function POST(request) {
         [salonId],
       ),
       getOne(
-        "SELECT id FROM users WHERE id = ? AND role != 'deleted'",
+        "SELECT id, first_name, email FROM users WHERE id = ? AND role != 'deleted'",
         [clientId],
       ),
     ]);
@@ -301,6 +304,33 @@ export async function POST(request) {
       status,
       source,
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
+      discountCode,
+      giftCardCode,
+    });
+
+    const isConfirmed = status === "confirmed";
+    const notificationTitle = isConfirmed 
+      ? `Booking Confirmed: ${services[0]?.name}${services.length > 1 ? ` & ${services.length - 1} more` : ''}`
+      : `Booking Received (Pending Approval): ${services[0]?.name}`;
+      
+    const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
+    const notificationBody = `
+      <p>Hi ${clientRecord.first_name || 'there'},</p>
+      <p>Your booking has been ${isConfirmed ? 'confirmed' : 'received and is awaiting salon approval'}.</p>
+      <p><strong>When:</strong> ${startDatetimeFormatted}</p>
+      <p><strong>Services:</strong></p>
+      <ul>${formattedServicesHTML}</ul>
+      <p>Thank you for booking with Fresh!</p>
+    `;
+
+    // Fire & Forget Notification
+    sendNotification({
+      userId: clientId,
+      email: clientRecord.email,
+      type: 'email',
+      title: notificationTitle,
+      message: notificationBody,
+      data: { bookingId: result.bookingId, status }
     });
 
     return created({
@@ -314,6 +344,9 @@ export async function POST(request) {
       source,
       totalDuration,
       totalPrice,
+      discountAmount: result.discountAmount,
+      giftCardAmountUsed: result.giftCardAmountUsed,
+      finalAmountDue: result.finalAmountDue,
       isNewClient: result.isNewClient,
       services: services.map((s) => ({
         id: s.id,

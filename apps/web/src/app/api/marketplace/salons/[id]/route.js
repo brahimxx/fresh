@@ -1,5 +1,5 @@
 import { query, getOne } from '@/lib/db';
-import { success, error, notFound } from '@/lib/response';
+import { error, notFound } from '@/lib/response';
 import { NextResponse } from 'next/server';
 
 // GET /api/marketplace/salons/[id] - Get salon public profile
@@ -27,7 +27,6 @@ export async function GET(request, { params }) {
           )
           FROM business_hours bh
           WHERE bh.salon_id = s.id
-          ORDER BY bh.day_of_week
         ) as business_hours_json
        FROM salons s
        LEFT JOIN reviews r ON r.salon_id = s.id AND r.status = 'approved'
@@ -44,36 +43,38 @@ export async function GET(request, { params }) {
       return notFound('Salon not found');
     }
 
-    // Fetch remaining data in parallel (single round trip for both)
-    const [amenities, gallery] = await Promise.all([
-      query(`SELECT name FROM salon_amenities WHERE salon_id = ?`, [id]),
-      query(
-        `SELECT id, image_url, is_cover, 0 as display_order
-         FROM salon_photos 
-         WHERE salon_id = ? 
-         ORDER BY is_cover DESC, id ASC`,
-        [id]
-      )
-    ]);
+    // salon_amenities table doesn't exist in schema — return empty array
+    const amenities = [];
 
-    const payload = success({
-      ...salon,
-      rating: salon.rating ? parseFloat(salon.rating) : null,
-      review_count: parseInt(salon.review_count) || 0,
-      business_hours: salon.business_hours_json
-        ? JSON.parse(salon.business_hours_json).sort((a, b) => a.day_of_week - b.day_of_week)
-        : [],
-      business_hours_json: undefined, // strip raw field
-      amenities: amenities.map(a => a.name),
-      gallery: gallery.map((g, index) => ({
-        image_url: g.image_url,
-        display_order: index,
-        is_cover: g.is_cover === 1
-      }))
-    });
+    const gallery = await query(
+      `SELECT id, image_url, is_cover
+       FROM salon_photos
+       WHERE salon_id = ?
+       ORDER BY is_cover DESC, id ASC`,
+      [id]
+    );
+
+    const payload = {
+      success: true,
+      data: {
+        ...salon,
+        rating: salon.rating ? parseFloat(salon.rating) : null,
+        review_count: parseInt(salon.review_count) || 0,
+        business_hours: typeof salon.business_hours_json === 'string'
+          ? JSON.parse(salon.business_hours_json).sort((a, b) => a.day_of_week - b.day_of_week)
+          : (salon.business_hours_json || []).sort((a, b) => a.day_of_week - b.day_of_week),
+        business_hours_json: undefined, // strip raw field
+        amenities: amenities.map(a => a.name),
+        gallery: gallery.map((g, index) => ({
+          image_url: g.image_url,
+          display_order: index,
+          is_cover: g.is_cover === 1
+        }))
+      }
+    };
 
     // Allow browsers and CDN edges to cache public salon data for 60s
-    const response = NextResponse.json(await payload.json());
+    const response = NextResponse.json(payload);
     response.headers.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
     return response;
 

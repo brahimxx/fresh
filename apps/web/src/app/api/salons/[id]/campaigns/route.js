@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { validate, createCampaignSchema } from '@/lib/validate';
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
@@ -68,45 +69,37 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: salonId } = await params;
 
-    const hasAccess = await checkSalonAccess(id, session.userId, session.role);
+    const hasAccess = await checkSalonAccess(salonId, session.userId, session.role);
     if (!hasAccess) {
       return forbidden('Not authorized to create campaigns');
     }
 
     const body = await request.json();
-    const {
-      name,
-      type = 'email', // email, sms, push
-      subject,
-      content,
-      targetAudience = 'all', // all, new, returning, inactive
-      scheduledAt,
-    } = body;
-
-    if (!name || !content) {
-      return error('Name and content are required');
+    const validation = validate(createCampaignSchema, body);
+    
+    if (!validation.success) {
+      return error({ code: "VALIDATION_ERROR", message: validation.errors }, 400);
     }
 
-    if (type === 'email' && !subject) {
-      return error('Subject is required for email campaigns');
-    }
-
-    const status = scheduledAt ? 'scheduled' : 'draft';
+    const { name, type, subject, content, targetAudience } = validation.data;
 
     const result = await query(
-      `INSERT INTO campaigns (
-        salon_id, name, type, subject, content, target_audience, status, scheduled_at, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [id, name, type, subject || null, content, targetAudience, status, scheduledAt || null]
+      `INSERT INTO campaigns 
+         (salon_id, name, type, subject, content, target_audience, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'draft', NOW())`,
+      [salonId, name, type, subject || null, content, targetAudience]
     );
 
     return created({
       id: result.insertId,
+      salonId: Number(salonId),
       name,
       type,
-      status,
+      subject,
+      targetAudience,
+      status: 'draft'
     });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();

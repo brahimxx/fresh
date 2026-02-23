@@ -97,6 +97,8 @@ export const createBookingSchema = z.object({
     .max(1000, "Notes must be less than 1000 characters")
     .optional(),
   source: z.enum(["marketplace", "direct", "widget"]).default("marketplace"),
+  discountCode: z.string().max(50).optional().nullable(),
+  giftCardCode: z.string().max(50).optional().nullable(),
 });
 
 export const rescheduleBookingSchema = z.object({
@@ -126,6 +128,13 @@ export const createSalonSchema = z.object({
 });
 
 export const updateSalonSchema = createSalonSchema.partial();
+
+export const updateSalonStatusSchema = z.object({
+  isActive: z.boolean({
+    required_error: "isActive flag is required",
+    invalid_type_error: "isActive must be a boolean",
+  }),
+});
 
 export const salonSettingsSchema = z.object({
   cancellationPolicyHours: z.number().int().min(0).max(168).optional(),
@@ -235,6 +244,18 @@ export const createDiscountSchema = z.object({
 });
 
 // ============================================================
+// Campaign Schemas
+// ============================================================
+
+export const createCampaignSchema = z.object({
+  name: z.string().min(1, "Campaign name is required").max(255),
+  type: z.enum(["email", "sms", "push"]).default("email"),
+  subject: z.string().max(255).optional(),
+  content: z.string().min(1, "Campaign content is required"),
+  targetAudience: z.enum(["all", "new", "returning", "inactive"]).default("all"),
+});
+
+// ============================================================
 // Review Schemas
 // ============================================================
 
@@ -243,6 +264,10 @@ export const createReviewSchema = z.object({
   bookingId: idSchema.optional(),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(2000).optional(),
+});
+
+export const replyReviewSchema = z.object({
+  reply: z.string().min(1, "Reply cannot be empty").max(2000),
 });
 
 export const updateReviewSchema = z.object({

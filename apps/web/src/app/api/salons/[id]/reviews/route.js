@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { validate, createReviewSchema } from '@/lib/validate';
 
 // GET /api/salons/[id]/reviews - Get salon reviews (public)
 export async function GET(request, { params }) {
@@ -60,39 +61,56 @@ export async function POST(request, { params }) {
     const { id } = await params;
 
     const body = await request.json();
-    const { rating, comment } = body;
+    body.salonId = Number(id); // Inject salonId from URL path
+    const validation = validate(createReviewSchema, body);
 
-    if (!rating || rating < 1 || rating > 5) {
-      return error('Rating must be between 1 and 5');
+    if (!validation.success) {
+      return error({ code: "VALIDATION_ERROR", message: validation.errors }, 400);
     }
+
+    const { rating, comment, bookingId } = validation.data;
 
     // Check if client has completed a booking at this salon
-    const completedBooking = await getOne(
-      "SELECT id FROM bookings WHERE salon_id = ? AND client_id = ? AND status = 'completed'",
-      [id, session.userId]
-    );
-
-    if (!completedBooking) {
-      return forbidden('You can only review salons where you have completed a booking');
+    let completedBooking;
+    
+    if (bookingId) {
+      completedBooking = await getOne(
+        "SELECT id FROM bookings WHERE id = ? AND salon_id = ? AND client_id = ? AND status = 'completed'",
+        [bookingId, id, session.userId]
+      );
+      if (!completedBooking) {
+        return forbidden('The specified booking does not exist, is not completed, or belongs to another user.');
+      }
+    } else {
+      completedBooking = await getOne(
+        "SELECT id FROM bookings WHERE salon_id = ? AND client_id = ? AND status = 'completed' ORDER BY start_datetime DESC LIMIT 1",
+        [id, session.userId]
+      );
+      if (!completedBooking) {
+        return forbidden('You can only review salons where you have completed a booking.');
+      }
     }
 
-    // Check if already reviewed
+    const linkedBookingId = bookingId || completedBooking.id;
+
+    // Check if already reviewed for this specific booking
     const existingReview = await getOne(
-      'SELECT id FROM reviews WHERE salon_id = ? AND client_id = ?',
-      [id, session.userId]
+      'SELECT id FROM reviews WHERE salon_id = ? AND client_id = ? AND booking_id = ?',
+      [id, session.userId, linkedBookingId]
     );
 
     if (existingReview) {
-      return error('You have already reviewed this salon', 409);
+      return error('You have already reviewed this booking', 409);
     }
 
     const result = await query(
-      'INSERT INTO reviews (salon_id, client_id, rating, comment, created_at) VALUES (?, ?, ?, ?, NOW())',
-      [id, session.userId, rating, comment || null]
+      'INSERT INTO reviews (salon_id, client_id, booking_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+      [id, session.userId, linkedBookingId, rating, comment || null]
     );
 
     return created({
       id: result.insertId,
+      bookingId: linkedBookingId,
       rating,
       comment,
     });

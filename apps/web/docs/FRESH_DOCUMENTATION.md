@@ -81,6 +81,7 @@
 4. **Notes:** Per-salon notes live in `salon_clients.notes`, not in `users`.
 
 **Dedup guarantees:**
+
 - Same phone + concurrent POST → second request blocks on `FOR UPDATE` lock, reuses existing row.
 - Hard duplicate impossible: no route other than `lib/client.js` may INSERT into `users`.
 - Soft-deleted client re-books → `is_active = 1` set automatically in the same upsert.
@@ -154,22 +155,22 @@
 
 All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 
-| Domain          | Key Endpoints                               | Notes                                                                                                                      |
-| :-------------- | :------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------- |
-| **Auth**        | `/auth/{login,register,me,logout}`          | `register` supports `type=professional` param.                                                                             |
-| **Salons**      | `/salons/[id]/{settings,hours,photos}`      | Includes soft delete via DELETE. Supports `?force=true` param.                                                             |
-| **Bookings**    | `/salons/[id]/bookings/[id]`                | Supports `reschedule`, `confirm`. Status: `pending, confirmed, completed, cancelled, no_show`. Permanent delete available. |
-| **Clients**     | `/api/clients` (POST, GET)                  | Create/find client via `findOrCreateClient()`. Smart search: phone→`idx_users_phone`, email→`uq_users_email`, name→prefix LIKE. |
-| **Client**      | `/api/clients/[id]` (GET, PUT, DELETE)      | GET: profile + salon stats. PUT: explicit-presence fields only, phone/email conflict checks (409). DELETE: soft-delete (`is_active=0`). |
-| **Client History** | `/api/clients/[id]/bookings?salonId=`    | Paginated booking history with services and staff names. `COUNT(*) OVER()` single round-trip.                              |
-| **CRM List**    | `/api/salons/[id]/clients`                  | Active clients only (`is_active=1`). Any active staff may access (manager AND receptionist).                               |
-| **Staff**       | `/salons/[id]/staff/{availability}`         | Manages profiles and working shifts.                                                                                       |
-| **Services**    | `/salons/[id]/services`                     | Grouped by Categories (`/api/categories`).                                                                                 |
-| **Payments**    | `/salons/[id]/payments`                     | Includes refunds and product sales.                                                                                        |
-| **Marketing**   | `/salons/[id]/{discounts,gift-cards}`       | Also `campaigns` (Email/SMS) and `waitlist`.                                                                               |
-| **Widget**      | `/widget/[salonId]/{services,availability}` | **Public access**. Optimized for read-only wizard. Services return `availableStaff` array.                                 |
-| **Marketplace** | `/marketplace/{salons,featured}`            | **Public access**. Search-optimized queries.                                                                               |
-| **Admin**       | `/admin/{users,salons,stats}`               | Platform-wide management.                                                                                                  |
+| Domain             | Key Endpoints                               | Notes                                                                                                                                   |
+| :----------------- | :------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth**           | `/auth/{login,register,me,logout}`          | `register` supports `type=professional` param.                                                                                          |
+| **Salons**         | `/salons/[id]/{settings,hours,photos}`      | Includes soft delete via DELETE. Supports `?force=true` param.                                                                          |
+| **Bookings**       | `/salons/[id]/bookings/[id]`                | Supports `reschedule`, `confirm`. Status: `pending, confirmed, completed, cancelled, no_show`. Permanent delete available.              |
+| **Clients**        | `/api/clients` (POST, GET)                  | Create/find client via `findOrCreateClient()`. Smart search: phone→`idx_users_phone`, email→`uq_users_email`, name→prefix LIKE.         |
+| **Client**         | `/api/clients/[id]` (GET, PUT, DELETE)      | GET: profile + salon stats. PUT: explicit-presence fields only, phone/email conflict checks (409). DELETE: soft-delete (`is_active=0`). |
+| **Client History** | `/api/clients/[id]/bookings?salonId=`       | Paginated booking history with services and staff names. `COUNT(*) OVER()` single round-trip.                                           |
+| **CRM List**       | `/api/salons/[id]/clients`                  | Active clients only (`is_active=1`). Any active staff may access (manager AND receptionist).                                            |
+| **Staff**          | `/salons/[id]/staff/{availability}`         | Manages profiles and working shifts.                                                                                                    |
+| **Services**       | `/salons/[id]/services`                     | Grouped by Categories (`/api/categories`).                                                                                              |
+| **Payments**       | `/salons/[id]/payments`                     | Includes refunds and product sales.                                                                                                     |
+| **Marketing**      | `/salons/[id]/{discounts,gift-cards}`       | Also `campaigns` (Email/SMS) and `waitlist`.                                                                                            |
+| **Widget**         | `/widget/[salonId]/{services,availability}` | **Public access**. Optimized for read-only wizard. Services return `availableStaff` array.                                              |
+| **Marketplace**    | `/marketplace/{salons,featured}`            | **Public access**. Search-optimized queries.                                                                                            |
+| **Admin**          | `/admin/{users,salons,stats}`               | Platform-wide management.                                                                                                               |
 
 ---
 
@@ -191,26 +192,26 @@ All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 
 ### Soft Delete Fields
 
-| Table          | Soft Delete Column         | Added       |
-| -------------- | -------------------------- | ----------- |
-| salons         | `deleted_at`, `deleted_by` | Feb 19 2026 |
-| bookings       | `deleted_at`               | Jan 2026    |
-| services       | `deleted_at`               | Jan 2026    |
-| products       | `deleted_at`               | Jan 2026    |
-| salon_clients  | `is_active` (0 = removed)  | Feb 22 2026 |
+| Table         | Soft Delete Column         | Added       |
+| ------------- | -------------------------- | ----------- |
+| salons        | `deleted_at`, `deleted_by` | Feb 19 2026 |
+| bookings      | `deleted_at`               | Jan 2026    |
+| services      | `deleted_at`               | Jan 2026    |
+| products      | `deleted_at`               | Jan 2026    |
+| salon_clients | `is_active` (0 = removed)  | Feb 22 2026 |
 
 > `salon_clients` uses `is_active` instead of `deleted_at` because the row must be re-activated (not re-inserted) when a removed client returns. `ON DUPLICATE KEY UPDATE is_active = 1` in a single upsert covers both the new-client and returning-client paths.
 
 ### Migrations History
 
-| Date       | Migration                                      | Description                         |
-| ---------- | ---------------------------------------------- | ------------------------------------ |
-| 2026-01-20 | `20260120_add_performance_indexes.sql`         | Performance indexes                  |
-| 2026-01-21 | `20260121_add_default_working_hours.sql`       | Default staff hours                  |
-| 2026-01-21 | `20260121_add_staff_to_booking_services.sql`   | Per-service staff assignment         |
-| 2026-02-19 | `20260219_add_salon_soft_delete.sql`           | Salon soft delete support            |
-| 2026-02-22 | `20260222_add_client_search_indexes.sql`       | Client search indexes (phone, name)  |
-| 2026-02-22 | `20260222_add_salon_clients_soft_delete.sql`   | `is_active` + `updated_at` + index   |
+| Date       | Migration                                    | Description                         |
+| ---------- | -------------------------------------------- | ----------------------------------- |
+| 2026-01-20 | `20260120_add_performance_indexes.sql`       | Performance indexes                 |
+| 2026-01-21 | `20260121_add_default_working_hours.sql`     | Default staff hours                 |
+| 2026-01-21 | `20260121_add_staff_to_booking_services.sql` | Per-service staff assignment        |
+| 2026-02-19 | `20260219_add_salon_soft_delete.sql`         | Salon soft delete support           |
+| 2026-02-22 | `20260222_add_client_search_indexes.sql`     | Client search indexes (phone, name) |
+| 2026-02-22 | `20260222_add_salon_clients_soft_delete.sql` | `is_active` + `updated_at` + index  |
 
 ### Data Management
 
@@ -321,12 +322,14 @@ Also exports: `normalizePhone(raw)` (strips spaces/dashes/dots), `ClientError` (
 #### API Endpoints
 
 **`POST /api/clients`**
+
 - Validates: `salonId`, `firstName`, at least one of `phone` / `email`.
 - Delegates entirely to `findOrCreateClient()`. Route has zero INSERT logic.
 - Accepts camelCase and snake_case field names.
 - Response includes `isNew` and `isNewToSalon` flags.
 
 **`GET /api/clients?salonId=&search=&page=&limit=`**
+
 - Smart driving-table strategy based on input type:
   - **Phone** (`/^[\d\s+\-.]+$/`) → drives `FROM users`, hits `idx_users_phone`
   - **Email** (contains `@`) → drives `FROM users`, hits `uq_users_email`
@@ -336,19 +339,23 @@ Also exports: `normalizePhone(raw)` (strips spaces/dashes/dots), `ClientError` (
 - Limit capped at 50. `is_active = 1` filter on all paths.
 
 **`GET /api/clients/[id]?salonId=`**
+
 - Returns user profile + `salonStats` (first visit, last visit, total visits).
 
 **`PUT /api/clients/[id]`**
+
 - Explicit-presence semantics: only fields sent are updated (missing fields untouched).
 - Phone/email conflict checks inside `FOR UPDATE` transaction → 409 `PHONE_TAKEN` / `EMAIL_TAKEN`.
 - Notes live in `salon_clients` (per-salon), not in `users`.
 
 **`DELETE /api/clients/[id]?salonId=`**
+
 - **Never hard-deletes.** Sets `salon_clients.is_active = 0`.
 - `users` row and all `bookings` rows untouched — history preserved.
 - Re-booking the same client auto-sets `is_active = 1` via upsert.
 
 **`GET /api/clients/[id]/bookings?salonId=`**
+
 - Paginated booking history: two-query strategy (bookings with window count + services batch IN()).
 
 #### Access Control
@@ -357,23 +364,23 @@ All client endpoints accept **any active staff member** (manager or receptionist
 
 #### Duplicate Prevention — Guarantee Map
 
-| Scenario | Mechanism |
-|---|---|
-| Same phone, concurrent POST | `SELECT … FOR UPDATE` serialises — second request blocks, reuses winner row |
-| Same email, no phone, concurrent POST | `FOR UPDATE` + `ER_DUP_ENTRY` catch + re-SELECT |
-| Staff writes own INSERT | `pool` not exported to route files — only `lib/client.js` holds it |
-| Duplicate `salon_clients` row | `PRIMARY KEY (salon_id, client_id)` + `ON DUPLICATE KEY UPDATE` |
-| Removed client returns | `is_active = 1` in every upsert — re-activated automatically |
+| Scenario                              | Mechanism                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| Same phone, concurrent POST           | `SELECT … FOR UPDATE` serialises — second request blocks, reuses winner row |
+| Same email, no phone, concurrent POST | `FOR UPDATE` + `ER_DUP_ENTRY` catch + re-SELECT                             |
+| Staff writes own INSERT               | `pool` not exported to route files — only `lib/client.js` holds it          |
+| Duplicate `salon_clients` row         | `PRIMARY KEY (salon_id, client_id)` + `ON DUPLICATE KEY UPDATE`             |
+| Removed client returns                | `is_active = 1` in every upsert — re-activated automatically                |
 
 #### Indexes Added (Migration `20260222_add_client_search_indexes.sql`)
 
-| Index | Table | Used by |
-|---|---|---|
-| `idx_users_phone` | users | Phone search fast path |
-| `idx_users_first_name` | users | Name search |
-| `idx_users_last_name` | users | Name search |
-| `idx_bookings_client_salon_start` | bookings | Client booking history |
-| `idx_salon_clients_active` | salon_clients | CRM list + name search driving table |
+| Index                             | Table         | Used by                              |
+| --------------------------------- | ------------- | ------------------------------------ |
+| `idx_users_phone`                 | users         | Phone search fast path               |
+| `idx_users_first_name`            | users         | Name search                          |
+| `idx_users_last_name`             | users         | Name search                          |
+| `idx_bookings_client_salon_start` | bookings      | Client booking history               |
+| `idx_salon_clients_active`        | salon_clients | CRM list + name search driving table |
 
 ---
 
@@ -468,6 +475,16 @@ All client endpoints accept **any active staff member** (manager or receptionist
 ---
 
 ## J) Changelog
+
+### February 23, 2026
+
+- ✅ `GET /api/marketplace/salons` — finalized `searchSalons()` (Level 4 Step 7)
+  - Added `total` count via subquery for proper pagination
+  - Implemented `openNow` filter using `business_hours` table (day_of_week + time range)
+  - Explicit field mapping in response (no spread of raw DB row)
+  - Response shape: `{ data[], total, limit, offset, hasMore }`
+  - All 4 safety gates hardcoded: `status='active'`, `is_active=1`, `deleted_at IS NULL`, `is_marketplace_enabled=1`
+  - N+1 eliminated: services preview inlined via `GROUP_CONCAT`
 
 ### February 22, 2026
 

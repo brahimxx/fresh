@@ -1,36 +1,40 @@
+import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { success, error } from '@/lib/response';
+import { error } from '@/lib/response';
 
-// GET /api/marketplace/salons - Search and list salons
+// GET /api/marketplace/salons
+// Query params: q, city, location, categories, price_level, minRating, openNow, sort, limit, offset
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const q = searchParams.get('q') || '';
-    const city = searchParams.get('city') || '';          // exact city match
-    const location = searchParams.get('location') || '';  // fuzzy city/state/postal
-    const categories = searchParams.get('categories')?.split(',').filter(Boolean) || [];
-    const maxPrice = parseInt(searchParams.get('price_level')) || 0;  // price_level <= ?
-    const price = searchParams.get('price')?.split(',').filter(Boolean) || [];  // legacy multi-select
-    const minRating = searchParams.get('minRating');
-    const openNow = searchParams.get('openNow') === 'true';
-    const sort = searchParams.get('sort') || 'recommended';
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
-    const offset = Math.max(0, parseInt(searchParams.get('offset')) || 0);
+    const q           = searchParams.get('q') || '';
+    const city        = searchParams.get('city') || '';
+    const location    = searchParams.get('location') || '';
+    const categories  = searchParams.get('categories')?.split(',').filter(Boolean) || [];
+    const maxPrice    = parseInt(searchParams.get('price_level')) || 0;
+    const minRating   = parseFloat(searchParams.get('minRating')) || 0;
+    const openNow     = searchParams.get('openNow') === 'true';
+    const sort        = searchParams.get('sort') || 'recommended';
+    const limit       = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
+    const offset      = Math.max(0, parseInt(searchParams.get('offset')) || 0);
 
+    // ── Base query ──────────────────────────────────────────────────────────
+    // Safety gates are hardcoded — cannot be bypassed via query params.
+    // Services preview is inlined via GROUP_CONCAT to avoid N+1.
     let sql = `
-      SELECT 
+      SELECT
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
         s.address, s.city, s.state, s.postal_code,
         s.phone, s.website, s.price_level, s.category,
-        AVG(r.rating) as rating,
-        COUNT(DISTINCT r.id) as review_count,
+        AVG(r.rating)        AS rating,
+        COUNT(DISTINCT r.id) AS review_count,
         svc.services_preview
       FROM salons s
       LEFT JOIN reviews r ON r.salon_id = s.id AND r.status = 'approved'
       LEFT JOIN (
         SELECT salon_id,
-          GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as services_preview
+          GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') AS services_preview
         FROM services
         WHERE is_active = 1 AND deleted_at IS NULL
         GROUP BY salon_id
@@ -43,57 +47,63 @@ export async function GET(request) {
 
     const params = [];
 
-    // Search query
+    // ── Optional filters ────────────────────────────────────────────────────
+
     if (q) {
       sql += ` AND (s.name LIKE ? OR s.description LIKE ? OR EXISTS (
-        SELECT 1 FROM services sv WHERE sv.salon_id = s.id AND sv.name LIKE ?
+        SELECT 1 FROM services sv
+        WHERE sv.salon_id = s.id AND sv.name LIKE ? AND sv.is_active = 1 AND sv.deleted_at IS NULL
       ))`;
-      const searchTerm = '%' + q + '%';
-      params.push(searchTerm, searchTerm, searchTerm);
+      const term = '%' + q + '%';
+      params.push(term, term, term);
     }
 
-    // City exact match (Step 2 primary filter)
     if (city) {
       sql += ` AND s.city = ?`;
       params.push(city);
     }
 
-    // Location fuzzy search (city/state/postal — broader fallback)
     if (location) {
       sql += ` AND (s.city LIKE ? OR s.state LIKE ? OR s.postal_code LIKE ?)`;
-      const locationTerm = '%' + location + '%';
-      params.push(locationTerm, locationTerm, locationTerm);
+      const term = '%' + location + '%';
+      params.push(term, term, term);
     }
 
-    // Category filter
     if (categories.length > 0) {
       sql += ` AND s.category IN (${categories.map(() => '?').join(',')})`;
       params.push(...categories);
     }
 
-    // Price level filter: price_level <= ? (up to max budget)
     if (maxPrice > 0) {
       sql += ` AND s.price_level <= ?`;
       params.push(maxPrice);
-    } else if (price.length > 0) {
-      // Legacy multi-select fallback if price_level param not used
-      const priceLevels = price.map(p => parseInt(p)).filter(p => !isNaN(p));
-      if (priceLevels.length > 0) {
-        sql += ` AND s.price_level IN (${priceLevels.map(() => '?').join(',')})`;
-        params.push(...priceLevels);
-      }
     }
 
-    // Group by before having clause
+    // openNow: filter salons open at the current server time
+    if (openNow) {
+      const now = new Date();
+      // day_of_week: 0=Sunday … 6=Saturday (matches JS Date.getDay())
+      const dayOfWeek  = now.getDay();
+      const timeString = now.toTimeString().slice(0, 8); // 'HH:MM:SS'
+      sql += ` AND EXISTS (
+        SELECT 1 FROM business_hours bh
+        WHERE bh.salon_id = s.id
+          AND bh.day_of_week = ?
+          AND bh.is_closed = 0
+          AND bh.open_time  <= ?
+          AND bh.close_time >  ?
+      )`;
+      params.push(dayOfWeek, timeString, timeString);
+    }
+
     sql += ` GROUP BY s.id`;
 
-    // Min rating filter (after group by - use AVG() in HAVING)
-    if (minRating) {
+    if (minRating > 0) {
       sql += ` HAVING AVG(r.rating) >= ?`;
-      params.push(parseFloat(minRating));
+      params.push(minRating);
     }
 
-    // Sorting
+    // ── Sorting ─────────────────────────────────────────────────────────────
     switch (sort) {
       case 'rating':
         sql += ` ORDER BY AVG(r.rating) DESC`;
@@ -111,26 +121,55 @@ export async function GET(request) {
         sql += ` ORDER BY s.name ASC`;
         break;
       default:
-        // Recommended: mix of rating and reviews
+        // Weighted score: rating carries 70 %, review volume (capped at 100) carries 30 %
         sql += ` ORDER BY (COALESCE(AVG(r.rating), 0) * 0.7 + LEAST(COUNT(DISTINCT r.id), 100) * 0.3) DESC`;
     }
+
+    // ── Pagination ───────────────────────────────────────────────────────────
+    // Run count query first (same filters, no ORDER BY / LIMIT)
+    const countSql    = `SELECT COUNT(*) AS total FROM (${sql}) AS _sub`;
+    const countParams = [...params];
 
     sql += ` LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    const salons = await query(sql, params);
+    const [countRows, salons] = await Promise.all([
+      query(countSql, countParams),
+      query(sql, params),
+    ]);
 
-    // Service previews are now inlined via GROUP_CONCAT — no N+1 queries
+    const total = parseInt(countRows[0]?.total) || 0;
+
+    // ── Shape response ───────────────────────────────────────────────────────
     const results = salons.map(salon => ({
-      ...salon,
-      rating: salon.rating ? parseFloat(salon.rating) : null,
-      review_count: parseInt(salon.review_count) || 0,
+      id:               salon.id,
+      name:             salon.name,
+      description:      salon.description,
+      logo_url:         salon.logo_url,
+      cover_image_url:  salon.cover_image_url,
+      address:          salon.address,
+      city:             salon.city,
+      state:            salon.state,
+      postal_code:      salon.postal_code,
+      phone:            salon.phone,
+      website:          salon.website,
+      price_level:      salon.price_level,
+      category:         salon.category,
+      rating:           salon.rating ? parseFloat(parseFloat(salon.rating).toFixed(1)) : null,
+      review_count:     parseInt(salon.review_count) || 0,
       services_preview: salon.services_preview
         ? salon.services_preview.split(', ').slice(0, 5)
-        : []
+        : [],
     }));
 
-    return success(results);
+    return NextResponse.json({
+      success: true,
+      data:    results,
+      total,
+      limit,
+      offset,
+      hasMore: offset + results.length < total,
+    });
 
   } catch (err) {
     console.error('Marketplace salons error:', err);

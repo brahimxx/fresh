@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
+import { sendNotification } from '@/lib/notifications';
 
 // Helper to check booking access
 async function checkBookingAccess(bookingId, userId, role) {
@@ -209,6 +210,21 @@ export async function PUT(request, { params }) {
 
     const updatedBooking = await getOne('SELECT * FROM bookings WHERE id = ?', [id]);
 
+    // Send Cancellation Notification if status changed to cancelled
+    if (status === 'cancelled') {
+        const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
+        if (client) {
+            sendNotification({
+                userId: client.id,
+                email: client.email,
+                type: 'email',
+                title: 'Booking Cancelled',
+                message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking for ${new Date(booking.start_datetime).toLocaleString()} has been cancelled.</p>`,
+                data: { bookingId: id, status: 'cancelled' }
+            });
+        }
+    }
+
     return success({
       id: updatedBooking.id,
       staffId: updatedBooking.staff_id,
@@ -263,6 +279,19 @@ export async function DELETE(request, { params }) {
     updateParams.push(id, booking.salon_id);
 
     await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`, updateParams);
+
+    // Send Cancellation Notification
+    const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
+    if (client) {
+        sendNotification({
+            userId: client.id,
+            email: client.email,
+            type: 'email',
+            title: 'Booking Cancelled',
+            message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking for ${new Date(booking.start_datetime).toLocaleString()} has been cancelled.</p>`,
+            data: { bookingId: id, status: 'cancelled' }
+        });
+    }
 
     return success({ message: 'Booking cancelled successfully' });
   } catch (err) {

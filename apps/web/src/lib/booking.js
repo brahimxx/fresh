@@ -75,6 +75,8 @@ export async function createSafeBooking({
   status = "confirmed",
   source = "direct",
   isMarketplaceEnabled = false,
+  discountCode = null,
+  giftCardCode = null,
 }) {
   // ── Step 1: Input validation ──────────────────────────────────────────────
 
@@ -357,6 +359,76 @@ export async function createSafeBooking({
     }
 
     // ── Step 5: Working hours already validated pre-transaction (Step 2) ──
+    
+    // ── Step 5.5: Discounts & Gift Cards (locked read & atomic update) ──
+    let amountSaved = 0;
+    let appliedDiscount = null;
+
+    if (discountCode) {
+      const [discountRows] = await conn.execute(
+        `SELECT id, type, value, min_purchase, max_discount, max_uses, current_uses
+           FROM discounts
+          WHERE salon_id = ?
+            AND code = ?
+            AND is_active = 1
+            AND (start_date IS NULL OR start_date <= CURDATE())
+            AND (end_date IS NULL OR end_date >= CURDATE())
+          FOR UPDATE`,
+        [salonId, discountCode]
+      );
+
+      appliedDiscount = discountRows[0];
+      if (!appliedDiscount) {
+        throw new BookingError("INVALID_DISCOUNT", "The provided discount code is invalid or expired", 400);
+      }
+
+      if (appliedDiscount.max_uses && appliedDiscount.current_uses >= appliedDiscount.max_uses) {
+        throw new BookingError("DISCOUNT_LIMIT_REACHED", "This discount code has reached its maximum usage limit", 400);
+      }
+
+      const minPurchase = parseFloat(appliedDiscount.min_purchase || 0);
+      if (minPurchase > 0 && totalPrice < minPurchase) {
+        throw new BookingError("DISCOUNT_MIN_PURCHASE", `Minimum purchase of ${minPurchase} required to use this code`, 400);
+      }
+
+      if (appliedDiscount.type === 'fixed') {
+        amountSaved = Math.min(parseFloat(appliedDiscount.value), totalPrice);
+      } else {
+        amountSaved = totalPrice * (parseFloat(appliedDiscount.value) / 100);
+      }
+
+      const maxDiscount = parseFloat(appliedDiscount.max_discount || 0);
+      if (maxDiscount > 0 && amountSaved > maxDiscount) {
+        amountSaved = maxDiscount;
+      }
+    }
+
+    let giftCardAmountUsed = 0;
+    let appliedGiftCard = null;
+    const totalAfterDiscount = totalPrice - amountSaved;
+
+    if (giftCardCode && totalAfterDiscount > 0) {
+      const [gcRows] = await conn.execute(
+        `SELECT id, remaining_balance
+           FROM gift_cards
+          WHERE code = ?
+            AND status = 'active'
+            AND remaining_balance > 0
+            AND (expires_at IS NULL OR expires_at > NOW())
+          FOR UPDATE`,
+        [giftCardCode]
+      );
+
+      appliedGiftCard = gcRows[0];
+      if (!appliedGiftCard) {
+        throw new BookingError("INVALID_GIFT_CARD", "The provided gift card is invalid, expired, or depleted", 400);
+      }
+
+      const balance = parseFloat(appliedGiftCard.remaining_balance);
+      giftCardAmountUsed = Math.min(balance, totalAfterDiscount);
+    }
+    
+    const finalAmountDue = Math.max(0, totalAfterDiscount - giftCardAmountUsed);
 
     // ── Step 6: Insert booking row ────────────────────────────────────────
 
@@ -387,6 +459,39 @@ export async function createSafeBooking({
       bsRows.flat(),
     );
 
+    // Insert discount record and update usage
+    if (appliedDiscount) {
+      await conn.execute(
+        `INSERT INTO booking_discounts
+           (booking_id, discount_id, discount_code, discount_type, discount_value, amount_saved)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [bookingId, appliedDiscount.id, discountCode, appliedDiscount.type, appliedDiscount.value, amountSaved.toFixed(2)]
+      );
+
+      await conn.execute(
+        `UPDATE discounts SET current_uses = current_uses + 1 WHERE id = ?`,
+        [appliedDiscount.id]
+      );
+    }
+
+    // Insert gift card record and update balance
+    if (appliedGiftCard) {
+      await conn.execute(
+        `INSERT INTO booking_gift_cards
+           (booking_id, gift_card_id, amount_used)
+         VALUES (?, ?, ?)`,
+        [bookingId, appliedGiftCard.id, giftCardAmountUsed.toFixed(2)]
+      );
+
+      await conn.execute(
+        `UPDATE gift_cards
+            SET remaining_balance = remaining_balance - ?,
+                status = CASE WHEN remaining_balance - ? <= 0 THEN 'used' ELSE status END
+          WHERE id = ?`,
+        [giftCardAmountUsed.toFixed(2), giftCardAmountUsed.toFixed(2), appliedGiftCard.id]
+      );
+    }
+
     // Upsert salon_clients atomically — eliminates the SELECT + branch:
     //   affectedRows = 1 → new row inserted (new client)
     //   affectedRows = 2 → duplicate key, existing row updated
@@ -416,7 +521,15 @@ export async function createSafeBooking({
     // ── Step 7: Commit ────────────────────────────────────────────────────
     await conn.commit();
 
-    return { bookingId, totalPrice, totalDuration, isNewClient };
+    return { 
+      bookingId, 
+      totalPrice, 
+      totalDuration, 
+      isNewClient,
+      discountAmount: amountSaved,
+      giftCardAmountUsed,
+      finalAmountDue
+    };
   } catch (err) {
     // Always rollback on ANY error — BookingError (expected) or DB error (unexpected).
     // This guarantees the transaction is never left open.
