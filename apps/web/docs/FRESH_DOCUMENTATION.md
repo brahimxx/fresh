@@ -1,6 +1,6 @@
 # Fresh Salon Platform - Complete Documentation
 
-**Last Updated:** February 22, 2026
+**Last Updated:** February 23, 2026
 
 ---
 
@@ -126,7 +126,7 @@
   - `src/app/(public)`: Marketplace & Widget pages.
   - `src/app/dashboard`: Protected backoffice routes.
   - `src/components`: Grouped by domain (`bookings`, `calendar`, `marketing`, etc.).
-  - `src/lib`: Core utilities (`api-client.js`, `db.js`, `format.js`, `validate.js`, `rate-limit.js`).
+  - `src/lib`: Core utilities (`api-client.js`, `db.js`, `format.js`, `validate.js`, `rate-limit.js`, `notifications.js`, `checkout.js`).
 - **State Management:**
   - **Server State:** TanStack Query (auto-caching, invalidation).
   - **Form State:** React Hook Form + Zod validation.
@@ -155,22 +155,26 @@
 
 All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 
-| Domain             | Key Endpoints                               | Notes                                                                                                                                   |
-| :----------------- | :------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Auth**           | `/auth/{login,register,me,logout}`          | `register` supports `type=professional` param.                                                                                          |
-| **Salons**         | `/salons/[id]/{settings,hours,photos}`      | Includes soft delete via DELETE. Supports `?force=true` param.                                                                          |
-| **Bookings**       | `/salons/[id]/bookings/[id]`                | Supports `reschedule`, `confirm`. Status: `pending, confirmed, completed, cancelled, no_show`. Permanent delete available.              |
-| **Clients**        | `/api/clients` (POST, GET)                  | Create/find client via `findOrCreateClient()`. Smart search: phone→`idx_users_phone`, email→`uq_users_email`, name→prefix LIKE.         |
-| **Client**         | `/api/clients/[id]` (GET, PUT, DELETE)      | GET: profile + salon stats. PUT: explicit-presence fields only, phone/email conflict checks (409). DELETE: soft-delete (`is_active=0`). |
-| **Client History** | `/api/clients/[id]/bookings?salonId=`       | Paginated booking history with services and staff names. `COUNT(*) OVER()` single round-trip.                                           |
-| **CRM List**       | `/api/salons/[id]/clients`                  | Active clients only (`is_active=1`). Any active staff may access (manager AND receptionist).                                            |
-| **Staff**          | `/salons/[id]/staff/{availability}`         | Manages profiles and working shifts.                                                                                                    |
-| **Services**       | `/salons/[id]/services`                     | Grouped by Categories (`/api/categories`).                                                                                              |
-| **Payments**       | `/salons/[id]/payments`                     | Includes refunds and product sales.                                                                                                     |
-| **Marketing**      | `/salons/[id]/{discounts,gift-cards}`       | Also `campaigns` (Email/SMS) and `waitlist`.                                                                                            |
-| **Widget**         | `/widget/[salonId]/{services,availability}` | **Public access**. Optimized for read-only wizard. Services return `availableStaff` array.                                              |
-| **Marketplace**    | `/marketplace/{salons,featured}`            | **Public access**. Search-optimized queries.                                                                                            |
-| **Admin**          | `/admin/{users,salons,stats}`               | Platform-wide management.                                                                                                               |
+| Domain             | Key Endpoints                                    | Notes                                                                                                                                   |
+| :----------------- | :----------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth**           | `/auth/{login,register,me,logout}`               | `register` supports `type=professional` param.                                                                                          |
+| **Salons**         | `/salons/[id]/{settings,hours,photos}`           | Includes soft delete via DELETE. Supports `?force=true` param.                                                                          |
+| **Bookings**       | `/salons/[id]/bookings/[id]`                     | Supports `reschedule`, `confirm`. Status: `pending, confirmed, completed, cancelled, no_show`. Permanent delete available.              |
+| **Clients**        | `/api/clients` (POST, GET)                       | Create/find client via `findOrCreateClient()`. Smart search: phone→`idx_users_phone`, email→`uq_users_email`, name→prefix LIKE.         |
+| **Client**         | `/api/clients/[id]` (GET, PUT, DELETE)           | GET: profile + salon stats. PUT: explicit-presence fields only, phone/email conflict checks (409). DELETE: soft-delete (`is_active=0`). |
+| **Client History** | `/api/clients/[id]/bookings?salonId=`            | Paginated booking history with services and staff names. `COUNT(*) OVER()` single round-trip.                                           |
+| **CRM List**       | `/api/salons/[id]/clients`                       | Active clients only (`is_active=1`). Any active staff may access (manager AND receptionist).                                            |
+| **Staff**          | `/salons/[id]/staff/{availability}`              | Manages profiles and working shifts.                                                                                                    |
+| **Services**       | `/salons/[id]/services`                          | Grouped by Categories (`/api/categories`).                                                                                              |
+| **Payments**       | `/salons/[id]/payments`                          | Includes refunds and product sales.                                                                                                     |
+| **Checkout**       | `/bookings/[id]/{total,checkout,products}`       | Server-computed totals, transactional checkout (cash/card), add products at checkout.                                                   |
+| **Marketing**      | `/salons/[id]/{discounts,gift-cards}`            | Also `campaigns` (Email/SMS) and `waitlist`.                                                                                            |
+| **Campaigns**      | `/salons/[id]/campaigns/[id]/send`               | Create draft campaigns, blast to audience (all/new/returning/inactive).                                                                 |
+| **Notifications**  | `/cron/reminders`                                | Booking confirmations, cancellation emails, appointment reminders via Resend.                                                           |
+| **Reviews**        | `/salons/[id]/reviews/[id]/reply`                | Client reviews linked to bookings. Owner reply endpoint.                                                                                |
+| **Widget**         | `/widget/[salonId]/{services,availability}`      | **Public access**. Optimized for read-only wizard. Services return `availableStaff` array.                                              |
+| **Marketplace**    | `/marketplace/{salons,featured}`                 | **Public access**. Search-optimized queries.                                                                                            |
+| **Admin**          | `/admin/{users,salons,stats,salons/[id]/status}` | Platform-wide management. Salon activate/deactivate.                                                                                    |
 
 ---
 
@@ -486,6 +490,58 @@ All client endpoints accept **any active staff member** (manager or receptionist
   - All 4 safety gates hardcoded: `status='active'`, `is_active=1`, `deleted_at IS NULL`, `is_marketplace_enabled=1`
   - N+1 eliminated: services preview inlined via `GROUP_CONCAT`
 
+### February 23, 2026
+
+**Notifications & Email Integration**
+
+- ✅ Built `src/lib/notifications.js` — `sendNotification()` with Resend email integration + console fallback
+- ✅ Integrated booking confirmation emails into booking creation flow
+- ✅ Integrated cancellation emails into `PUT /api/bookings/[id]` (status=cancelled)
+- ✅ Created `GET /api/cron/reminders` — triggers upcoming appointment reminders (24h window)
+
+**Discounts & Gift Cards**
+
+- ✅ `GET /api/salons/[id]/discounts/[code]` — validate discount code (active dates, usage limits, min purchase)
+- ✅ `GET /api/gift-cards/[code]` — validate gift card balance
+- ✅ Updated `createSafeBooking()` in `src/lib/booking.js` to apply discounts and gift cards during booking
+- ✅ Writes to `booking_discounts`, `booking_gift_cards` tables; increments usage / decrements balance
+
+**Marketing Campaigns (MVP)**
+
+- ✅ `POST /api/salons/[id]/campaigns` — create campaign draft with Zod validation
+- ✅ `GET /api/salons/[id]/campaigns` — list campaigns with status filter
+- ✅ `POST /api/salons/[id]/campaigns/[id]/send` — blast to audience (all/new/returning/inactive via `salon_clients`)
+- ✅ Uses `sendNotification()` for dispatch, tracks `recipient_count` and `sent_count`
+
+**Reviews (MVP)**
+
+- ✅ Updated `POST /api/salons/[id]/reviews` — now links review to `booking_id`, validates completed booking ownership
+- ✅ `PATCH /api/salons/[id]/reviews/[id]/reply` — salon owner/manager reply endpoint
+- ✅ Public reviews already filtered by `status='approved'` in marketplace API
+
+**Admin Platform Controls (MVP)**
+
+- ✅ `PATCH /api/admin/salons/[salonId]/status` — activate/deactivate salons (admin-only)
+- ✅ Existing `GET /api/admin/salons` and `GET /api/admin/users` cover list + metrics
+
+**Level 2 — Money Flow (Checkout & Payment Recording)**
+
+- ✅ Built `src/lib/checkout.js` — core money logic library:
+  - `calculateBookingTotal()` — server-computed from DB (services + products − discounts − gift cards)
+  - `addProductToBooking()` — validates product, inserts at DB price, decrements stock
+  - `processCheckout()` — transactional checkout with `SELECT ... FOR UPDATE` row locking
+- ✅ `GET /api/bookings/[id]/total` — read-only total breakdown
+- ✅ `POST /api/bookings/[id]/products` — add products at checkout
+- ✅ `POST /api/bookings/[id]/checkout` — full transactional checkout (lock → validate → compute → pay → complete)
+- ✅ Strict booking status lifecycle enforced: `pending → confirmed → completed` (no backward transitions)
+- ✅ One payment per booking enforced (code + `UNIQUE(booking_id)` DB constraint)
+- ✅ All money logic uses `db.transaction()` with `ROLLBACK` on any failure
+
+**Validation Schemas Added**
+
+- ✅ `createCampaignSchema`, `replyReviewSchema`, `updateSalonStatusSchema`
+- ✅ `addBookingProductSchema`, `checkoutSchema`
+
 ### February 22, 2026
 
 - ✅ Built full client management system (`src/lib/client.js` + 4 route files)
@@ -541,11 +597,12 @@ All client endpoints accept **any active staff member** (manager or receptionist
 ## K) Known Issues & Limitations
 
 1. **Mobile App:** Planned but not implemented. Dashboard is web-responsive.
-2. **Notifications:** Email/SMS logic exists but requires valid provider credentials.
+2. **Notifications:** Email integration via Resend is implemented. Requires `RESEND_API_KEY` env var; falls back to console logging without it.
 3. **Multi-Currency:** Supported in `format.js` but UI assumes single salon currency.
 4. **Rate Limiter:** In-memory (single-server). Consider Redis for production.
-5. **Soft Delete Recovery:** No UI for restoring deleted salons (admin-only via DB).
-6. **Phone normalization:** `normalizePhone()` strips spaces/dashes/dots but does not convert local Algerian format (`0555…`) to E.164 (`+2135…`). Stored format depends on what the receptionist typed first.
+5. **Payments:** Manual cash/card recording is production-ready. Stripe online payments, partial payments, split payments, and refund flows are not yet implemented.
+6. **Soft Delete Recovery:** No UI for restoring deleted salons (admin-only via DB).
+7. **Phone normalization:** `normalizePhone()` strips spaces/dashes/dots but does not convert local Algerian format (`0555…`) to E.164 (`+2135…`). Stored format depends on what the receptionist typed first.
 
 ---
 

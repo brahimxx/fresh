@@ -396,3 +396,17 @@ export function validateShifts(shifts) {
 
   return { valid: true };
 }
+
+// ============================================================
+// Checkout Schemas
+// ============================================================
+
+export const addBookingProductSchema = z.object({
+  productId: idSchema,
+  quantity: z.number().int().min(1, "Quantity must be at least 1").max(100),
+});
+
+export const checkoutSchema = z.object({
+  method: z.enum(["cash", "card"]),
+  tipAmount: z.number().min(0).default(0),
+});
