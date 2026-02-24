@@ -26,6 +26,15 @@ export function useProducts(salonId, options) {
       if (options?.in_stock !== undefined) params.append('in_stock', options.in_stock);
       return api.get('/products?' + params.toString());
     },
+    select: function(response) {
+      // API returns { success: true, data: { data: [...] } }
+      // api.get returns the parsed JSON body
+      var d = response?.data;
+      if (Array.isArray(d)) return d;
+      if (d && Array.isArray(d.data)) return d.data;
+      if (Array.isArray(response)) return response;
+      return [];
+    },
     enabled: !!salonId,
   });
 }

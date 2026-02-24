@@ -35,14 +35,22 @@ export async function GET(request) {
     }
     const [{ total }] = await query(countSql, countParams);
 
+    // Get unread count
+    const [{ unread }] = await query(
+      'SELECT COUNT(*) as unread FROM notifications WHERE user_id = ? AND is_read = 0',
+      [session.userId]
+    );
+
     return success({
       notifications: notifications.map((n) => ({
         id: n.id,
         type: n.type,
         title: n.title,
         message: n.message,
+        isRead: !!n.is_read,
         sentAt: n.sent_at,
       })),
+      unreadCount: unread,
       pagination: {
         page,
         limit,

@@ -91,11 +91,11 @@ export default function ProductsPage({ params }) {
   
   if (stockFilter === 'low') {
     filteredProducts = filteredProducts.filter(function(p) {
-      return p.stock_quantity <= (p.low_stock_threshold || 5) && p.stock_quantity > 0;
+      return p.stockQuantity <= (p.lowStockThreshold || 5) && p.stockQuantity > 0;
     });
   } else if (stockFilter === 'out') {
     filteredProducts = filteredProducts.filter(function(p) {
-      return p.stock_quantity === 0;
+      return p.stockQuantity === 0;
     });
   }
   
@@ -130,11 +130,11 @@ export default function ProductsPage({ params }) {
   // Calculate stats
   var totalProducts = products?.length || 0;
   var lowStockCount = products?.filter(function(p) { 
-    return p.stock_quantity <= (p.low_stock_threshold || 5) && p.stock_quantity > 0; 
+    return p.stockQuantity <= (p.lowStockThreshold || 5) && p.stockQuantity > 0; 
   }).length || 0;
-  var outOfStockCount = products?.filter(function(p) { return p.stock_quantity === 0; }).length || 0;
+  var outOfStockCount = products?.filter(function(p) { return p.stockQuantity === 0; }).length || 0;
   var totalValue = products?.reduce(function(sum, p) { 
-    return sum + (Number(p.price || 0) * Number(p.stock_quantity || 0)); 
+    return sum + (Number(p.price || 0) * Number(p.stockQuantity || 0)); 
   }, 0) || 0;
   
   return (
@@ -239,7 +239,7 @@ export default function ProductsPage({ params }) {
             </TableHeader>
             <TableBody>
               {filteredProducts.map(function(product) {
-                var stockStatus = getStockStatus(product.stock_quantity, product.low_stock_threshold);
+                var stockStatus = getStockStatus(product.stockQuantity, product.lowStockThreshold);
                 
                 return (
                   <TableRow key={product.id}>
@@ -269,7 +269,7 @@ export default function ProductsPage({ params }) {
                           stockStatus.status === 'low' ? 'text-yellow-600 font-medium' :
                           ''
                         }>
-                          {product.stock_quantity}
+                          {product.stockQuantity}
                         </span>
                         <Button
                           variant="ghost"

@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Search, ChevronDown, Building2, Check } from "lucide-react";
+import { Search, ChevronDown, Building2, Check } from "lucide-react";
+import { NotificationPopover } from "@/components/layout/notification-popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -95,10 +96,7 @@ export function Header() {
         <ThemeToggle />
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full" />
-        </Button>
+        <NotificationPopover />
 
         {/* User Menu */}
         <DropdownMenu>
@@ -127,10 +125,10 @@ export function Header() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/account">Account Settings</Link>
+              <Link href={salonId ? `/dashboard/salon/${salonId}/settings/account` : '/dashboard/settings'}>Account Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/account/password">Change Password</Link>
+              <Link href="/dashboard/settings">Change Password</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive">

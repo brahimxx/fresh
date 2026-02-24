@@ -57,13 +57,13 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-border">
-        <Link href={basePath || '/'} className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+      <div className="flex items-center h-16 px-4 border-b border-border/50">
+        <Link href={basePath || '/'} className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-primary/20">
             <span className="text-primary-foreground font-bold text-lg">F</span>
           </div>
           {!collapsed && (
-            <span className="font-semibold text-xl">Fresh</span>
+            <span className="font-semibold text-xl tracking-tight">Fresh</span>
           )}
         </Link>
       </div>
@@ -105,7 +105,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-2 space-y-1">
+      <div className="border-t border-border/50 p-2 space-y-1">
         <Button
           variant="ghost"
           size="sm"

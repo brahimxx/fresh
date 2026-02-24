@@ -135,7 +135,7 @@ function RegisterForm() {
   if (!isMounted) return null;
 
   return (
-    <Card className={isProfessionalPath ? "border-accent shadow-accent/5 shadow-2xl" : "shadow-xl"}>
+    <Card className={isProfessionalPath ? "border-accent shadow-accent/5 shadow-2xl" : "shadow-xl border-border/50"}>
       <CardHeader className="space-y-1">
         {isProfessionalPath && (
           <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mb-2 mx-auto">
@@ -298,7 +298,7 @@ function RegisterForm() {
         <CardFooter className="flex flex-col gap-4">
           <Button
             type="submit"
-            className={`w-full h-11 ${isProfessionalPath ? "bg-accent hover:bg-accent/90 text-accent-foreground font-bold" : ""}`}
+            className={`w-full h-11 font-medium ${isProfessionalPath ? "bg-accent hover:bg-accent/90 text-accent-foreground font-bold" : ""}`}
             disabled={isLoading}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

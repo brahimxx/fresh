@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { User, Lock, Mail, Phone, Bell, Shield } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -49,6 +49,8 @@ export default function AccountPage() {
   var updateAccount = useUpdateUserAccount();
   var changePassword = useChangePassword();
   
+  var initialized = useRef(false);
+  
   var [profile, setProfile] = useState({
     first_name: '',
     last_name: '',
@@ -71,7 +73,8 @@ export default function AccountPage() {
   var [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   
   useEffect(function() {
-    if (user) {
+    if (user && !initialized.current) {
+      initialized.current = true;
       setProfile({
         first_name: user.first_name || '',
         last_name: user.last_name || '',

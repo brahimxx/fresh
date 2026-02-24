@@ -42,15 +42,15 @@ export default function MarketplaceLayout({ children }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-background border-b sticky top-0 z-50">
+      <header className="bg-background/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">F</span>
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-primary/20">
+                <span className="text-primary-foreground font-bold text-lg">F</span>
               </div>
-              <span className="font-bold text-xl hidden sm:block">Fresh</span>
+              <span className="font-bold text-xl tracking-tight hidden sm:block">Fresh</span>
             </Link>
 
             {/* Search Bar - Desktop */}
@@ -142,7 +142,7 @@ export default function MarketplaceLayout({ children }) {
                         </DropdownMenuItem>
                       </Link>
                     )}
-                    <Link href="/profile">
+                    <Link href="/dashboard/settings">
                       <DropdownMenuItem className="cursor-pointer">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
@@ -212,7 +212,7 @@ export default function MarketplaceLayout({ children }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-muted/50 border-t border-border mt-16">
+      <footer className="bg-muted/30 border-t border-border/50 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div>
@@ -247,7 +247,7 @@ export default function MarketplaceLayout({ children }) {
               </ul>
             </div>
           </div>
-          <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
+          <div className="border-t border-border/50 mt-8 pt-8 text-center text-sm text-muted-foreground">
             © 2026 Fresh. All rights reserved.
           </div>
         </div>
