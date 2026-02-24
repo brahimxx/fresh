@@ -255,17 +255,20 @@ export async function DELETE(request, { params }) {
     }
 
     // Check cancellation policy
+    let lateCancellation = false;
     const settings = await getOne('SELECT * FROM salon_settings WHERE salon_id = ?', [booking.salon_id]);
-    if (settings) {
+    if (settings && settings.cancellation_policy_hours > 0 && session.role === 'client') {
       const bookingStart = new Date(booking.start_datetime);
       const now = new Date();
       const hoursUntilBooking = (bookingStart - now) / (1000 * 60 * 60);
 
-      if (hoursUntilBooking < settings.cancellation_policy_hours && session.role === 'client') {
-        // Could apply cancellation fee here
-        // For now, just warn or allow with fee
+      if (hoursUntilBooking < settings.cancellation_policy_hours) {
+        lateCancellation = true;
+        // Note: Cancellation fee charging can be added here when payment flow supports it.
+        // For now we flag it so the frontend can warn the user.
       }
     }
+
 
     const { searchParams } = new URL(request.url);
     const reason = searchParams.get('reason');
@@ -293,7 +296,7 @@ export async function DELETE(request, { params }) {
         });
     }
 
-    return success({ message: 'Booking cancelled successfully' });
+    return success({ message: 'Booking cancelled successfully', lateCancellation });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Cancel booking error:', err);

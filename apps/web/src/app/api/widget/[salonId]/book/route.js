@@ -147,44 +147,25 @@ export async function POST(request, { params }) {
     const timeStr = startDateTime.toTimeString().slice(0, 8); // HH:MM:SS in local Algeria time
     const endTimeStr = endDateTime.toTimeString().slice(0, 8);
 
-    console.log(
-      `[WIDGET BOOKING] Multiple services: ${serviceDetails.map((s) => s.name).join(", ")}`,
-    );
-    console.log(
-      `[WIDGET BOOKING] Staff IDs: ${staffIds.join(", ")}, total duration: ${totalDuration} min`,
-    );
-    console.log(
-      `[WIDGET BOOKING] Checking availability: day=${dayOfWeek}, time=${timeStr}-${endTimeStr}`,
-    );
 
     for (let staffId of staffIds) {
-      console.log(
-        `[WIDGET BOOKING] Checking staff ${staffId} on day ${dayOfWeek}`,
-      );
-
       // Check if staff works this day (without restrictive time conditions)
       let workingHours = await getOne(
         "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?",
         [staffId, dayOfWeek],
       );
 
-      console.log(`[WIDGET BOOKING] Staff hours from DB:`, workingHours);
-
       if (!workingHours) {
         // Fallback to business hours
-        console.log(
-          `[WIDGET BOOKING] No staff hours, trying business hours for salon ${salonId}`,
-        );
         workingHours = await getOne(
           "SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0",
           [salonId, dayOfWeek],
         );
-        console.log(`[WIDGET BOOKING] Business hours from DB:`, workingHours);
       }
 
       if (!workingHours) {
         console.error(
-          `[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} not working on day ${dayOfWeek}`,
+          `[WIDGET BOOKING] Staff ${staffId} not working on day ${dayOfWeek}`,
         );
         return error(
           {
@@ -195,23 +176,11 @@ export async function POST(request, { params }) {
         );
       }
 
-      // Debug: show exact comparison values
-      console.log(`[WIDGET BOOKING] Time comparison:`, {
-        requestStart: timeStr,
-        requestEnd: endTimeStr,
-        shiftStart: workingHours.start_time,
-        shiftEnd: workingHours.end_time,
-        startTimeType: typeof timeStr,
-        dbStartTimeType: typeof workingHours.start_time,
-        startComparison: `${timeStr} < ${workingHours.start_time} = ${timeStr < workingHours.start_time}`,
-        endComparison: `${endTimeStr} > ${workingHours.end_time} = ${endTimeStr > workingHours.end_time}`,
-      });
-
       // Verify appointment time falls within working hours.
       // Split into two branches so the message describes the exact problem.
       if (timeStr < workingHours.start_time) {
         console.error(
-          `[WIDGET BOOKING] ❌ FAILED: Staff ${staffId} doesn't start until ${workingHours.start_time}, requested ${timeStr}`,
+          `[WIDGET BOOKING] Staff ${staffId} doesn't start until ${workingHours.start_time}, requested ${timeStr}`,
         );
         return error(
           {
@@ -223,7 +192,7 @@ export async function POST(request, { params }) {
       }
       if (endTimeStr > workingHours.end_time) {
         console.error(
-          `[WIDGET BOOKING] ❌ FAILED: Service exceeds shift — shift ends ${workingHours.end_time}, booking would end ${endTimeStr}`,
+          `[WIDGET BOOKING] Service exceeds shift — shift ends ${workingHours.end_time}, booking would end ${endTimeStr}`,
         );
         return error(
           {
@@ -233,15 +202,7 @@ export async function POST(request, { params }) {
           409,
         );
       }
-
-      console.log(
-        `[WIDGET BOOKING] ✅ Staff ${staffId} is available: ${workingHours.start_time}-${workingHours.end_time}`,
-      );
     }
-
-    console.log(
-      `[WIDGET BOOKING] Creating booking: ${startDatetimeFormatted} to ${endDatetimeFormatted}`,
-    );
 
     // Primary staff = the staff assigned to the first service
     const primaryStaffId = services[0].staffId;

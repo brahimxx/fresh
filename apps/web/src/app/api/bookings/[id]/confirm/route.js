@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
+import { sendNotification } from '@/lib/notifications';
 
 // Helper to check booking access
 async function checkBookingAccess(bookingId, userId, role) {
@@ -43,7 +44,19 @@ export async function POST(request, { params }) {
 
     await query("UPDATE bookings SET status = 'confirmed' WHERE id = ?", [id]);
 
-    // TODO: Send confirmation notification to client
+    // Send confirmation notification to client (non-blocking)
+    const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
+    const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+    if (client) {
+      sendNotification({
+        userId: client.id,
+        email: client.email,
+        type: 'email',
+        title: 'Booking Confirmed',
+        message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking at <strong>${salon?.name || 'the salon'}</strong> on ${new Date(booking.start_datetime).toLocaleString()} has been confirmed!</p>`,
+        data: { bookingId: id, status: 'confirmed' }
+      });
+    }
 
     return success({
       id: booking.id,
@@ -56,3 +69,4 @@ export async function POST(request, { params }) {
     return error('Failed to confirm booking', 500);
   }
 }
+
