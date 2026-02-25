@@ -425,7 +425,7 @@ export default function SalonProfilePage({ params }) {
                   );
                 })}
 
-                {services.length === 0 && (
+                {Object.keys(servicesByCategory).length === 0 && (
                   <div className="text-center py-16 bg-muted/30 rounded-3xl border-2 border-dashed">
                     <div className="text-4xl mb-3">✨</div>
                     <p className="text-muted-foreground font-medium">No services listed yet.</p>

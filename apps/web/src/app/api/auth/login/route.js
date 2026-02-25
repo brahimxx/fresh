@@ -10,7 +10,6 @@ export async function POST(request) {
     const body = await request.json();
     const { email, password } = body;
 
-    // Rate limiting: 5 attempts per 15 minutes per email
     const rateLimit = rateLimiter.check(
       `login:${email?.toLowerCase() || 'unknown'}`,
       RateLimitPresets.AUTH.maxAttempts,

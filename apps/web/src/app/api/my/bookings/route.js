@@ -43,9 +43,9 @@ export async function GET(request) {
     sql += ' GROUP BY b.id';
 
     // Get total count
-    const countSql = sql.replace(/SELECT .* FROM/, 'SELECT COUNT(DISTINCT b.id) as total FROM').replace('GROUP BY b.id', '');
-    const [countResult] = await query(countSql, sqlParams);
-    const total = countResult.total;
+    const countSql = sql.replace(/SELECT[\s\S]*?FROM/i, 'SELECT COUNT(DISTINCT b.id) as total FROM').replace(' GROUP BY b.id', '');
+    const countResult = await query(countSql, sqlParams);
+    const total = countResult[0] ? countResult[0].total : 0;
 
     sql += ' ORDER BY b.start_datetime DESC LIMIT ? OFFSET ?';
     sqlParams.push(limit, offset);

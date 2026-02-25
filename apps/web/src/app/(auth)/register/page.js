@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/providers/auth-provider";
 import { COUNTRIES } from "@/lib/constants/countries";
 
@@ -79,8 +80,10 @@ function RegisterForm() {
   }, []);
 
   const authType = searchParams.get("type") || "customer";
-  const isProfessionalPath = authType === "professional";
-  const role = isProfessionalPath ? "owner" : "client";
+  // Convert searchParam to a local state so user can toggle it
+  const [selectedRole, setSelectedRole] = useState(authType === "professional" ? "owner" : "client");
+  const isProfessionalPath = selectedRole === "owner";
+  const role = selectedRole;
 
   const {
     register,
@@ -160,6 +163,42 @@ function RegisterForm() {
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
+          
+          <RadioGroup
+            value={selectedRole}
+            onValueChange={setSelectedRole}
+            className="grid grid-cols-2 gap-4 mb-6"
+          >
+            <div>
+              <Label
+                htmlFor="client"
+                className={`flex flex-col items-center justify-between rounded-xl border-2 p-4 cursor-pointer transition-all ${
+                  !isProfessionalPath
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-muted bg-transparent hover:bg-muted"
+                }`}
+              >
+                <RadioGroupItem value="client" id="client" className="sr-only" />
+                <UserIcon className={`mb-3 h-6 w-6 ${!isProfessionalPath ? "text-primary" : "text-muted-foreground"}`} />
+                <span className={`text-sm font-semibold ${!isProfessionalPath ? "text-foreground" : "text-muted-foreground"}`}>Client</span>
+              </Label>
+            </div>
+            <div>
+              <Label
+                htmlFor="owner"
+                className={`flex flex-col items-center justify-between rounded-xl border-2 p-4 cursor-pointer transition-all ${
+                  isProfessionalPath
+                    ? "border-accent bg-accent/5 text-accent"
+                    : "border-muted bg-transparent hover:bg-muted"
+                }`}
+              >
+                <RadioGroupItem value="owner" id="owner" className="sr-only" />
+                <Store className={`mb-3 h-6 w-6 ${isProfessionalPath ? "text-accent" : "text-muted-foreground"}`} />
+                <span className={`text-sm font-semibold ${isProfessionalPath ? "text-foreground" : "text-muted-foreground"}`}>Professional</span>
+              </Label>
+            </div>
+          </RadioGroup>
+
           {/* Server Error Alert */}
           {serverError && (
             <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">

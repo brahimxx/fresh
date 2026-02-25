@@ -98,12 +98,7 @@ function LoginForm() {
       if (redirectPath) {
         router.push(redirectPath);
       } else if (userRole === 'owner') {
-        const onboardingCompleted = localStorage.getItem("fresh_onboarding_completed");
-        if (!onboardingCompleted || onboardingCompleted !== "true") {
-          router.push("/onboarding");
-        } else {
-          router.push("/dashboard");
-        }
+        router.push("/dashboard");
       } else {
         router.push("/");
       }

@@ -256,9 +256,9 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {featuredSalons.map(function(salon, i) {
                 return (
-                  <Link key={salon.id} href={'/salon/' + salon.id}>
+                  <Link key={salon.id} href={`/salon/${salon.id}`} className="block h-full group">
                     <Card
-                      className="overflow-hidden group h-full border-border/50 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                      className="overflow-hidden h-full border-border/50 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                       style={{
                         opacity: mounted ? 1 : 0,
                         transform: mounted ? 'translateY(0)' : 'translateY(20px)',

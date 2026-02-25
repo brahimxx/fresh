@@ -10,7 +10,6 @@ export async function POST(request) {
     const body = await request.json();
     const { email } = body;
 
-    // Rate limiting: 10 attempts per 15 minutes per IP
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const rateLimit = rateLimiter.check(
       `forgot-password:${ip}`,

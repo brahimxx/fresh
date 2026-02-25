@@ -138,19 +138,33 @@ function SalonSearchContent() {
 
   var activeFilterCount = selectedCategories.length + selectedPrices.length + (minRating ? 1 : 0) + (openNow ? 1 : 0);
 
+  function handleSearchSubmit(e) {
+    e?.preventDefault();
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    if (location) params.append('location', location);
+    if (selectedCategories.length) params.append('categories', selectedCategories.join(','));
+    if (selectedPrices.length) params.append('price', selectedPrices.join(','));
+    if (minRating) params.append('minRating', minRating);
+    if (openNow) params.append('openNow', 'true');
+    params.append('sort', sortBy);
+    
+    router.push(`/salons?${params.toString()}`);
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Breadcrumbs className="mb-6" />
       {/* Search Header */}
       <div className="mb-8">
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search services or salons..."
               value={query}
               onChange={function (e) { setQuery(e.target.value); }}
-              className="pl-10"
+              className="pl-10 h-10"
             />
           </div>
           <div className="relative md:w-64">
@@ -159,10 +173,11 @@ function SalonSearchContent() {
               placeholder="Location"
               value={location}
               onChange={function (e) { setLocation(e.target.value); }}
-              className="pl-10"
+              className="pl-10 h-10"
             />
           </div>
-        </div>
+          <Button type="submit" className="h-10 px-6">Search</Button>
+        </form>
 
         {/* Filter Bar */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -258,7 +273,6 @@ function SalonSearchContent() {
             </SheetContent>
           </Sheet>
 
-          {/* Desktop Filters */}
           <div className="hidden md:flex items-center gap-2">
             {CATEGORIES.slice(0, 4).map(function (cat) {
               return (
@@ -272,6 +286,18 @@ function SalonSearchContent() {
                 </Button>
               );
             })}
+
+            <Select value={minRating ? minRating.toString() : "any"} onValueChange={(val) => setMinRating(val === "any" ? null : parseFloat(val))}>
+              <SelectTrigger className="w-32 h-9 text-sm">
+                <SelectValue placeholder="Rating" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any Rating</SelectItem>
+                <SelectItem value="4">4.0+ Stars</SelectItem>
+                <SelectItem value="4.5">4.5+ Stars</SelectItem>
+                <SelectItem value="4.8">4.8+ Stars</SelectItem>
+              </SelectContent>
+            </Select>
 
             <Button
               variant={openNow ? 'default' : 'outline'}
@@ -419,9 +445,9 @@ function SalonSearchContent() {
 
 function SalonCardGrid({ salon }) {
   return (
-    <Link href={'/salon/' + salon.id}>
+    <Link href={'/salon/' + salon.id} className="block h-full w-full">
       <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group h-full">
-        <div className="aspect-[4/3] overflow-hidden bg-muted">
+        <div className="aspect-4/3 overflow-hidden bg-muted">
           {salon.cover_image_url ? (
             <img
               src={salon.cover_image_url}
@@ -463,7 +489,7 @@ function SalonCardGrid({ salon }) {
 
 function SalonCardList({ salon }) {
   return (
-    <Link href={'/salon/' + salon.id}>
+    <Link href={'/salon/' + salon.id} className="block w-full">
       <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
         <div className="flex">
           <div className="w-48 h-36 shrink-0 overflow-hidden bg-muted">

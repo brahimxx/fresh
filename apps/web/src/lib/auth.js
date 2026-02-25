@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const JWT_SECRET = (() => {
   const secret = process.env.JWT_SECRET;
@@ -39,6 +39,17 @@ export async function verifyToken(token) {
 }
 
 export async function getSession() {
+  // 1. Check Authorization header first (for B2B APIs, Mobile, and Test Suites)
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const payload = await verifyToken(token);
+    if (payload) return payload;
+  }
+
+  // 2. Fall back to Cookie (for Next.js web browser clients)
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   if (!token) return null;
@@ -62,10 +73,24 @@ export async function requireRole(allowedRoles) {
 }
 
 export async function verifyAuth(request) {
+  // 1. Check original auth header
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const payload = await verifyToken(token);
+    if (payload) return payload;
   }
-  const token = authHeader.substring(7);
-  return verifyToken(token);
+  
+  // 2. Fall back to checking cookies attached to the request
+  const cookieHeader = request.headers.get("cookie");
+  if (cookieHeader) {
+    // Basic extraction of 'token' cookie. For robust parsing consider using cookie libs, but next/headers or primitive split works for now
+    const tokenMatch = cookieHeader.match(/token=([^;]+)/);
+    if (tokenMatch && tokenMatch[1]) {
+      return verifyToken(tokenMatch[1]);
+    }
+  }
+  
+  // 3. Fall back to getSession (uses async next/headers)
+  return getSession();
 }

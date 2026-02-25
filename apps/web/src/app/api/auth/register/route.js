@@ -11,7 +11,6 @@ export async function POST(request) {
     // Accept both camelCase and snake_case from client
     const email = body.email;
 
-    // Rate limiting: 5 attempts per 15 minutes per IP
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const rateLimit = rateLimiter.check(
       `register:${ip}`,
