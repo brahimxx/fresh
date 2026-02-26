@@ -96,6 +96,7 @@ export function AuthProvider({ children }) {
     user,
     loading,
     isAuthenticated: !!user,
+    impersonatorAdminId: user?.impersonatorAdminId,
     login,
     register,
     logout,

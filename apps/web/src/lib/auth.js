@@ -42,7 +42,7 @@ export async function getSession() {
   // 1. Check Authorization header first (for B2B APIs, Mobile, and Test Suites)
   const headersList = await headers();
   const authHeader = headersList.get("authorization");
-  
+
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     const payload = await verifyToken(token);
@@ -80,7 +80,7 @@ export async function verifyAuth(request) {
     const payload = await verifyToken(token);
     if (payload) return payload;
   }
-  
+
   // 2. Fall back to checking cookies attached to the request
   const cookieHeader = request.headers.get("cookie");
   if (cookieHeader) {
@@ -90,7 +90,7 @@ export async function verifyAuth(request) {
       return verifyToken(tokenMatch[1]);
     }
   }
-  
+
   // 3. Fall back to getSession (uses async next/headers)
   return getSession();
 }

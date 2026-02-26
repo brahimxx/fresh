@@ -19,6 +19,12 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Shield,
+  Building2,
+  DollarSign,
+  LineChart,
+  FileText,
+  LifeBuoy,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -36,6 +42,22 @@ const navigation = [
   { name: 'Marketing', href: '/marketing', icon: Megaphone },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Reviews', href: '/reviews', icon: Star },
+  { name: 'Support', href: '/support', icon: LifeBuoy },
+  { name: 'Settings', href: '/settings', icon: Settings },
+];
+
+const adminNavigation = [
+  { name: 'Dashboard', href: '', icon: Shield },
+  { name: 'Analytics', href: '/analytics', icon: LineChart },
+  { name: 'Users', href: '/users', icon: Users },
+  { name: 'Salons', href: '/salons', icon: Building2 },
+  { name: 'Bookings', href: '/bookings', icon: Clock },
+  { name: 'Fees', href: '/fees', icon: CreditCard },
+  { name: 'Payouts', href: '/payouts', icon: DollarSign },
+  { name: 'Marketing', href: '/marketing', icon: Megaphone },
+  { name: 'Reviews', href: '/reviews', icon: Star },
+  { name: 'Audit Logs', href: '/audit-logs', icon: FileText },
+  { name: 'Support', href: '/support', icon: LifeBuoy },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -43,11 +65,23 @@ export function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
   const [collapsed, setCollapsed] = useState(false);
-  const { logout } = useAuth();
-  
+  const { logout, user } = useAuth();
+
+  const isAdmin = user?.role === 'admin';
   const salonId = params?.salonId;
-  const basePath = salonId ? `/dashboard/salon/${salonId}` : '/dashboard';
+  const basePath = isAdmin
+    ? '/dashboard/admin'
+    : salonId
+      ? `/dashboard/salon/${salonId}`
+      : '/dashboard';
   const hasSalon = !!salonId;
+
+  // Determine which navigation items to show
+  const navItems = isAdmin
+    ? adminNavigation
+    : hasSalon
+      ? navigation
+      : navigation.filter(n => ['Dashboard', 'Settings'].includes(n.name));
 
   return (
     <aside
@@ -68,10 +102,20 @@ export function Sidebar() {
         </Link>
       </div>
 
+      {/* Admin Badge */}
+      {isAdmin && !collapsed && (
+        <div className="px-4 py-2 border-b border-border/50">
+          <div className="flex items-center gap-2 text-xs font-medium text-primary bg-primary/10 rounded-md px-2 py-1">
+            <Shield className="h-3 w-3" />
+            Admin Panel
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-        {/* If no salon is selected (new account), keep only Dashboard and Settings, and nudge to create a salon */}
-        {!hasSalon && (
+        {/* If no salon is selected (new account) and not admin, nudge to create a salon */}
+        {!hasSalon && !isAdmin && (
           <div className="px-3 pb-2">
             <Link
               href="/dashboard/locations/new"
@@ -81,11 +125,11 @@ export function Sidebar() {
             </Link>
           </div>
         )}
-        {(hasSalon ? navigation : navigation.filter(n => ['Dashboard','Settings'].includes(n.name))).map((item) => {
+        {navItems.map((item) => {
           const href = `${basePath}${item.href}`;
-          const isActive = pathname === href || 
+          const isActive = pathname === href ||
             (item.href && pathname.startsWith(href));
-          
+
           return (
             <Link
               key={item.name}
@@ -118,7 +162,7 @@ export function Sidebar() {
           <LogOut className="h-5 w-5" />
           {!collapsed && <span className="ml-3">Logout</span>}
         </Button>
-        
+
         <Button
           variant="ghost"
           size="sm"

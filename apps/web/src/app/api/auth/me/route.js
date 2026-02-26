@@ -28,6 +28,7 @@ export async function GET() {
       role: user.role,
       country: user.country,
       createdAt: user.created_at,
+      impersonatorAdminId: session.impersonatorAdminId || null,
     });
   } catch (err) {
     console.error('Get current user error:', err);

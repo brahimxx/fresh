@@ -35,13 +35,13 @@ export async function POST(request) {
     );
 
     if (!user) {
-      return unauthorized({ code: 'INVALID_CREDENTIALS', message: 'No account found with this email address. Please create an account or check your email.' });
+      return unauthorized('No account found with this email address. Please create an account or check your email.');
     }
 
     // Verify password
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      return unauthorized({ code: 'INVALID_CREDENTIALS', message: 'Incorrect password. Please try again or use "Forgot password".' });
+      return unauthorized('Incorrect password. Please try again or use "Forgot password".');
     }
 
     // Create token

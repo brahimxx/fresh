@@ -3,16 +3,20 @@ import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
 import { validate, createCampaignSchema } from '@/lib/validate';
 
-// Helper to check salon access
+// Helper to check salon access and fetch plan tier
 async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (salon && salon.owner_id === userId) return true;
+  const salon = await getOne('SELECT owner_id, plan_tier FROM salons WHERE id = ?', [salonId]);
+  if (!salon) return { hasAccess: false };
+
+  if (role === 'admin') return { hasAccess: true, tier: salon.plan_tier };
+
+  if (salon.owner_id === userId) return { hasAccess: true, tier: salon.plan_tier };
+
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
     [salonId, userId]
   );
-  return !!staff;
+  return { hasAccess: !!staff, tier: salon.plan_tier };
 }
 
 // GET /api/salons/[id]/campaigns - Get marketing campaigns
@@ -21,9 +25,12 @@ export async function GET(request, { params }) {
     const session = await requireAuth();
     const { id } = await params;
 
-    const hasAccess = await checkSalonAccess(id, session.userId, session.role);
-    if (!hasAccess) {
+    const access = await checkSalonAccess(id, session.userId, session.role);
+    if (!access.hasAccess) {
       return forbidden('Not authorized to view campaigns');
+    }
+    if (access.tier === 'basic') {
+      return forbidden('Marketing campaigns require a Pro or Enterprise subscription tier');
     }
 
     const { searchParams } = new URL(request.url);
@@ -71,14 +78,17 @@ export async function POST(request, { params }) {
     const session = await requireAuth();
     const { id: salonId } = await params;
 
-    const hasAccess = await checkSalonAccess(salonId, session.userId, session.role);
-    if (!hasAccess) {
+    const access = await checkSalonAccess(salonId, session.userId, session.role);
+    if (!access.hasAccess) {
       return forbidden('Not authorized to create campaigns');
+    }
+    if (access.tier === 'basic') {
+      return forbidden('Marketing campaigns require a Pro or Enterprise subscription tier');
     }
 
     const body = await request.json();
     const validation = validate(createCampaignSchema, body);
-    
+
     if (!validation.success) {
       return error({ code: "VALIDATION_ERROR", message: validation.errors }, 400);
     }

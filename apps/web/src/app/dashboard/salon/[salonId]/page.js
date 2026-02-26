@@ -2,14 +2,15 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { 
-  Calendar, 
-  Users, 
-  CreditCard, 
+import {
+  Calendar,
+  Users,
+  CreditCard,
   Clock,
   TrendingUp,
   Plus,
-  ChevronRight
+  ChevronRight,
+  Megaphone
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSalon } from '@/providers/salon-provider';
 import api from '@/lib/api-client';
 
@@ -58,8 +60,8 @@ function BookingItem({ booking, salonId }) {
   const startTime = booking.start_datetime || booking.startDateTime;
 
   return (
-    <Link 
-      href={'/dashboard/salon/' + salonId + '/bookings/' + booking.id} 
+    <Link
+      href={'/dashboard/salon/' + salonId + '/bookings/' + booking.id}
       className="block"
     >
       <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
@@ -94,22 +96,29 @@ export default function SalonDashboardPage() {
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['salon-stats', salonId],
-    queryFn: function() { return api.get('/reports/overview', { salonId: salonId }); },
+    queryFn: function () { return api.get('/reports/overview', { salonId: salonId }); },
     enabled: !!salonId,
-    select: function(response) { return response.data || {}; },
+    select: function (response) { return response.data || {}; },
   });
 
   const { data: upcomingBookings, isLoading: bookingsLoading } = useQuery({
     queryKey: ['upcoming-bookings', salonId],
-    queryFn: function() { 
-      return api.get('/bookings', { 
-        salonId: salonId, 
+    queryFn: function () {
+      return api.get('/bookings', {
+        salonId: salonId,
         status: 'confirmed,pending',
         limit: 5
       });
     },
     enabled: !!salonId,
-    select: function(response) { return response.data || []; },
+    select: function (response) { return response.data || []; },
+  });
+
+  const { data: banners } = useQuery({
+    queryKey: ['system-banners', salonId],
+    queryFn: () => api.get('/notifications/banners'),
+    enabled: !!salonId,
+    select: (res) => res.data || []
   });
 
   const today = format(new Date(), 'EEEE, MMMM d, yyyy');
@@ -119,7 +128,7 @@ export default function SalonDashboardPage() {
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map(function(_, i) { return <Skeleton key={i} className="h-32" />; })}
+          {[...Array(4)].map(function (_, i) { return <Skeleton key={i} className="h-32" />; })}
         </div>
       </div>
     );
@@ -140,6 +149,20 @@ export default function SalonDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {banners && banners.length > 0 && (
+        <div className="space-y-4">
+          {banners.map(banner => (
+            <Alert key={banner.id} className="bg-primary/5 border-primary/20">
+              <Megaphone className="h-5 w-5 text-primary" />
+              <AlertTitle className="text-primary font-semibold">{banner.title}</AlertTitle>
+              <AlertDescription className="text-sm mt-1">
+                {banner.message}
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
@@ -155,96 +178,96 @@ export default function SalonDashboardPage() {
         </div>
       </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Today's Appointments"
-            value={dashboardStats.todayBookings}
-            icon={Calendar}
-            description="scheduled for today"
-          />
-          <StatCard
-            title="Today's Revenue"
-            value={'EUR ' + Number(dashboardStats.todayRevenue).toFixed(2)}
-            icon={CreditCard}
-            trend={12}
-            description="from yesterday"
-          />
-          <StatCard
-            title="New Clients"
-            value={dashboardStats.newClients}
-            icon={Users}
-            description="this week"
-          />
-          <StatCard
-            title="Pending Bookings"
-            value={dashboardStats.pendingBookings}
-            icon={Clock}
-            description="awaiting confirmation"
-          />
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Today's Appointments"
+          value={dashboardStats.todayBookings}
+          icon={Calendar}
+          description="scheduled for today"
+        />
+        <StatCard
+          title="Today's Revenue"
+          value={'EUR ' + Number(dashboardStats.todayRevenue).toFixed(2)}
+          icon={CreditCard}
+          trend={12}
+          description="from yesterday"
+        />
+        <StatCard
+          title="New Clients"
+          value={dashboardStats.newClients}
+          icon={Users}
+          description="this week"
+        />
+        <StatCard
+          title="Pending Bookings"
+          value={dashboardStats.pendingBookings}
+          icon={Clock}
+          description="awaiting confirmation"
+        />
+      </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Upcoming Appointments</CardTitle>
-                <CardDescription>Your next scheduled bookings</CardDescription>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Upcoming Appointments</CardTitle>
+              <CardDescription>Your next scheduled bookings</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={bookingsUrl}>
+                View all
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {bookingsLoading ? (
+              [...Array(3)].map(function (_, i) { return <Skeleton key={i} className="h-16 w-full" />; })
+            ) : upcomingBookings && upcomingBookings.length > 0 ? (
+              upcomingBookings.map(function (booking) {
+                return <BookingItem key={booking.id} booking={booking} salonId={salonId} />;
+              })
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No upcoming appointments
               </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={bookingsUrl}>
-                  View all
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {bookingsLoading ? (
-                [...Array(3)].map(function(_, i) { return <Skeleton key={i} className="h-16 w-full" />; })
-              ) : upcomingBookings && upcomingBookings.length > 0 ? (
-                upcomingBookings.map(function(booking) {
-                  return <BookingItem key={booking.id} booking={booking} salonId={salonId} />;
-                })
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No upcoming appointments
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Common tasks and shortcuts</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              <Button variant="outline" className="justify-start" asChild>
-                <Link href={calendarUrl}>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Open Calendar
-                </Link>
-              </Button>
-              <Button variant="outline" className="justify-start" asChild>
-                <Link href={clientsUrl}>
-                  <Users className="mr-2 h-4 w-4" />
-                  View Clients
-                </Link>
-              </Button>
-              <Button variant="outline" className="justify-start" asChild>
-                <Link href={reportsUrl}>
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                  View Reports
-                </Link>
-              </Button>
-              <Button variant="outline" className="justify-start" asChild>
-                <Link href={servicesUrl}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Manage Services
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common tasks and shortcuts</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <Button variant="outline" className="justify-start" asChild>
+              <Link href={calendarUrl}>
+                <Calendar className="mr-2 h-4 w-4" />
+                Open Calendar
+              </Link>
+            </Button>
+            <Button variant="outline" className="justify-start" asChild>
+              <Link href={clientsUrl}>
+                <Users className="mr-2 h-4 w-4" />
+                View Clients
+              </Link>
+            </Button>
+            <Button variant="outline" className="justify-start" asChild>
+              <Link href={reportsUrl}>
+                <TrendingUp className="mr-2 h-4 w-4" />
+                View Reports
+              </Link>
+            </Button>
+            <Button variant="outline" className="justify-start" asChild>
+              <Link href={servicesUrl}>
+                <Plus className="mr-2 h-4 w-4" />
+                Manage Services
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

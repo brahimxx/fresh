@@ -49,6 +49,7 @@ function LoginForm() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(loginSchema),
@@ -97,13 +98,24 @@ function LoginForm() {
 
       if (redirectPath) {
         router.push(redirectPath);
-      } else if (userRole === 'owner') {
+      } else if (userRole === 'admin') {
+        router.push("/dashboard/admin");
+      } else if (userRole === 'owner' || userRole === 'staff') {
         router.push("/dashboard");
       } else {
         router.push("/");
       }
     } catch (error) {
-      toast.error(error.message || "Invalid email or password");
+      const msg = error.message || "Invalid email or password";
+      const lowerMsg = msg.toLowerCase();
+
+      if (lowerMsg.includes("no account found") || lowerMsg.includes("email are required")) {
+        setError("email", { type: "manual", message: msg });
+      } else if (lowerMsg.includes("incorrect password") || lowerMsg.includes("password are required")) {
+        setError("password", { type: "manual", message: msg });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsLoading(false);
     }

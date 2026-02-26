@@ -41,7 +41,7 @@ export async function POST(request, { params }) {
       return error({ code: 'VALIDATION_ERROR', message: validation.errors }, 400);
     }
 
-    const { method, tipAmount } = validation.data;
+    const { method, tipAmount, promoCode } = validation.data;
 
     // Execute full checkout inside a transaction
     const conn = await pool.getConnection();
@@ -50,7 +50,7 @@ export async function POST(request, { params }) {
 
       const result = await processCheckout(
         bookingId,
-        { method, tipAmount },
+        { method, tipAmount, promoCode },
         conn
       );
 

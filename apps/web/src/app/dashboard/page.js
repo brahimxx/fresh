@@ -24,12 +24,18 @@ export default function DashboardIndexPage() {
   const { data: salons, isLoading } = useQuery({
     queryKey: ["user-salons", user?.id],
     queryFn: () => api.get("/salons"),
-    enabled: !!user?.id,
+    enabled: !!user?.id && user?.role !== 'admin',
     select: (response) => response.data?.salons || [],
   });
 
-  // Handle redirects based on salons and onboarding status
+  // Handle redirects based on role, salons, and onboarding status
   useEffect(() => {
+    // Admin users go to admin dashboard
+    if (!isLoading && user?.role === 'admin') {
+      router.replace('/dashboard/admin');
+      return;
+    }
+
     if (!isLoading && salons) {
       if (salons.length > 0) {
         // Redirect to first salon
@@ -44,7 +50,7 @@ export default function DashboardIndexPage() {
         }
       }
     }
-  }, [salons, isLoading, router]);
+  }, [salons, isLoading, router, user]);
 
   if (isLoading) {
     return (

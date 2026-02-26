@@ -73,6 +73,23 @@ export async function middleware(request) {
       return NextResponse.redirect(new URL("/", request.url));
     }
 
+    // Admin users: redirect /dashboard (not /dashboard/admin) to /dashboard/admin
+    if (
+      payload.role === "admin" &&
+      pathname.startsWith("/dashboard") &&
+      !pathname.startsWith("/dashboard/admin")
+    ) {
+      return NextResponse.redirect(new URL("/dashboard/admin", request.url));
+    }
+
+    // Non-admin users should not access admin dashboard
+    if (
+      pathname.startsWith("/dashboard/admin") &&
+      payload.role !== "admin"
+    ) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
     return NextResponse.next();
   }
 
@@ -80,8 +97,10 @@ export async function middleware(request) {
   if (isAuthPage && token) {
     const payload = await getPayload(token);
     if (payload) {
-      // Send owners/staff to the dashboard, clients to the marketplace
-      const dest = payload.role === "client" ? "/" : "/dashboard";
+      // Route by role: admin → admin dashboard, owner/staff → dashboard, client → marketplace
+      let dest = "/";
+      if (payload.role === "admin") dest = "/dashboard/admin";
+      else if (payload.role !== "client") dest = "/dashboard";
       return NextResponse.redirect(new URL(dest, request.url));
     }
   }

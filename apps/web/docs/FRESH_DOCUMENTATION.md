@@ -174,7 +174,7 @@ All routes prefixed with `/api`. Authenticated via Cookie/Bearer token.
 | **Reviews**        | `/salons/[id]/reviews/[id]/reply`                                                     | Client reviews linked to bookings. Owner reply endpoint.                                                                                        |
 | **Widget**         | `/widget/[salonId]/{services,availability}`                                           | **Public access**. Optimized for read-only wizard. Services return `availableStaff` array.                                                      |
 | **Marketplace**    | `/marketplace/{salons,featured}`                                                      | **Public access**. Search-optimized queries.                                                                                                    |
-| **Admin**          | `/admin/{users,salons,stats,salons/[id]/status}`                                      | Platform-wide management. Salon activate/deactivate.                                                                                            |
+| **Admin**          | `/admin/{users,salons,stats,fees,reviews,settings}`                                   | Platform-wide management. Salon toggle. Fees tracking, Review moderation, Global DB settings (maintenance, reg toggles).                        |
 
 ---
 
@@ -479,6 +479,49 @@ All client endpoints accept **any active staff member** (manager or receptionist
 ---
 
 ## J) Changelog
+
+### February 26, 2026
+
+**Part 8: Financial Operations & Subscriptions (Admin & Salon)**
+- ✅ Implemented `plan_tier` on salons (`basic`, `pro`, `enterprise`) to gate features.
+- ✅ Built subscription manager UI allowing self-serve upgrades (`/dashboard/salon/subscriptions`).
+- ✅ Created `payouts` table and Payout Calculator to automate salon disbursements (amount = booking - platform_fee).
+- ✅ Built Global Payout Dashboard for Admin review and approval (`/dashboard/admin/payouts`).
+- ✅ Created `refunds` table and UI for Admins to trigger Global Refunds, properly reversing platform fees.
+
+**Part 2: Platform Analytics & Growth Metrics (Admin)**
+- ✅ Created Admin Analytics dashboard (`/dashboard/admin/analytics`).
+- ✅ Added GMV (Gross Merchandise Value) Tracker pulling aggregate success data minus refunds/cash.
+- ✅ Added Marketplace Engagement Heatmaps mapping booking frequency by 4-hour timeblocks.
+- ✅ Built Salon Churn & Retention list highlighting salons with zero bookings in 30 days.
+
+**Part 3: Marketing & Communications (Admin)**
+- ✅ Deployed Platform-Funded Global Promos (`global_discounts` table). Users can redeem platform codes (e.g. `FRESH2026`) that absorb the cost via lower platform fees without hurting the Salon's bottom line.
+- ✅ Created multi-channel Admin Broadcast System (`/api/admin/broadcasts`) targeting owner/staff segments.
+- ✅ Updated the generic `notifications` schema with `is_system_banner` flags to display platform-wide alerts persistently at the top of Owner dashboards.
+
+**Part 4: Security & Audit Logging (Admin)**
+- ✅ Formalized an Immutable System Audit Ledger (`audit_logs`) featuring colored JSON diffing (`old_data` vs `new_data`) for strict oversight (`/dashboard/admin/audit-logs`).
+- ✅ Built **Admin Impersonation**: Admins can securely "Login As" any Owner (`/api/admin/impersonate`).
+- ✅ Impersonation tokens feature `impersonatorAdminId` claim, which triggers a persistent un-closable security banner with a secure "Stop Impersonating" revert switch.
+- ✅ Impersonation starts/stops explicitly write to the `audit_logs` to maintain zero-trust integrity.
+
+**Part 5: Support & Ticketing (Platform-Wide)**
+- ✅ Created `support_tickets` table schema enforcing relational links back to users.
+- ✅ Built Salon-facing Support Dashboard for Owners to file tickets and track their status.
+- ✅ Built Admin-facing Support UI featuring a Global Ticket Queue triage board.
+- ✅ Built the **Onboarding Concierge**: Automated tab detecting At-Risk active Salons that are failing to generate `services` or `business_hours`, enabling 1-click Admin Intervention.
+
+### February 25, 2026
+
+**Admin Panel Expansion & API Fixes**
+
+- ✅ Created `/dashboard/admin/fees` to track platform revenue, pending collections, and disputed amounts.
+- ✅ Created `/dashboard/admin/reviews` for global review moderation with the ability to delete reviews violating guidelines.
+- ✅ Created `/dashboard/admin/settings` allowing admins to toggle Maintenance Mode, New Registrations, Email Verification, and configure Platform Fee Percentages / Legal URLs dynamically via the DB.
+- ✅ Fixed `GET /api/admin/fees` to query `is_paid` and `type` instead of non-existent schema columns, resolving 500 errors.
+- ✅ Fixed `GET /api/admin/reviews` mapping to correctly format reviewer names and align with DB schema.
+- ✅ Updated sidebar navigation to include the new "Fees", "Reviews", and "Settings" pages.
 
 ### February 23, 2026
 

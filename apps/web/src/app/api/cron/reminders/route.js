@@ -6,10 +6,10 @@ import { sendNotification } from '@/lib/notifications';
 // Can be called by Vercel Cron or any other external scheduler every hour/day.
 export async function GET(request) {
   try {
-    // 1. Optional auth verification if required by your hosting environment
-    // For Vercel Cron, you would verify a CRON_SECRET header.
+    // Verify cron secret — mandatory even if env var is not set
     const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,7 +41,7 @@ export async function GET(request) {
     // 3. Loop and send
     for (const booking of upcomingBookings) {
       const startTime = new Date(booking.start_datetime).toLocaleString();
-      
+
       const success = await sendNotification({
         userId: booking.client_id,
         email: booking.email,
@@ -59,10 +59,10 @@ export async function GET(request) {
       if (success) sentCount++;
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       processed: sentCount,
-      message: `Sent ${sentCount} reminders.` 
+      message: `Sent ${sentCount} reminders.`
     });
 
   } catch (error) {

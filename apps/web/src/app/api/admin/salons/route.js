@@ -61,6 +61,7 @@ export async function GET(request) {
         email: s.email,
         isActive: s.is_active,
         marketplaceEnabled: s.marketplace_enabled,
+        planTier: s.plan_tier || 'basic',
         ownerId: s.owner_id,
         ownerEmail: s.owner_email,
         ownerName: `${s.owner_first_name} ${s.owner_last_name}`,

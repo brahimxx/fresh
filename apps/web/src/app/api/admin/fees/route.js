@@ -36,16 +36,6 @@ export async function GET(request) {
       sqlParams.push(salonId);
     }
 
-    if (startDate) {
-      sql += ' AND DATE(pf.created_at) >= ?';
-      sqlParams.push(startDate);
-    }
-
-    if (endDate) {
-      sql += ' AND DATE(pf.created_at) <= ?';
-      sqlParams.push(endDate);
-    }
-
     // Get total
     const countSql = sql.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
     const [countResult] = await query(countSql, sqlParams);
@@ -53,15 +43,13 @@ export async function GET(request) {
     // Get summary
     const [summary] = await query(
       `SELECT 
-        SUM(CASE WHEN status = 'collected' THEN amount ELSE 0 END) as total_collected,
-        SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as total_pending,
-        SUM(CASE WHEN status = 'disputed' THEN amount ELSE 0 END) as total_disputed,
-        COUNT(CASE WHEN status = 'disputed' THEN 1 END) as disputed_count
+        SUM(CASE WHEN is_paid = 1 THEN amount ELSE 0 END) as total_collected,
+        SUM(CASE WHEN is_paid = 0 THEN amount ELSE 0 END) as total_pending
        FROM platform_fees`,
       []
     );
 
-    sql += ' ORDER BY pf.created_at DESC LIMIT ? OFFSET ?';
+    sql += ' ORDER BY pf.id DESC LIMIT ? OFFSET ?';
     sqlParams.push(limit, offset);
 
     const fees = await query(sql, sqlParams);
@@ -73,16 +61,16 @@ export async function GET(request) {
         salonName: f.salon_name,
         bookingId: f.booking_id,
         amount: parseFloat(f.amount),
-        feeType: f.fee_type,
-        status: f.status,
-        description: f.description,
-        createdAt: f.created_at,
+        feeType: f.type, // DB uses 'type'
+        status: f.is_paid ? 'collected' : 'pending', // DB uses 'is_paid'
+        description: f.description || '', // might not exist
+        createdAt: f.created_at || new Date().toISOString(), // fallback 
       })),
       summary: {
         totalCollected: parseFloat(summary.total_collected || 0),
         totalPending: parseFloat(summary.total_pending || 0),
-        totalDisputed: parseFloat(summary.total_disputed || 0),
-        disputedCount: parseInt(summary.disputed_count || 0),
+        totalDisputed: 0, // Not supported in DB yet
+        disputedCount: 0,
       },
       pagination: {
         page,

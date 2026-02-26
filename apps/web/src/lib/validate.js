@@ -409,4 +409,5 @@ export const addBookingProductSchema = z.object({
 export const checkoutSchema = z.object({
   method: z.enum(["cash", "card"]),
   tipAmount: z.number().min(0).default(0),
+  promoCode: z.string().max(50).optional().nullable(),
 });

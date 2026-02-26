@@ -27,7 +27,13 @@ async function checkSalonAccess(salonId, userId, role) {
 // GET /api/salons/[id]/staff - Get salon staff
 export async function GET(request, { params }) {
   try {
+    const session = await requireAuth();
     const { id } = await params;
+
+    const hasAccess = await checkSalonAccess(id, session.userId, session.role);
+    if (!hasAccess) {
+      return forbidden("Not authorized to view staff");
+    }
 
     const staff = await query(
       `SELECT st.id, st.role, st.is_active, st.user_id, st.color,

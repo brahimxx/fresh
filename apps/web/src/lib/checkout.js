@@ -192,7 +192,7 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
  * @param {import('mysql2/promise').PoolConnection} conn
  * @returns {Promise<{payment, booking, breakdown}>}
  */
-export async function processCheckout(bookingId, { method, tipAmount = 0 }, conn) {
+export async function processCheckout(bookingId, { method, tipAmount = 0, promoCode = null }, conn) {
   // 1. Lock booking row
   const [[booking]] = await conn.query(
     "SELECT id, salon_id, client_id, staff_id, status FROM bookings WHERE id = ? FOR UPDATE",
@@ -235,14 +235,67 @@ export async function processCheckout(bookingId, { method, tipAmount = 0 }, conn
     );
   }
 
+  // Handle Global Promo Code
+  let amountSaved = 0;
+  let appliedPromo = null;
+
+  if (promoCode) {
+    const [[promo]] = await conn.query(
+      `SELECT id, type, value, min_purchase, max_uses, current_uses
+         FROM global_discounts
+        WHERE code = ?
+          AND is_active = 1
+          AND (start_date IS NULL OR start_date <= CURDATE())
+          AND (end_date IS NULL OR end_date >= CURDATE())
+        FOR UPDATE`,
+      [promoCode]
+    );
+
+    if (!promo) {
+      throw new CheckoutError("INVALID_PROMO", "The provided promo code is invalid or expired", 400);
+    }
+
+    if (promo.max_uses && promo.current_uses >= promo.max_uses) {
+      throw new CheckoutError("PROMO_LIMIT_REACHED", "This promo code has reached its maximum usage limit", 400);
+    }
+
+    const minPurchase = parseFloat(promo.min_purchase || 0);
+    if (minPurchase > 0 && breakdown.finalTotal < minPurchase) {
+      throw new CheckoutError("PROMO_MIN_PURCHASE", `Minimum purchase of ${minPurchase} required to use this code`, 400);
+    }
+
+    if (promo.type === 'fixed') {
+      amountSaved = Math.min(parseFloat(promo.value), breakdown.finalTotal);
+    } else {
+      amountSaved = round2(breakdown.finalTotal * (parseFloat(promo.value) / 100));
+    }
+
+    appliedPromo = promo;
+  }
+
+  const finalAmountDue = Math.max(0, breakdown.finalTotal - amountSaved);
   const tip = round2(Math.max(0, tipAmount));
 
   // 5. Insert payment
   const [paymentResult] = await conn.query(
     `INSERT INTO payments (booking_id, amount, method, status, tip_amount, created_at)
      VALUES (?, ?, ?, 'paid', ?, NOW())`,
-    [bookingId, breakdown.finalTotal, method, tip]
+    [bookingId, finalAmountDue, method, tip]
   );
+
+  // 5.5 If promo applied, absorb cost via negative platform fee and increase usage
+  if (appliedPromo && amountSaved > 0) {
+    await conn.query(
+      `INSERT INTO platform_fees (booking_id, salon_id, type, amount, is_paid)
+       VALUES (?, ?, 'global_promo', ?, 0)`,
+      [bookingId, booking.salon_id, -amountSaved]
+    );
+
+    await conn.query(
+      `UPDATE global_discounts SET current_uses = current_uses + 1 WHERE id = ?`,
+      [appliedPromo.id]
+    );
+  }
 
   // 6. Mark booking completed
   await conn.query(
