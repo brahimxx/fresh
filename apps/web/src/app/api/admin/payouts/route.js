@@ -1,6 +1,7 @@
 import { success, error, unauthorized } from '@/lib/response';
-import { query } from '@/lib/db';
+import { query, getOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { stripe } from '@/lib/stripe';
 
 export async function GET(request) {
     try {
@@ -28,7 +29,7 @@ export async function GET(request) {
         -- Refunds: Sum of global refunds issued
         COALESCE((SELECT SUM(r.amount) FROM refunds r JOIN payments rp ON r.payment_id = rp.id JOIN bookings rb ON rp.booking_id = rb.id WHERE rb.salon_id = s.id), 0) as total_refunds,
         -- Payouts Already Sent
-        COALESCE((SELECT SUM(py.amount) FROM payouts py WHERE py.salon_id = s.id AND py.status IN ('paid', 'processing')), 0) as already_paid_out
+        COALESCE((SELECT SUM(py.amount) FROM payouts py WHERE py.salon_id = s.id AND py.status IN ('completed', 'processing')), 0) as already_paid_out
       FROM salons s
       LEFT JOIN users u ON s.owner_id = u.id
       LEFT JOIN bookings b ON s.id = b.salon_id
@@ -50,7 +51,7 @@ export async function GET(request) {
           COALESCE(SUM(CASE WHEN b.status IN ('completed', 'confirmed') AND p.status = 'paid' THEN (p.amount - COALESCE(p.refunded_amount, 0) - COALESCE(p.tip_amount, 0)) ELSE 0 END), 0) as gv,
           COALESCE((SELECT SUM(amount) FROM platform_fees WHERE salon_id = s.id AND is_paid = 1), 0) as pf,
           COALESCE((SELECT SUM(r.amount) FROM refunds r JOIN payments rp ON r.payment_id = rp.id JOIN bookings rb ON rp.booking_id = rb.id WHERE rb.salon_id = s.id), 0) as rf,
-          COALESCE((SELECT SUM(amount) FROM payouts WHERE salon_id = s.id AND status IN ('paid', 'processing')), 0) as pa
+          COALESCE((SELECT SUM(amount) FROM payouts WHERE salon_id = s.id AND status IN ('completed', 'processing')), 0) as pa
         FROM salons s
         LEFT JOIN bookings b ON s.id = b.salon_id
         LEFT JOIN payments p ON b.id = p.booking_id
@@ -72,7 +73,7 @@ export async function GET(request) {
           COALESCE(SUM(CASE WHEN b.status IN ('completed', 'confirmed') AND p.status = 'paid' THEN (p.amount - COALESCE(p.refunded_amount, 0) - COALESCE(p.tip_amount, 0)) ELSE 0 END), 0) as gv,
           COALESCE((SELECT SUM(amount) FROM platform_fees WHERE salon_id = s.id AND is_paid = 1), 0) as pf,
           COALESCE((SELECT SUM(r.amount) FROM refunds r JOIN payments rp ON r.payment_id = rp.id JOIN bookings rb ON rp.booking_id = rb.id WHERE rb.salon_id = s.id), 0) as rf,
-          COALESCE((SELECT SUM(amount) FROM payouts WHERE salon_id = s.id AND status IN ('paid', 'processing')), 0) as pa
+          COALESCE((SELECT SUM(amount) FROM payouts WHERE salon_id = s.id AND status IN ('completed', 'processing')), 0) as pa
         FROM salons s
         LEFT JOIN bookings b ON s.id = b.salon_id
         LEFT JOIN payments p ON b.id = p.booking_id
@@ -136,14 +137,26 @@ export async function POST(request) {
             }
 
             try {
-                // In a real production system, you would call Stripe here:
-                // const stripeTransfer = await stripe.transfers.create({
-                //   amount: Math.round(payout.amount * 100),
-                //   currency: 'eur',
-                //   destination: 'acct_12345', // Fetch connected account ID from DB
-                // });
+                // Fetch the salon's connected Stripe account ID
+                const salon = await getOne('SELECT stripe_account_id FROM salons WHERE id = ?', [payout.salonId]);
 
-                const stripeTransferId = `mock_tr_${Math.random().toString(36).substring(7)}`;
+                if (!salon || !salon.stripe_account_id) {
+                    throw new Error('Salon does not have a connected Stripe account');
+                }
+
+                // Call Stripe Connect API to transfer funds
+                const stripeTransfer = await stripe.transfers.create({
+                    amount: Math.round(payout.amount * 100), // Stripe expects amounts in cents
+                    currency: 'eur',
+                    destination: salon.stripe_account_id,
+                    metadata: {
+                        salonId: payout.salonId.toString(),
+                        periodStart: payout.periodStart,
+                        periodEnd: payout.periodEnd
+                    }
+                });
+
+                const stripeTransferId = stripeTransfer.id;
 
                 const insertResult = await query(
                     `INSERT INTO payouts (salon_id, amount, status, stripe_transfer_id, period_start, period_end) 
@@ -151,10 +164,22 @@ export async function POST(request) {
                     [
                         payout.salonId,
                         payout.amount,
-                        'paid',
+                        'completed',
                         stripeTransferId,
                         payout.periodStart || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' '),
                         payout.periodEnd || new Date().toISOString().slice(0, 19).replace('T', ' ')
+                    ]
+                );
+
+                // Record audit log
+                await query(
+                    `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data) VALUES (?, ?, ?, ?, ?)`,
+                    [
+                        session.userId,
+                        'execute_payout',
+                        'payout',
+                        insertResult.insertId,
+                        JSON.stringify({ amount: payout.amount, salon_id: payout.salonId, transfer_id: stripeTransferId })
                     ]
                 );
 

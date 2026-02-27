@@ -40,8 +40,8 @@ import pool from "@/lib/db";
 export class ClientError extends Error {
   constructor(code, message, httpStatus = 400) {
     super(message);
-    this.name  = "ClientError";
-    this.code  = code;
+    this.name = "ClientError";
+    this.code = code;
     this.httpStatus = httpStatus;
   }
 }
@@ -96,22 +96,22 @@ export async function findOrCreateClient({
   phone: rawPhone,
   email: rawEmail,
   firstName: rawFirstName,
-  lastName:  rawLastName,
-  gender         = null,
-  dateOfBirth    = null,
-  address        = null,
-  city           = null,
-  postalCode     = null,
-  salonId        = null,
-  notes          = null,
+  lastName: rawLastName,
+  gender = null,
+  dateOfBirth = null,
+  address = null,
+  city = null,
+  postalCode = null,
+  salonId = null,
+  notes = null,
 } = {}) {
 
   // ── Input normalisation ─────────────────────────────────────────────────
 
-  const phone     = normalizePhone(rawPhone);
-  const email     = rawEmail ? String(rawEmail).trim().toLowerCase() || null : null;
+  const phone = normalizePhone(rawPhone);
+  const email = rawEmail ? String(rawEmail).trim().toLowerCase() || null : null;
   const firstName = rawFirstName ? String(rawFirstName).trim() || null : null;
-  const lastName  = rawLastName  ? String(rawLastName).trim()  || null : null;
+  const lastName = rawLastName ? String(rawLastName).trim() || null : null;
 
   // ── Validation ──────────────────────────────────────────────────────────
 
@@ -132,7 +132,7 @@ export async function findOrCreateClient({
 
   const conn = await pool.getConnection();
   let userId;
-  let isNew        = false;
+  let isNew = false;
   let isNewToSalon = false;
 
   try {
@@ -145,13 +145,13 @@ export async function findOrCreateClient({
     // until we commit.  This serialises concurrent requests for the same phone
     // number so only one INSERT can ever win.
     //
-    // Exclude deleted accounts — role='deleted' is the soft-delete sentinel.
+    // Exclude deleted accounts — deleted_at IS NOT NULL is the soft-delete sentinel.
     if (phone) {
       const [[byPhone]] = await conn.execute(
         `SELECT id
            FROM users
           WHERE phone = ?
-            AND role != 'deleted'
+            AND deleted_at IS NULL
           LIMIT 1
           FOR UPDATE`,
         [phone],
@@ -183,7 +183,7 @@ export async function findOrCreateClient({
         `SELECT id
            FROM users
           WHERE email = ?
-            AND role != 'deleted'
+            AND deleted_at IS NULL
           LIMIT 1
           FOR UPDATE`,
         [email],
@@ -228,7 +228,7 @@ export async function findOrCreateClient({
               address, city, postal_code, role, password_hash, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'client', '', NOW(), NOW())`,
           [userEmail, phone, firstName, lastName, gender,
-           dateOfBirth, address, city, postalCode],
+            dateOfBirth, address, city, postalCode],
         );
         insertId = result.insertId;
       } catch (insertErr) {
@@ -251,8 +251,8 @@ export async function findOrCreateClient({
         }
       }
 
-      userId  = insertId;
-      isNew   = true;
+      userId = insertId;
+      isNew = true;
     }
 
     // ── 4. Upsert salon_clients ───────────────────────────────────────────

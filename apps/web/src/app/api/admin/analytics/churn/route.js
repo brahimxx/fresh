@@ -23,7 +23,7 @@ export async function GET(request) {
                 MAX(sc.last_visit_date) as last_client_visit
             FROM salons s
             LEFT JOIN bookings b ON s.id = b.salon_id
-            LEFT JOIN salon_clients sc ON s.id = sc.salon_id
+            LEFT JOIN salon_clients sc ON s.id = sc.salon_id AND sc.is_active = 1
             WHERE s.is_active = 1 AND s.deleted_at IS NULL
             GROUP BY s.id, s.name, s.email, s.phone, s.plan_tier
             HAVING (last_booking_date IS NULL OR last_booking_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY))

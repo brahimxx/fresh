@@ -118,10 +118,10 @@ export async function GET(request) {
       },
       staff: b.staff_id
         ? {
-            id: b.staff_id,
-            firstName: b.staff_first_name,
-            lastName: b.staff_last_name,
-          }
+          id: b.staff_id,
+          firstName: b.staff_first_name,
+          lastName: b.staff_last_name,
+        }
         : null,
       startDatetime: String(b.start_datetime).replace(' ', 'T'),
       endDatetime: String(b.end_datetime).replace(' ', 'T'),
@@ -206,7 +206,7 @@ export async function POST(request) {
         [salonId],
       ),
       getOne(
-        "SELECT id, first_name, email FROM users WHERE id = ? AND role != 'deleted'",
+        "SELECT id, first_name, email FROM users WHERE id = ? AND deleted_at IS NULL",
         [clientId],
       ),
     ]);
@@ -258,8 +258,8 @@ export async function POST(request) {
     }
 
     const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
-    const totalBuffer  = services.reduce((sum, s) => sum + (s.buffer_time_minutes || 0), 0);
-    const totalPrice   = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
+    const totalBuffer = services.reduce((sum, s) => sum + (s.buffer_time_minutes || 0), 0);
+    const totalPrice = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
 
     // Normalise startDatetime to "YYYY-MM-DD HH:MM:SS" — no UTC conversion.
     const startDatetimeFormatted = startDatetime.slice(0, 19).replace("T", " ");
@@ -267,7 +267,7 @@ export async function POST(request) {
     // Derive endDatetime for the response; booking.js recomputes it internally.
     const pad = (n) => String(n).padStart(2, "0");
     const startDate = new Date(String(startDatetime).replace(" ", "T"));
-    const endDate   = new Date(startDate.getTime() + (totalDuration + totalBuffer) * 60000);
+    const endDate = new Date(startDate.getTime() + (totalDuration + totalBuffer) * 60000);
     const endDatetimeFormatted = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
 
     // Dashboard / direct bookings are always confirmed — a receptionist creating
@@ -309,10 +309,10 @@ export async function POST(request) {
     });
 
     const isConfirmed = status === "confirmed";
-    const notificationTitle = isConfirmed 
+    const notificationTitle = isConfirmed
       ? `Booking Confirmed: ${services[0]?.name}${services.length > 1 ? ` & ${services.length - 1} more` : ''}`
       : `Booking Received (Pending Approval): ${services[0]?.name}`;
-      
+
     const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
     const notificationBody = `
       <p>Hi ${clientRecord.first_name || 'there'},</p>

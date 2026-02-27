@@ -30,7 +30,9 @@ export async function GET(request, { params }) {
       `SELECT sc.*, u.first_name, u.last_name, u.email, u.phone
        FROM salon_clients sc
        JOIN users u ON u.id = sc.client_id
-       WHERE sc.salon_id = ? AND sc.client_id = ?`,
+       WHERE sc.salon_id = ? AND sc.client_id = ?
+         AND sc.is_active = 1
+         AND u.deleted_at IS NULL`,
       [id, clientId]
     );
 
@@ -91,10 +93,10 @@ export async function GET(request, { params }) {
         status: b.status,
         staff: b.staff_id
           ? {
-              id: b.staff_id,
-              firstName: b.staff_first_name,
-              lastName: b.staff_last_name,
-            }
+            id: b.staff_id,
+            firstName: b.staff_first_name,
+            lastName: b.staff_last_name,
+          }
           : null,
         services: bookingServices
           .filter((bs) => bs.booking_id === b.id)

@@ -63,7 +63,7 @@ export async function GET(request) {
     const [newClientsResult] = await query(
       `SELECT COUNT(*) as new_clients
        FROM salon_clients
-       WHERE salon_id = ? AND DATE(first_visit_date) BETWEEN ? AND ?`,
+       WHERE salon_id = ? AND is_active = 1 AND DATE(first_visit_date) BETWEEN ? AND ?`,
       [salonId, start, end]
     );
 

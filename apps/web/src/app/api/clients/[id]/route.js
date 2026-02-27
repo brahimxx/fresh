@@ -76,10 +76,10 @@ export async function GET(request, { params }) {
       createdAt: client.created_at,
       salonStats: salonData
         ? {
-            firstVisitDate: salonData.first_visit_date,
-            lastVisitDate: salonData.last_visit_date,
-            totalVisits: salonData.total_visits,
-          }
+          firstVisitDate: salonData.first_visit_date,
+          lastVisitDate: salonData.last_visit_date,
+          totalVisits: salonData.total_visits,
+        }
         : null,
     });
   } catch (err) {
@@ -129,7 +129,7 @@ export async function PUT(request, { params }) {
 
     // ── Confirm the client exists ────────────────────────────────────────
     const existing = await getOne(
-      "SELECT id, phone, email FROM users WHERE id = ? AND role != 'deleted'",
+      "SELECT id, phone, email FROM users WHERE id = ? AND deleted_at IS NULL",
       [clientId],
     );
     if (!existing) {
@@ -143,16 +143,16 @@ export async function PUT(request, { params }) {
     const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
 
     const firstName = has("firstName") ? (String(body.firstName || "").trim() || null)
-                    : has("first_name") ? (String(body.first_name || "").trim() || null)
-                    : undefined;
+      : has("first_name") ? (String(body.first_name || "").trim() || null)
+        : undefined;
 
-    const lastName  = has("lastName")  ? (String(body.lastName  || "").trim() || null)
-                    : has("last_name")  ? (String(body.last_name  || "").trim() || null)
-                    : undefined;
+    const lastName = has("lastName") ? (String(body.lastName || "").trim() || null)
+      : has("last_name") ? (String(body.last_name || "").trim() || null)
+        : undefined;
 
-    const newPhone  = has("phone") ? normalizePhone(body.phone) : undefined;
-    const newEmail  = has("email") ? (String(body.email || "").trim().toLowerCase() || null) : undefined;
-    const notes     = has("notes") ? (String(body.notes || "").trim() || null) : undefined;
+    const newPhone = has("phone") ? normalizePhone(body.phone) : undefined;
+    const newEmail = has("email") ? (String(body.email || "").trim().toLowerCase() || null) : undefined;
+    const notes = has("notes") ? (String(body.notes || "").trim() || null) : undefined;
 
     // ── Transaction: conflict checks → UPDATE ────────────────────────────
     const conn = await pool.getConnection();
@@ -174,7 +174,7 @@ export async function PUT(request, { params }) {
           `SELECT id FROM users
             WHERE phone = ?
               AND id    != ?
-              AND role  != 'deleted'
+              AND deleted_at IS NULL
             LIMIT 1`,
           [newPhone, clientId],
         );
@@ -217,12 +217,12 @@ export async function PUT(request, { params }) {
       // An edit form that only surfaces name + phone must not zero out
       // email, address, or any other column the form never rendered.
       const setClauses = [];
-      const setParams  = [];
+      const setParams = [];
 
       if (firstName !== undefined) { setClauses.push("first_name = ?"); setParams.push(firstName); }
-      if (lastName  !== undefined) { setClauses.push("last_name  = ?"); setParams.push(lastName);  }
-      if (newPhone  !== undefined) { setClauses.push("phone      = ?"); setParams.push(newPhone);  }
-      if (newEmail  !== undefined) { setClauses.push("email      = ?"); setParams.push(newEmail);  }
+      if (lastName !== undefined) { setClauses.push("last_name  = ?"); setParams.push(lastName); }
+      if (newPhone !== undefined) { setClauses.push("phone      = ?"); setParams.push(newPhone); }
+      if (newEmail !== undefined) { setClauses.push("email      = ?"); setParams.push(newEmail); }
 
       if (setClauses.length > 0) {
         setClauses.push("updated_at = NOW()");
@@ -263,24 +263,24 @@ export async function PUT(request, { params }) {
       ),
       salonId
         ? getOne(
-            "SELECT notes FROM salon_clients WHERE salon_id = ? AND client_id = ?",
-            [salonId, clientId],
-          )
+          "SELECT notes FROM salon_clients WHERE salon_id = ? AND client_id = ?",
+          [salonId, clientId],
+        )
         : Promise.resolve(null),
     ]);
 
     return success({
-      id:          updatedClient.id,
-      firstName:   updatedClient.first_name,
-      lastName:    updatedClient.last_name,
-      email:       updatedClient.email,
-      phone:       updatedClient.phone,
-      gender:      updatedClient.gender,
+      id: updatedClient.id,
+      firstName: updatedClient.first_name,
+      lastName: updatedClient.last_name,
+      email: updatedClient.email,
+      phone: updatedClient.phone,
+      gender: updatedClient.gender,
       dateOfBirth: updatedClient.date_of_birth,
-      address:     updatedClient.address,
-      city:        updatedClient.city,
-      postalCode:  updatedClient.postal_code,
-      notes:       salonData?.notes ?? null,
+      address: updatedClient.address,
+      city: updatedClient.city,
+      postalCode: updatedClient.postal_code,
+      notes: salonData?.notes ?? null,
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();

@@ -26,7 +26,7 @@ export async function POST(request, { params }) {
     }
 
     // Get target recipients based on audience
-    let recipientQuery = 'SELECT DISTINCT u.id, u.email, u.phone FROM users u JOIN salon_clients sc ON sc.client_id = u.id WHERE sc.salon_id = ?';
+    let recipientQuery = 'SELECT DISTINCT u.id, u.email, u.phone FROM users u JOIN salon_clients sc ON sc.client_id = u.id WHERE sc.salon_id = ? AND sc.is_active = 1 AND u.deleted_at IS NULL';
     const recipientParams = [campaign.salon_id];
 
     switch (campaign.target_audience) {

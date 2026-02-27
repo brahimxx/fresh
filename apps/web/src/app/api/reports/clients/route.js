@@ -34,7 +34,7 @@ export async function GET(request) {
         DATE_FORMAT(created_at, '%Y-%m') as month,
         COUNT(*) as new_clients
       FROM salon_clients
-      WHERE salon_id = ?
+      WHERE salon_id = ? AND is_active = 1
     `;
     const newClientsParams = [salonId];
 
@@ -62,7 +62,7 @@ export async function GET(request) {
         END as category,
         COUNT(*) as count
        FROM salon_clients
-       WHERE salon_id = ?
+       WHERE salon_id = ? AND is_active = 1
        GROUP BY category`,
       [salonId]
     );
@@ -81,7 +81,7 @@ export async function GET(request) {
        JOIN users u ON u.id = sc.client_id
        LEFT JOIN bookings b ON b.client_id = sc.client_id AND b.salon_id = sc.salon_id
        LEFT JOIN payments p ON p.booking_id = b.id AND p.status = 'paid'
-       WHERE sc.salon_id = ?
+       WHERE sc.salon_id = ? AND sc.is_active = 1
        GROUP BY sc.client_id, u.first_name, u.last_name, u.email, sc.total_visits, sc.last_visit_date
        ORDER BY total_spent DESC
        LIMIT 10`,
@@ -95,7 +95,7 @@ export async function GET(request) {
         SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as new_last_30_days,
         AVG(total_visits) as avg_visits,
         SUM(CASE WHEN last_visit_date >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 1 ELSE 0 END) as active_clients
-       FROM salon_clients WHERE salon_id = ?`,
+       FROM salon_clients WHERE salon_id = ? AND is_active = 1`,
       [salonId]
     );
 
@@ -106,7 +106,7 @@ export async function GET(request) {
         FROM salon_clients sc
         LEFT JOIN bookings b ON b.client_id = sc.client_id AND b.salon_id = sc.salon_id
         LEFT JOIN payments p ON p.booking_id = b.id AND p.status = 'paid'
-        WHERE sc.salon_id = ?
+        WHERE sc.salon_id = ? AND sc.is_active = 1
         GROUP BY sc.client_id
       ) as client_revenues`,
       [salonId]

@@ -1,6 +1,7 @@
 import { success, error, unauthorized } from '@/lib/response';
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { stripe } from '@/lib/stripe';
 
 export async function POST(request, { params }) {
     try {
@@ -33,8 +34,17 @@ export async function POST(request, { params }) {
             return error({ message: `Invalid refund amount. Maximum refundable is ${maxRefundable}` }, 400);
         }
 
-        // Mock Stripe refund (In production, call stripe.refunds.create)
-        const stripeRefundId = `mock_rf_${Math.random().toString(36).substring(7)}`;
+        if (!payment.stripe_payment_id) {
+            return error({ message: 'No Stripe Payment ID found for this booking' }, 400);
+        }
+
+        // Live Stripe refund
+        const stripeRefund = await stripe.refunds.create({
+            payment_intent: payment.stripe_payment_id,
+            amount: Math.round(refundAmount * 100)
+        });
+
+        const stripeRefundId = stripeRefund.id;
 
         // Calculate new status
         const newRefundedTotal = parseFloat(payment.refunded_amount || 0) + refundAmount;
@@ -45,10 +55,22 @@ export async function POST(request, { params }) {
 
         try {
             // 1. Insert refund record
-            await query(
+            const refundInsertResult = await query(
                 `INSERT INTO refunds (payment_id, amount, reason, stripe_refund_id, status, processed_by) 
          VALUES (?, ?, ?, ?, ?, ?)`,
                 [payment.id, refundAmount, reason || 'Admin override refund', stripeRefundId, 'completed', session.userId]
+            );
+
+            // Audit
+            await query(
+                `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data) VALUES (?, ?, ?, ?, ?)`,
+                [
+                    session.userId,
+                    'execute_refund',
+                    'refund',
+                    refundInsertResult.insertId,
+                    JSON.stringify({ amount: refundAmount, payment_id: payment.id, booking_id: bookingId, refund_id: stripeRefundId })
+                ]
             );
 
             // 2. Update payment record

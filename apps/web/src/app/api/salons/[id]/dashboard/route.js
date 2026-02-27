@@ -70,7 +70,7 @@ export async function GET(request, { params }) {
     // New clients this month
     const [newClients] = await query(
       `SELECT COUNT(*) as total FROM salon_clients 
-       WHERE salon_id = ? AND DATE(created_at) >= ?`,
+       WHERE salon_id = ? AND DATE(created_at) >= ? AND is_active = 1`,
       [id, startOfMonth]
     );
 

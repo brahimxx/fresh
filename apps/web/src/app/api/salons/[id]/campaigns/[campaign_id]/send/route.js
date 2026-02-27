@@ -45,7 +45,7 @@ export async function POST(request, { params }) {
       SELECT u.id as user_id, u.email, u.first_name, u.last_name 
       FROM salon_clients sc
       JOIN users u ON u.id = sc.client_id
-      WHERE sc.salon_id = ? AND sc.is_active = 1
+      WHERE sc.salon_id = ? AND sc.is_active = 1 AND u.deleted_at IS NULL
     `;
     const queryParams = [salonId];
 

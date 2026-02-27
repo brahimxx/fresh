@@ -52,25 +52,25 @@ export async function POST(request) {
     const body = await request.json();
 
     // Accept both camelCase (frontend) and snake_case (scripts / external callers)
-    const salonId     = Number(body.salonId     || body.salon_id)              || null;
-    const firstName   = (body.firstName  || body.first_name  || "").trim()     || null;
-    const lastName    = (body.lastName   || body.last_name   || "").trim()     || null;
-    const email       = (body.email      || "").trim().toLowerCase()           || null;
-    const phone       = normalizePhone(body.phone);
-    const gender      = body.gender                                             || null;
-    const dateOfBirth = body.dateOfBirth || body.date_of_birth                 || null;
-    const address     = (body.address    || "").trim()                         || null;
-    const city        = (body.city       || "").trim()                         || null;
-    const postalCode  = (body.postalCode || body.postal_code || "").trim()     || null;
-    const notes       = (body.notes      || "").trim()                         || null;
+    const salonId = Number(body.salonId || body.salon_id) || null;
+    const firstName = (body.firstName || body.first_name || "").trim() || null;
+    const lastName = (body.lastName || body.last_name || "").trim() || null;
+    const email = (body.email || "").trim().toLowerCase() || null;
+    const phone = normalizePhone(body.phone);
+    const gender = body.gender || null;
+    const dateOfBirth = body.dateOfBirth || body.date_of_birth || null;
+    const address = (body.address || "").trim() || null;
+    const city = (body.city || "").trim() || null;
+    const postalCode = (body.postalCode || body.postal_code || "").trim() || null;
+    const notes = (body.notes || "").trim() || null;
 
     // ── Validation ──────────────────────────────────────────────────────────
 
     if (!salonId) {
-      return error({ code: "MISSING_SALON",   message: "salonId is required" },    400);
+      return error({ code: "MISSING_SALON", message: "salonId is required" }, 400);
     }
     if (!firstName) {
-      return error({ code: "MISSING_NAME",    message: "first_name is required" }, 400);
+      return error({ code: "MISSING_NAME", message: "first_name is required" }, 400);
     }
     if (!phone && !email) {
       return error({ code: "MISSING_CONTACT", message: "phone or email is required" }, 400);
@@ -112,16 +112,16 @@ export async function POST(request) {
     );
 
     return created({
-      id:          user.id,
-      firstName:   user.first_name,
-      lastName:    user.last_name,
-      email:       user.email,
-      phone:       user.phone,
-      gender:      user.gender,
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      phone: user.phone,
+      gender: user.gender,
       dateOfBirth: user.date_of_birth,
-      address:     user.address,
-      city:        user.city,
-      postalCode:  user.postal_code,
+      address: user.address,
+      city: user.city,
+      postalCode: user.postal_code,
       salonId,
       isNew,         // true → new user created
       isNewToSalon,  // true → first visit to this salon
@@ -170,8 +170,8 @@ export async function GET(request) {
 
     // Cap at 50 — the dashboard autocomplete never needs more than that in one
     // shot, and an uncapped limit is an accidental DDoS vector.
-    const page   = Math.max(1, parseInt(searchParams.get("page")  || "1",  10));
-    const limit  = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
     const offset = (page - 1) * limit;
 
     // Truncate search term — a 500-char search string is never legitimate.
@@ -244,7 +244,7 @@ export async function GET(request) {
             ON sc.client_id  = u.id
            AND sc.salon_id   = ?
            AND sc.is_active  = 1
-         WHERE u.role != 'deleted'
+         WHERE u.deleted_at IS NULL
            AND ${userCondition}
          ORDER BY sc.last_visit_date DESC
          LIMIT ? OFFSET ?`;
@@ -257,7 +257,7 @@ export async function GET(request) {
       const conditions = [
         "sc.salon_id  = ?",
         "sc.is_active = 1",
-        "u.role != 'deleted'",
+        "u.deleted_at IS NULL",
       ];
       const params = [salonId];
 
@@ -284,14 +284,14 @@ export async function GET(request) {
 
     return success({
       clients: rows.map((r) => ({
-        id:             r.id,
-        firstName:      r.first_name,
-        lastName:       r.last_name,
-        phone:          r.phone,
-        email:          r.email,
-        lastVisitDate:  r.last_visit_date,
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        phone: r.phone,
+        email: r.email,
+        lastVisitDate: r.last_visit_date,
         firstVisitDate: r.first_visit_date,
-        totalVisits:    r.total_visits,
+        totalVisits: r.total_visits,
       })),
       pagination: {
         page,

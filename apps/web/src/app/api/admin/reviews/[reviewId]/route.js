@@ -2,8 +2,8 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden, notFound } from '@/lib/response';
 
-// PUT /api/admin/reviews/[reviewId] - Moderate review
-export async function PUT(request, { params }) {
+// PATCH /api/admin/reviews/[reviewId] - Moderate review
+export async function PATCH(request, { params }) {
   try {
     const session = await requireAuth();
     if (session.role !== 'admin') return forbidden('Admin access required');
@@ -24,6 +24,18 @@ export async function PUT(request, { params }) {
         moderated_at = NOW()
        WHERE id = ?`,
       [status, moderationNote || null, session.userId, reviewId]
+    );
+
+    // Audit log
+    await query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data) VALUES (?, ?, ?, ?, ?)`,
+      [
+        session.userId,
+        'moderate_review',
+        'review',
+        reviewId,
+        JSON.stringify({ status, moderation_note: moderationNote || null })
+      ]
     );
 
     return success({ message: 'Review moderated successfully' });

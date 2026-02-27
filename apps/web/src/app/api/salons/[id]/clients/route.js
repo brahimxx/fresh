@@ -43,6 +43,7 @@ export async function GET(request, { params }) {
       JOIN users u ON u.id = sc.client_id
       WHERE sc.salon_id = ?
         AND sc.is_active = 1
+        AND u.deleted_at IS NULL
     `;
     const params_query = [id];
 

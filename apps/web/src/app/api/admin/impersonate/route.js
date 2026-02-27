@@ -26,6 +26,12 @@ export async function POST(request) {
             return error({ message: 'Cannot impersonate another admin' }, 403);
         }
 
+        // Check if the user is a manager (or staff) in the staff table
+        const staffRec = await getOne(
+            'SELECT id, role, salon_id FROM staff WHERE user_id = ? AND is_active = 1 LIMIT 1',
+            [targetUserId]
+        );
+
         // Log the action in audit_logs
         await query(`
             INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data)
@@ -41,8 +47,11 @@ export async function POST(request) {
         // Generate impersonation token
         const impersonationPayload = {
             userId: targetUser.id,
-            role: targetUser.role,
-            impersonatorAdminId: session.userId // The critical flag for UI and security checks
+            // If they are a manager in a salon, treat their session role as 'manager'
+            role: (staffRec && staffRec.role === 'manager') ? 'manager' : targetUser.role,
+            impersonatorAdminId: session.userId, // The critical flag for UI and security checks
+            // Link directly to their specific staff_id rather than a generic user role
+            ...(staffRec && { staffId: staffRec.id, salonId: staffRec.salon_id })
         };
 
         const token = await createToken(impersonationPayload);
