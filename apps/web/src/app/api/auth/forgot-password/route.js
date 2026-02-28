@@ -3,6 +3,7 @@ import { success, error } from '@/lib/response';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
 import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
+import { sendNotification } from '@/lib/notifications';
 
 // POST /api/auth/forgot-password - Request password reset
 export async function POST(request) {
@@ -48,9 +49,23 @@ export async function POST(request) {
 
     // In production, send email here
     // For now, we'll just return the token (remove in production!)
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000';
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
-    // TODO: Send email with resetUrl
+    await sendNotification({
+      userId: user.id,
+      email: user.email,
+      type: 'email',
+      title: 'Password Reset Request',
+      message: `
+        <p>Hi ${user.first_name || 'there'},</p>
+        <p>You recently requested a password reset for your account. Click the link below to reset it:</p>
+        <p><a href="${resetUrl}">Reset Password</a></p>
+        <p>If you did not request a password reset, please ignore this email.</p>
+        <p>This link is valid for 1 hour.</p>
+      `,
+    });
+
     // Only log in development for debugging
     if (process.env.NODE_ENV === 'development') {
       console.log('Password reset URL:', resetUrl);
