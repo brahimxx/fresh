@@ -142,7 +142,7 @@ export default function MarketplaceLayout({ children }) {
                         </DropdownMenuItem>
                       </Link>
                     )}
-                    <Link href="/dashboard/settings">
+                    <Link href="/profile">
                       <DropdownMenuItem className="cursor-pointer">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>

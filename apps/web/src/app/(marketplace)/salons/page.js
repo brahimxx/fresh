@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
+import { SearchBar } from '@/components/marketplace/search-bar';
 
 var CATEGORIES = [
   { id: 'hair', name: 'Hair Salons' },
@@ -75,6 +76,12 @@ function SalonSearchContent() {
   // Filter states
   var [query, setQuery] = useState(searchParams.get('q') || '');
   var [location, setLocation] = useState(searchParams.get('location') || '');
+
+  // Keep these states updated if the router navigation changes the URL
+  useEffect(() => {
+    setQuery(searchParams.get('q') || '');
+    setLocation(searchParams.get('location') || '');
+  }, [searchParams]);
   var [selectedCategories, setSelectedCategories] = useState(
     searchParams.get('category')?.split(',').filter(Boolean) || []
   );
@@ -139,17 +146,7 @@ function SalonSearchContent() {
   var activeFilterCount = selectedCategories.length + selectedPrices.length + (minRating ? 1 : 0) + (openNow ? 1 : 0);
 
   function handleSearchSubmit(e) {
-    e?.preventDefault();
-    const params = new URLSearchParams();
-    if (query) params.append('q', query);
-    if (location) params.append('location', location);
-    if (selectedCategories.length) params.append('categories', selectedCategories.join(','));
-    if (selectedPrices.length) params.append('price', selectedPrices.join(','));
-    if (minRating) params.append('minRating', minRating);
-    if (openNow) params.append('openNow', 'true');
-    params.append('sort', sortBy);
-    
-    router.push(`/salons?${params.toString()}`);
+    if (e) e.preventDefault();
   }
 
   return (
@@ -157,27 +154,12 @@ function SalonSearchContent() {
       <Breadcrumbs className="mb-6" />
       {/* Search Header */}
       <div className="mb-8">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-4 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search services or salons..."
-              value={query}
-              onChange={function (e) { setQuery(e.target.value); }}
-              className="pl-10 h-10"
-            />
-          </div>
-          <div className="relative md:w-64">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Location"
-              value={location}
-              onChange={function (e) { setLocation(e.target.value); }}
-              className="pl-10 h-10"
-            />
-          </div>
-          <Button type="submit" className="h-10 px-6">Search</Button>
-        </form>
+        <SearchBar 
+          initialSearchQuery={query} 
+          initialLocationQuery={location} 
+          size="default" 
+          className="mb-4 shadow-sm"
+        />
 
         {/* Filter Bar */}
         <div className="flex items-center gap-3 flex-wrap">
