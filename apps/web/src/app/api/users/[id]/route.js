@@ -20,7 +20,7 @@ export async function GET(request, { params }) {
     }
 
     const user = await getOne(
-      'SELECT id, email, phone, first_name, last_name, role, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, email, phone, first_name, last_name, role, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
@@ -109,7 +109,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this user');
     }
 
-    await query('DELETE FROM users WHERE id = ?', [id]);
+    await query('UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = ? AND deleted_at IS NULL', [id]);
 
     return success({ message: 'User deleted successfully' });
   } catch (err) {

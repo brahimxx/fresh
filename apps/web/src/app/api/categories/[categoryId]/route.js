@@ -97,7 +97,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this category');
     }
 
-    // Set services to uncategorized
+    // Set services to uncategorized then remove the category
     await query('UPDATE services SET category_id = NULL WHERE category_id = ?', [categoryId]);
     await query('DELETE FROM service_categories WHERE id = ?', [categoryId]);
 

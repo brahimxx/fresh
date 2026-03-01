@@ -104,7 +104,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this review');
     }
 
-    await query('DELETE FROM reviews WHERE id = ?', [reviewId]);
+    await query("UPDATE reviews SET status = 'removed' WHERE id = ?", [reviewId]);
 
     return success({ message: 'Review deleted successfully' });
   } catch (err) {

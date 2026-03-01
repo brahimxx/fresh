@@ -22,7 +22,7 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    let sql = 'SELECT id, email, first_name, last_name, phone, role, email_verified, created_at FROM users WHERE 1=1';
+    let sql = 'SELECT id, email, first_name, last_name, phone, role, email_verified, created_at, deleted_at FROM users WHERE 1=1';
     const sqlParams = [];
 
     if (role) {
@@ -37,7 +37,7 @@ export async function GET(request) {
     }
 
     // Get total
-    const [countResult] = await query(sql.replace('SELECT id, email, first_name, last_name, phone, role, email_verified, created_at', 'SELECT COUNT(*) as total'), sqlParams);
+    const [countResult] = await query(sql.replace('SELECT id, email, first_name, last_name, phone, role, email_verified, created_at, deleted_at', 'SELECT COUNT(*) as total'), sqlParams);
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     sqlParams.push(limit, offset);
@@ -54,6 +54,7 @@ export async function GET(request) {
         role: u.role,
         emailVerified: u.email_verified,
         createdAt: u.created_at,
+        deletedAt: u.deleted_at,
       })),
       pagination: {
         page,

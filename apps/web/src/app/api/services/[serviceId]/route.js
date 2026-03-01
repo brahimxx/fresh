@@ -184,7 +184,7 @@ export async function DELETE(request, { params }) {
     }
 
     await query("DELETE FROM service_staff WHERE service_id = ?", [serviceId]);
-    await query("DELETE FROM services WHERE id = ?", [serviceId]);
+    await query("UPDATE services SET deleted_at = NOW(), is_active = 0 WHERE id = ? AND deleted_at IS NULL", [serviceId]);
 
     return success({ message: "Service deleted successfully" });
   } catch (err) {

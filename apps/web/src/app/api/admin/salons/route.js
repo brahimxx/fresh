@@ -68,6 +68,7 @@ export async function GET(request) {
         staffCount: s.staff_count,
         bookingCount: s.booking_count,
         createdAt: s.created_at,
+        deletedAt: s.deleted_at,
       })),
       pagination: {
         page,

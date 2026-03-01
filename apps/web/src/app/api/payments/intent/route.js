@@ -13,8 +13,8 @@ export async function POST(request) {
     const body = await request.json();
     const { bookingId, amount, currency = 'eur' } = body;
 
-    if (!bookingId || !amount) {
-      return error('Booking ID and amount are required');
+    if (!bookingId || amount === undefined || amount === null || isNaN(amount) || amount <= 0) {
+      return error('Valid Booking ID and positive amount are required', 400);
     }
 
     // Verify the booking exists and the user has access to it

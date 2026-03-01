@@ -103,7 +103,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this product');
     }
 
-    await query('DELETE FROM products WHERE id = ?', [productId]);
+    await query('UPDATE products SET deleted_at = NOW(), is_active = 0 WHERE id = ? AND deleted_at IS NULL', [productId]);
 
     return success({ message: 'Product deleted successfully' });
   } catch (err) {

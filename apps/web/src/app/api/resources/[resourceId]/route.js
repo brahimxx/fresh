@@ -88,7 +88,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this resource');
     }
 
-    await query('DELETE FROM resources WHERE id = ?', [resourceId]);
+    await query('UPDATE resources SET is_active = 0 WHERE id = ?', [resourceId]);
 
     return success({ message: 'Resource deleted successfully' });
   } catch (err) {

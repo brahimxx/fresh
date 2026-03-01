@@ -63,13 +63,10 @@ export async function DELETE(request, { params }) {
       return notFound("Booking not found");
     }
 
-    // Delete related records first (foreign key constraints)
-    await query("DELETE FROM booking_services WHERE booking_id = ?", [id]);
+    // Soft delete related records
+    await query("UPDATE bookings SET deleted_at = NOW(), status = 'cancelled' WHERE id = ? AND deleted_at IS NULL", [id]);
 
-    // Delete the booking
-    await query("DELETE FROM bookings WHERE id = ?", [id]);
-
-    return success({ message: "Booking deleted permanently" });
+    return success({ message: "Booking deleted successfully" });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
     console.error("Delete booking error:", err);

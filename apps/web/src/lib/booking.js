@@ -125,6 +125,10 @@ export async function createSafeBooking({
     (sum, s) => sum + Number(s.bufferTime || 0),
     0,
   );
+  // Calculate total from caller-supplied service prices.
+  // NOTE (BUG-010): These prices are snapshots provided by the caller at booking time.
+  // The final charged amount is always recalculated from DB rows by calculateBookingTotal()
+  // in checkout.js, so stale prices here do NOT affect financial integrity.
   const totalPrice = services.reduce(
     (sum, s) => sum + parseFloat(s.price || 0),
     0,
@@ -227,7 +231,7 @@ export async function createSafeBooking({
       throw new BookingError(
         "OUTSIDE_WORKING_HOURS",
         `Staff #${staffId} doesn't start working until ${formatTime(wh.start_time)}. ` +
-          `Please choose a time at or after ${formatTime(wh.start_time)}.`,
+        `Please choose a time at or after ${formatTime(wh.start_time)}.`,
         409,
       );
     }
@@ -235,7 +239,7 @@ export async function createSafeBooking({
       throw new BookingError(
         "SERVICE_EXCEEDS_SHIFT",
         `This service would end at ${formatTime(endTime)}, but staff #${staffId}'s shift ends at ${formatTime(wh.end_time)}. ` +
-          `Please choose an earlier start time.`,
+        `Please choose an earlier start time.`,
         409,
       );
     }
@@ -247,7 +251,7 @@ export async function createSafeBooking({
   // This replaces the previous serial loop (1 query per service → 1 query total).
 
   const svcPairs = services.map((svc) => ({
-    staffId:   Number(svc.staffId || primaryStaffId),
+    staffId: Number(svc.staffId || primaryStaffId),
     serviceId: Number(svc.serviceId),
   }));
   // Deduplicate (same pair can appear if client sends duplicates)
@@ -359,7 +363,7 @@ export async function createSafeBooking({
     }
 
     // ── Step 5: Working hours already validated pre-transaction (Step 2) ──
-    
+
     // ── Step 5.5: Discounts & Gift Cards (locked read & atomic update) ──
     let amountSaved = 0;
     let appliedDiscount = null;
@@ -427,7 +431,7 @@ export async function createSafeBooking({
       const balance = parseFloat(appliedGiftCard.remaining_balance);
       giftCardAmountUsed = Math.min(balance, totalAfterDiscount);
     }
-    
+
     const finalAmountDue = Math.max(0, totalAfterDiscount - giftCardAmountUsed);
 
     // ── Step 6: Insert booking row ────────────────────────────────────────
@@ -521,10 +525,10 @@ export async function createSafeBooking({
     // ── Step 7: Commit ────────────────────────────────────────────────────
     await conn.commit();
 
-    return { 
-      bookingId, 
-      totalPrice, 
-      totalDuration, 
+    return {
+      bookingId,
+      totalPrice,
+      totalDuration,
       isNewClient,
       discountAmount: amountSaved,
       giftCardAmountUsed,

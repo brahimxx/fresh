@@ -14,7 +14,7 @@ export async function GET(request, { params }) {
       `SELECT s.*, u.email as owner_email, u.first_name as owner_first_name, u.last_name as owner_last_name
        FROM salons s
        JOIN users u ON u.id = s.owner_id
-       WHERE s.id = ?`,
+       WHERE s.id = ? AND s.deleted_at IS NULL`,
       [salonId]
     );
 
@@ -99,7 +99,7 @@ export async function DELETE(request, { params }) {
 
     const { salonId } = await params;
 
-    await query('DELETE FROM salons WHERE id = ?', [salonId]);
+    await query('UPDATE salons SET deleted_at = NOW(), deleted_by = ?, is_active = 0 WHERE id = ? AND deleted_at IS NULL', [session.userId, salonId]);
 
     return success({ message: 'Salon deleted successfully' });
   } catch (err) {

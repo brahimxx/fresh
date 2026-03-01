@@ -100,8 +100,8 @@ export async function POST(request) {
     const body = await request.json();
     const { bookingId, amount, method, stripePaymentId } = body;
 
-    if (!bookingId || !amount || !method) {
-      return error('Booking ID, amount, and method are required');
+    if (!bookingId || amount === undefined || amount === null || isNaN(amount) || amount < 0 || !method) {
+      return error('Booking ID, valid amount (>= 0), and method are required', 400);
     }
 
     const { access, booking } = await checkBookingAccess(bookingId, session.userId, session.role);

@@ -141,11 +141,12 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to remove staff');
     }
 
-    // Delete related records
+    // Clear schedule data (config/join tables — hard-delete acceptable)
     await query('DELETE FROM staff_working_hours WHERE staff_id = ?', [staffId]);
     await query('DELETE FROM staff_time_off WHERE staff_id = ?', [staffId]);
     await query('DELETE FROM service_staff WHERE staff_id = ?', [staffId]);
-    await query('DELETE FROM staff WHERE id = ? AND salon_id = ?', [staffId, id]);
+    // Soft-delete the staff record itself
+    await query('UPDATE staff SET is_active = 0 WHERE id = ? AND salon_id = ?', [staffId, id]);
 
     return success({ message: 'Staff member removed successfully' });
   } catch (err) {

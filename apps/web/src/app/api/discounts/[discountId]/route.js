@@ -127,7 +127,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this discount');
     }
 
-    await query('DELETE FROM discounts WHERE id = ?', [discountId]);
+    await query('UPDATE discounts SET is_active = 0 WHERE id = ?', [discountId]);
 
     return success({ message: 'Discount deleted successfully' });
   } catch (err) {

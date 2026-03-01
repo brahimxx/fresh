@@ -307,10 +307,11 @@ export async function processCheckout(bookingId, { method, tipAmount = 0, promoC
     payment: {
       id: paymentResult.insertId,
       bookingId,
-      amount: breakdown.finalTotal,
+      amount: finalAmountDue,
       method,
       tipAmount: tip,
       status: "paid",
+      promoDiscount: amountSaved > 0 ? amountSaved : undefined,
     },
     booking: {
       id: booking.id,

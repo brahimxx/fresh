@@ -86,7 +86,7 @@ export async function DELETE(request, { params }) {
       return forbidden('Not authorized to delete this entry');
     }
 
-    await query('DELETE FROM waitlist WHERE id = ?', [waitlistId]);
+    await query("UPDATE waitlist SET status = 'cancelled' WHERE id = ?", [waitlistId]);
 
     return success({ message: 'Removed from waitlist successfully' });
   } catch (err) {

@@ -148,7 +148,7 @@ export async function DELETE(request, { params }) {
 
     await transaction(async (conn) => {
       await conn.execute('DELETE FROM package_services WHERE package_id = ?', [packageId]);
-      await conn.execute('DELETE FROM packages WHERE id = ?', [packageId]);
+      await conn.execute('UPDATE packages SET is_active = 0 WHERE id = ?', [packageId]);
     });
 
     return success({ message: 'Package deleted successfully' });

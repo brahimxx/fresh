@@ -54,7 +54,7 @@ export async function DELETE(request, { params }) {
 
     const { reviewId } = await params;
 
-    await query('DELETE FROM reviews WHERE id = ?', [reviewId]);
+    await query("UPDATE reviews SET status = 'removed', moderated_by = ?, moderated_at = NOW() WHERE id = ?", [session.userId, reviewId]);
 
     return success({ message: 'Review deleted successfully' });
   } catch (err) {

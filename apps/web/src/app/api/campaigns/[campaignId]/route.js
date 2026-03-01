@@ -100,7 +100,7 @@ export async function DELETE(request, { params }) {
       return error('Cannot delete an active campaign');
     }
 
-    await query('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    await query("UPDATE campaigns SET status = 'cancelled' WHERE id = ?", [campaignId]);
 
     return success({ message: 'Campaign deleted successfully' });
   } catch (err) {

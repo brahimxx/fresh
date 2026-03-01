@@ -1,5 +1,5 @@
 import { success, error, unauthorized } from '@/lib/response';
-import { query, getOne } from '@/lib/db';
+import pool, { query, getOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
@@ -136,9 +136,12 @@ export async function POST(request) {
                 continue;
             }
 
+            const conn = await pool.getConnection();
             try {
+                await conn.beginTransaction();
+
                 // Fetch the salon's connected Stripe account ID
-                const salon = await getOne('SELECT stripe_account_id FROM salons WHERE id = ?', [payout.salonId]);
+                const [[salon]] = await conn.query('SELECT stripe_account_id FROM salons WHERE id = ? AND deleted_at IS NULL', [payout.salonId]);
 
                 if (!salon || !salon.stripe_account_id) {
                     throw new Error('Salon does not have a connected Stripe account');
@@ -158,7 +161,7 @@ export async function POST(request) {
 
                 const stripeTransferId = stripeTransfer.id;
 
-                const insertResult = await query(
+                const [insertResult] = await conn.query(
                     `INSERT INTO payouts (salon_id, amount, status, stripe_transfer_id, period_start, period_end) 
            VALUES (?, ?, ?, ?, ?, ?)`,
                     [
@@ -172,7 +175,7 @@ export async function POST(request) {
                 );
 
                 // Record audit log
-                await query(
+                await conn.query(
                     `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data) VALUES (?, ?, ?, ?, ?)`,
                     [
                         session.userId,
@@ -183,6 +186,8 @@ export async function POST(request) {
                     ]
                 );
 
+                await conn.commit();
+
                 results.push({
                     salonId: payout.salonId,
                     payoutId: insertResult.insertId,
@@ -190,8 +195,11 @@ export async function POST(request) {
                     transferId: stripeTransferId
                 });
             } catch (err) {
+                await conn.rollback();
                 console.error(`Failed to process payout for salon ${payout.salonId}:`, err);
                 errors.push({ salonId: payout.salonId, error: err.message });
+            } finally {
+                conn.release();
             }
         }
 

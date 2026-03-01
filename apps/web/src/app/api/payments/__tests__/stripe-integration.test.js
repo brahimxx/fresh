@@ -1,9 +1,16 @@
 /**
+ * @jest-environment node
+ */
+/**
  * Unit tests for Stripe payment integration
  * Mocks Stripe API to test payment flow logic
  */
 
 import { jest } from '@jest/globals';
+import { jest } from '@jest/globals';
+
+let POST;
+let db;
 
 // Mock Stripe before imports
 const mockStripe = {
@@ -16,30 +23,33 @@ const mockStripe = {
   },
 };
 
-jest.unstable_mockModule('stripe', () => ({
-  default: jest.fn(() => mockStripe),
+jest.mock('jose', () => ({
+  jwtVerify: jest.fn(),
+  SignJWT: jest.fn(),
+  importJWK: jest.fn(),
 }));
 
+jest.mock('stripe', () => {
+  return jest.fn(() => mockStripe);
+});
+
 // Mock database
-jest.unstable_mockModule('@/lib/db', () => ({
+jest.mock('../../../../lib/db', () => ({
   query: jest.fn(),
   getOne: jest.fn(),
   transaction: jest.fn(),
 }));
 
 // Mock auth
-jest.unstable_mockModule('@/lib/auth', () => ({
-  requireAuth: jest.fn(() => Promise.resolve({ userId: 1, role: 'owner' })),
+jest.mock('../../../../lib/auth', () => ({
+  requireAuth: jest.fn().mockResolvedValue({ userId: 1, role: 'owner' }),
 }));
 
 describe('Stripe Payment Integration', () => {
-  let POST;
-  let db;
-
   beforeEach(async () => {
     jest.clearAllMocks();
-    
-    // Import after mocks are set up
+
+    // Import dynamically so jest.mock executes beforehand in true ESM environments
     const intentModule = await import('../intent/route.js');
     POST = intentModule.POST;
     db = await import('@/lib/db');
@@ -54,6 +64,8 @@ describe('Stripe Payment Integration', () => {
           currency: 'eur',
         })),
       };
+
+      db.getOne.mockResolvedValueOnce({ id: 123, owner_id: 1 });
 
       mockStripe.paymentIntents.create.mockResolvedValue({
         id: 'pi_123',
@@ -114,6 +126,8 @@ describe('Stripe Payment Integration', () => {
           amount: 50.00,
         })),
       };
+
+      db.getOne.mockResolvedValueOnce({ id: 123, owner_id: 1 });
 
       mockStripe.paymentIntents.create.mockRejectedValue(
         new Error('Stripe API error: Invalid API key')

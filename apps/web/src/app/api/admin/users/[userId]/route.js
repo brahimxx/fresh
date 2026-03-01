@@ -12,14 +12,14 @@ export async function GET(request, { params }) {
 
     const user = await getOne(
       `SELECT id, email, first_name, last_name, phone, role, email_verified, created_at
-       FROM users WHERE id = ?`,
+       FROM users WHERE id = ? AND deleted_at IS NULL`,
       [userId]
     );
 
     if (!user) return notFound('User not found');
 
     // Get user's salons if owner
-    const salons = await query('SELECT id, name, city FROM salons WHERE owner_id = ?', [userId]);
+    const salons = await query('SELECT id, name, city FROM salons WHERE owner_id = ? AND deleted_at IS NULL', [userId]);
 
     // Get booking count
     const [bookingCount] = await query('SELECT COUNT(*) as total FROM bookings WHERE client_id = ?', [userId]);
@@ -81,7 +81,7 @@ export async function DELETE(request, { params }) {
       return error('Cannot delete yourself');
     }
 
-    await query('DELETE FROM users WHERE id = ?', [userId]);
+    await query('UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = ? AND deleted_at IS NULL', [userId]);
 
     return success({ message: 'User deleted successfully' });
   } catch (err) {

@@ -10,6 +10,11 @@ export async function GET(request) {
       return errorResponse("Unauthorized", 401);
     }
 
+    // BUG-007: Only owner, admin, or manager-staff can manage waitlists
+    if (auth.role === 'client') {
+      return errorResponse("Forbidden", 403);
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 50;
@@ -79,6 +84,11 @@ export async function POST(request) {
     const auth = await verifyAuth(request);
     if (!auth) {
       return errorResponse("Unauthorized", 401);
+    }
+
+    // BUG-007: Only owner, admin, or manager-staff can add to waitlist
+    if (auth.role === 'client') {
+      return errorResponse("Forbidden", 403);
     }
 
     const body = await request.json();

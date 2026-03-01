@@ -1,5 +1,5 @@
 import { success, error, unauthorized } from '@/lib/response';
-import { query } from '@/lib/db';
+import pool, { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
@@ -50,19 +50,20 @@ export async function POST(request, { params }) {
         const newRefundedTotal = parseFloat(payment.refunded_amount || 0) + refundAmount;
         const newStatus = newRefundedTotal >= parseFloat(payment.amount) ? 'refunded' : 'paid';
 
-        // Start a transaction to ensure atomic updates
-        await query('START TRANSACTION');
-
+        // Use a dedicated connection for proper transactional isolation
+        const conn = await pool.getConnection();
         try {
+            await conn.beginTransaction();
+
             // 1. Insert refund record
-            const refundInsertResult = await query(
+            const [refundInsertResult] = await conn.query(
                 `INSERT INTO refunds (payment_id, amount, reason, stripe_refund_id, status, processed_by) 
          VALUES (?, ?, ?, ?, ?, ?)`,
                 [payment.id, refundAmount, reason || 'Admin override refund', stripeRefundId, 'completed', session.userId]
             );
 
             // Audit
-            await query(
+            await conn.query(
                 `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_data) VALUES (?, ?, ?, ?, ?)`,
                 [
                     session.userId,
@@ -74,30 +75,28 @@ export async function POST(request, { params }) {
             );
 
             // 2. Update payment record
-            await query(
+            await conn.query(
                 `UPDATE payments SET refunded_amount = ?, status = ? WHERE id = ?`,
                 [newRefundedTotal, newStatus, payment.id]
             );
 
-            // 3. Handle Platform Fees (Reverse them if it's a full refund, or proportionately. For MVP, we'll waive the fee on full refund)
+            // 3. Handle Platform Fees — mark as unpaid so they don't factor into payouts
             if (newStatus === 'refunded') {
-                // Option A: Delete the fee
-                // Option B: Mark as unpaid so it doesn't get factored into payouts
-                await query(
+                await conn.query(
                     `UPDATE platform_fees SET is_paid = 0 WHERE booking_id = ?`,
                     [bookingId]
                 );
             }
 
-            // 4. Update booking status to cancelled if fully refunded (Optional, but good UX)
+            // 4. Update booking status to cancelled if fully refunded
             if (newStatus === 'refunded') {
-                await query(
+                await conn.query(
                     `UPDATE bookings SET status = 'cancelled', cancellation_reason = ? WHERE id = ? AND status != 'cancelled'`,
                     [`Admin globally refunded. Reason: ${reason || 'Unknown'}`, bookingId]
                 );
             }
 
-            await query('COMMIT');
+            await conn.commit();
 
             return success({
                 message: `Successfully refunded ${refundAmount}`,
@@ -106,8 +105,10 @@ export async function POST(request, { params }) {
             });
 
         } catch (txError) {
-            await query('ROLLBACK');
+            await conn.rollback();
             throw txError;
+        } finally {
+            conn.release();
         }
 
     } catch (err) {
