@@ -27,6 +27,7 @@ export async function GET(request) {
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
         s.address, s.city, s.state, s.postal_code,
         s.phone, s.website, s.price_level, s.category,
+        s.latitude, s.longitude,
         AVG(r.rating)        AS rating,
         COUNT(DISTINCT r.id) AS review_count,
         svc.services_preview
@@ -155,6 +156,8 @@ export async function GET(request) {
       website:          salon.website,
       price_level:      salon.price_level,
       category:         salon.category,
+      latitude:         salon.latitude ? parseFloat(salon.latitude) : null,
+      longitude:        salon.longitude ? parseFloat(salon.longitude) : null,
       rating:           salon.rating ? parseFloat(parseFloat(salon.rating).toFixed(1)) : null,
       review_count:     parseInt(salon.review_count) || 0,
       services_preview: salon.services_preview

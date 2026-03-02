@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, MapPin, Menu, X, User, LogOut, Calendar, LayoutDashboard, Settings } from 'lucide-react';
+import { Menu, X, User, LogOut, Calendar, LayoutDashboard, Settings } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SearchBar } from '@/components/marketplace/search-bar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/providers/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -26,18 +26,10 @@ export default function MarketplaceLayout({ children }) {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationQuery, setLocationQuery] = useState('');
-
   const isOwner = user?.role === 'owner';
 
-  const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.append('q', searchQuery);
-    if (locationQuery) params.append('location', locationQuery);
-    router.push(`/salons?${params.toString()}`);
-    setMobileMenuOpen(false);
-  };
+  // Show header search on all pages except the homepage
+  const showHeaderSearch = pathname !== '/';
 
   return (
     <div className="min-h-screen bg-background">
@@ -54,29 +46,14 @@ export default function MarketplaceLayout({ children }) {
             </Link>
 
             {/* Search Bar - Desktop */}
-            {pathname !== '/' && (
-              <div className="hidden md:flex items-center gap-2 flex-1 max-w-xl mx-8">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search for services or salons..."
-                    className="pl-10 bg-muted"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Location"
-                    className="pl-10 w-40 bg-muted"
-                    value={locationQuery}
-                    onChange={(e) => setLocationQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                </div>
-                <Button onClick={handleSearch}>Search</Button>
+            {showHeaderSearch && (
+              <div className="hidden md:block flex-1 max-w-2xl mx-8">
+                <SearchBar 
+                  initialSearchQuery="" 
+                  initialLocationQuery="" 
+                  size="compact"
+                  className=""
+                />
               </div>
             )}
 
@@ -175,27 +152,13 @@ export default function MarketplaceLayout({ children }) {
         {mobileMenuOpen && (
           <div className="md:hidden border-t bg-background p-4 space-y-4">
             {pathname !== '/' && (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search services or salons..."
-                    className="pl-10"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Location"
-                    className="pl-10"
-                    value={locationQuery}
-                    onChange={(e) => setLocationQuery(e.target.value)}
-                  />
-                </div>
-                <Button className="w-full" onClick={handleSearch}>Search</Button>
-              </>
+              <div className="mb-2">
+                <SearchBar
+                  initialSearchQuery=""
+                  initialLocationQuery=""
+                  size="compact"
+                />
+              </div>
             )}
             {!isAuthenticated && (
               <Link href="/login?type=professional" className="block text-center text-sm font-medium">

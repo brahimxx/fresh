@@ -180,60 +180,58 @@ export function SearchBar({
   const handleGetLocation = () => {
     setIsGettingLocation(true);
     
-    // 1. High-accuracy GPS (brief watchPosition for highest accuracy)
     if (navigator.geolocation) {
-      // We'll use a timeout to fallback to IP if GPS takes too long or is denied
+      // Generous timeout so the browser has time to show the permission popup
       const fallbackTimeout = setTimeout(() => {
         fallbackToIP();
-      }, 5000);
+      }, 16000);
 
-      let watchId;
-      
-      const success = async (position) => {
-        clearTimeout(fallbackTimeout);
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        
-        try {
-          // Reverse geocode the coords to a city
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&zoom=10`);
-          const data = await res.json();
-          const city = data.address?.city || data.address?.town || data.address?.village || 'Current Location';
-          
-          setLocationQuery(city);
-          setShowLocationSuggestions(false);
-          saveRecentSearch(city);
-        } catch (e) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          clearTimeout(fallbackTimeout);
+          try {
+            // Use Nominatim (OpenStreetMap) Reverse Geocoding — free, no key
+            const { latitude, longitude } = position.coords;
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+            );
+            const data = await res.json();
+            const city = data.address?.city || data.address?.town || data.address?.village || 'Current Location';
+            
+            setLocationQuery(city);
+            setShowLocationSuggestions(false);
+            saveRecentSearch(city);
+          } catch (e) {
+            fallbackToIP();
+          } finally {
+            setIsGettingLocation(false);
+          }
+        },
+        () => {
+          clearTimeout(fallbackTimeout);
           fallbackToIP();
-        } finally {
-          setIsGettingLocation(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
         }
-      };
-
-      const error = () => {
-        clearTimeout(fallbackTimeout);
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        fallbackToIP();
-      };
-
-      // Use watchPosition briefly to "warm up" GPS for best accuracy
-      watchId = navigator.geolocation.watchPosition(success, error, {
-        enableHighAccuracy: true,
-        timeout: 4000,
-        maximumAge: 0
-      });
+      );
     } else {
       fallbackToIP();
     }
     
     async function fallbackToIP() {
       try {
-        const res = await fetch('https://ipapi.co/json/');
+        const res = await fetch('http://ip-api.com/json/?fields=city');
         const data = await res.json();
         const city = data.city || 'Current Location';
         setLocationQuery(city);
         setShowLocationSuggestions(false);
         saveRecentSearch(city);
       } catch (e) {
+        setLocationQuery('Current Location');
+        setShowLocationSuggestions(false);
         console.error('IP Fallback failed', e);
       } finally {
         setIsGettingLocation(false);
@@ -391,20 +389,21 @@ export function SearchBar({
     : [];
 
   const isLg = size === 'lg';
+  const isCompact = size === 'compact';
 
   return (
       <div ref={containerRef} className={`relative w-full ${className}`}>
         {/* Pill Container for Search */}
         <form 
           onSubmit={handleSearchSubmit} 
-          className={`flex flex-col md:flex-row items-center bg-background border border-border/50 shadow-xl transition-shadow hover:shadow-2xl ${isLg ? 'rounded-[2rem] p-1.5' : 'rounded-2xl p-1 md:rounded-full'}`}
+          className={`flex items-center bg-background border border-border/50 transition-shadow ${isCompact ? 'flex-row rounded-full p-0.5 shadow-sm hover:shadow-md' : isLg ? 'flex-col md:flex-row rounded-[2rem] p-1.5 shadow-xl hover:shadow-2xl' : 'flex-col md:flex-row rounded-2xl p-1 md:rounded-full shadow-xl hover:shadow-2xl'}`}
         >
           {/* Service Input */}
-          <div className="relative flex-1 w-full bg-transparent flex items-center px-4">
-            <Search className={`text-muted-foreground mr-3 shrink-0 ${isLg ? 'h-5 w-5' : 'h-4 w-4'}`} />
+          <div className={`relative flex-1 bg-transparent flex items-center ${isCompact ? 'px-3 w-auto' : 'px-4 w-full'}`}>
+            <Search className={`text-muted-foreground mr-2 shrink-0 ${isCompact ? 'h-3.5 w-3.5' : isLg ? 'h-5 w-5' : 'h-4 w-4'}`} />
             <input
-              placeholder="All treatments and venues"
-              className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
+              placeholder={isCompact ? 'Services or salons...' : 'All treatments and venues'}
+              className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -414,15 +413,15 @@ export function SearchBar({
             />
           </div>
 
-          {/* Divider (Desktop) */}
-          <div className="hidden md:block w-px h-8 bg-border/50 mx-2 shrink-0" />
+          {/* Divider */}
+          <div className={`${isCompact ? 'block' : 'hidden md:block'} w-px ${isCompact ? 'h-5' : 'h-8'} bg-border/50 mx-2 shrink-0`} />
 
           {/* Location Input */}
-          <div className="relative flex-1 w-full flex items-center px-4 border-t border-border/50 md:border-none mt-2 md:mt-0 pt-2 md:pt-0">
-            <MapPin className={`text-muted-foreground mr-3 shrink-0 ${isLg ? 'h-5 w-5' : 'h-4 w-4'}`} />
+          <div className={`relative flex-1 flex items-center ${isCompact ? 'px-3 w-auto' : 'px-4 w-full border-t border-border/50 md:border-none mt-2 md:mt-0 pt-2 md:pt-0'}`}>
+            <MapPin className={`text-muted-foreground mr-2 shrink-0 ${isCompact ? 'h-3.5 w-3.5' : isLg ? 'h-5 w-5' : 'h-4 w-4'}`} />
             <input
-              placeholder="City or location"
-              className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
+              placeholder={isCompact ? 'Location' : 'City or location'}
+              className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
               value={locationQuery}
                             onChange={(e) => {
                 setLocationQuery(e.target.value);
@@ -703,10 +702,10 @@ export function SearchBar({
           {/* Search Button */}
           <Button
             type="submit"
-            size={isLg ? 'lg' : 'default'}
-            className={`w-full md:w-auto font-semibold shadow-md shrink-0 mt-2 md:mt-0 ${isLg ? 'h-14 px-8 rounded-full text-base' : 'h-10 px-6 rounded-full'}`}
+            size={isCompact ? 'icon-sm' : isLg ? 'lg' : 'default'}
+            className={`shrink-0 ${isCompact ? 'h-7 w-7 rounded-full shadow-none' : isLg ? 'w-full md:w-auto font-semibold shadow-md h-14 px-8 rounded-full text-base mt-2 md:mt-0' : 'w-full md:w-auto font-semibold shadow-md h-10 px-6 rounded-full mt-2 md:mt-0'}`}
           >
-            {isLg ? 'Search' : <><Search className="h-4 w-4 mr-2" /> Search</>}
+            {isCompact ? <Search className="h-3.5 w-3.5" /> : isLg ? 'Search' : <><Search className="h-4 w-4 mr-2" /> Search</>}
           </Button>
         </form>
 

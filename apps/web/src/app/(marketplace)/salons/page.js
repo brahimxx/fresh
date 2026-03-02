@@ -3,42 +3,33 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
-  Search,
-  MapPin,
-  Star,
-  Filter,
-  SlidersHorizontal,
-  ChevronDown,
-  X,
-  Clock,
-  Grid,
-  List as ListIcon
+  Search, MapPin, Star, Filter, SlidersHorizontal,
+  ChevronDown, X, Clock, Grid, List as ListIcon,
+  Map as MapIcon, EyeOff, Eye
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from '@/components/ui/sheet';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { SearchBar } from '@/components/marketplace/search-bar';
+
+// Dynamic import to avoid SSR issues with mapbox-gl
+const SalonMap = dynamic(
+  () => import('@/components/marketplace/salon-map').then(mod => ({ default: mod.SalonMap })),
+  { ssr: false, loading: () => <div className="w-full h-full min-h-[500px] bg-muted animate-pulse rounded-xl" /> }
+);
 
 var CATEGORIES = [
   { id: 'hair', name: 'Hair Salons' },
@@ -72,16 +63,26 @@ function SalonSearchContent() {
   var [salons, setSalons] = useState([]);
   var [loading, setLoading] = useState(true);
   var [viewMode, setViewMode] = useState('grid');
+  
+  // Map visibility — persisted in sessionStorage
+  var [showMap, setShowMap] = useState(() => {
+    if (typeof window !== 'undefined') {
+      var saved = sessionStorage.getItem('salons-show-map');
+      if (saved !== null) return saved === 'true';
+    }
+    return true; // Default to showing map
+  });
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   // Filter states
   var [query, setQuery] = useState(searchParams.get('q') || '');
   var [location, setLocation] = useState(searchParams.get('location') || '');
 
-  // Keep these states updated if the router navigation changes the URL
   useEffect(() => {
     setQuery(searchParams.get('q') || '');
     setLocation(searchParams.get('location') || '');
   }, [searchParams]);
+
   var [selectedCategories, setSelectedCategories] = useState(
     searchParams.get('category')?.split(',').filter(Boolean) || []
   );
@@ -91,6 +92,11 @@ function SalonSearchContent() {
   var [minRating, setMinRating] = useState(null);
   var [sortBy, setSortBy] = useState('recommended');
   var [openNow, setOpenNow] = useState(false);
+
+  // Persist map visibility
+  useEffect(() => {
+    sessionStorage.setItem('salons-show-map', showMap.toString());
+  }, [showMap]);
 
   // Load salons
   useEffect(function () {
@@ -145,27 +151,28 @@ function SalonSearchContent() {
 
   var activeFilterCount = selectedCategories.length + selectedPrices.length + (minRating ? 1 : 0) + (openNow ? 1 : 0);
 
-  function handleSearchSubmit(e) {
-    if (e) e.preventDefault();
-  }
+  // Determine grid columns based on map visibility
+  const gridCols = showMap
+    ? 'grid-cols-1 sm:grid-cols-2'
+    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <Breadcrumbs className="mb-6" />
-      {/* Search Header */}
-      <div className="mb-8">
-        <SearchBar 
-          initialSearchQuery={query} 
-          initialLocationQuery={location} 
-          size="default" 
-          className="mb-4 shadow-sm"
-        />
-
-        {/* Filter Bar */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Mobile Filter Button */}
-          <Sheet>
-            <SheetTrigger asChild>
+    <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Split Layout: Results + Map */}
+      <div className={`flex gap-6 ${showMap ? '' : ''}`}>
+        {/* Left Column: Results Grid (hidden when map expands) */}
+        {!isMapExpanded && (
+          <div className={showMap ? 'flex-1 min-w-0' : 'w-full'}>
+            <Breadcrumbs className="mb-4" />
+            
+            {/* Search Header */}
+            <div className="mb-6">
+              
+              {/* Filter Bar */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Mobile Filter Button */}
+                <Sheet>
+                  <SheetTrigger asChild>
               <Button variant="outline" className="gap-2 md:hidden">
                 <SlidersHorizontal className="h-4 w-4" />
                 Filters
@@ -179,7 +186,6 @@ function SalonSearchContent() {
                 <SheetTitle>Filters</SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-6">
-                {/* Categories */}
                 <div>
                   <h4 className="font-medium mb-3">Category</h4>
                   <div className="space-y-2">
@@ -197,8 +203,6 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-
-                {/* Price */}
                 <div>
                   <h4 className="font-medium mb-3">Price Range</h4>
                   <div className="flex gap-2">
@@ -216,8 +220,6 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-
-                {/* Rating */}
                 <div>
                   <h4 className="font-medium mb-3">Minimum Rating</h4>
                   <div className="flex gap-2">
@@ -237,8 +239,6 @@ function SalonSearchContent() {
                     })}
                   </div>
                 </div>
-
-                {/* Open Now */}
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="mob-open-now"
@@ -247,7 +247,6 @@ function SalonSearchContent() {
                   />
                   <Label htmlFor="mob-open-now">Open Now</Label>
                 </div>
-
                 <Button variant="outline" onClick={clearFilters} className="w-full">
                   Clear All Filters
                 </Button>
@@ -256,19 +255,6 @@ function SalonSearchContent() {
           </Sheet>
 
           <div className="hidden md:flex items-center gap-2">
-            {CATEGORIES.slice(0, 4).map(function (cat) {
-              return (
-                <Button
-                  key={cat.id}
-                  variant={selectedCategories.includes(cat.id) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={function () { toggleCategory(cat.id); }}
-                >
-                  {cat.name}
-                </Button>
-              );
-            })}
-
             <Select value={minRating ? minRating.toString() : "any"} onValueChange={(val) => setMinRating(val === "any" ? null : parseFloat(val))}>
               <SelectTrigger className="w-32 h-9 text-sm">
                 <SelectValue placeholder="Rating" />
@@ -293,6 +279,17 @@ function SalonSearchContent() {
           </div>
 
           <div className="flex-1" />
+
+          {/* Map Toggle */}
+          <Button
+            variant='outline'
+            size="sm"
+            className="gap-2 hidden lg:flex"
+            onClick={() => setShowMap(!showMap)}
+          >
+            {showMap ? <EyeOff className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
+            {showMap ? 'Hide Map' :   'Show Map'}
+          </Button>
 
           {/* Sort & View */}
           <Select value={sortBy} onValueChange={setSortBy}>
@@ -339,20 +336,14 @@ function SalonSearchContent() {
               return (
                 <Badge key={catId} variant="secondary" className="gap-1">
                   {cat?.name}
-                  <X
-                    className="h-3 w-3 cursor-pointer"
-                    onClick={function () { toggleCategory(catId); }}
-                  />
+                  <X className="h-3 w-3 cursor-pointer" onClick={function () { toggleCategory(catId); }} />
                 </Badge>
               );
             })}
             {openNow && (
               <Badge variant="secondary" className="gap-1">
                 Open Now
-                <X
-                  className="h-3 w-3 cursor-pointer"
-                  onClick={function () { setOpenNow(false); }}
-                />
+                <X className="h-3 w-3 cursor-pointer" onClick={function () { setOpenNow(false); }} />
               </Badge>
             )}
             <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -362,65 +353,78 @@ function SalonSearchContent() {
         )}
       </div>
 
-      {/* Results */}
       <div className="mb-4">
         <p className="text-muted-foreground">
           {loading ? 'Searching...' : salons.length + ' salons found'}
-        </p>
-      </div>
+              </p>
+            </div>
 
-      {loading ? (
-        <div className={viewMode === 'grid'
-          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
-          : 'space-y-4'
-        }>
-          {[1, 2, 3, 4, 5, 6].map(function (i) {
-            return viewMode === 'grid' ? (
-              <Card key={i}>
-                <Skeleton className="aspect-[4/3]" />
-                <CardContent className="p-4 space-y-2">
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-2/3" />
-                </CardContent>
-              </Card>
+            {loading ? (
+              <div className={`grid ${gridCols} gap-6`}>
+                {[1, 2, 3, 4, 5, 6].map(function (i) {
+                  return viewMode === 'grid' ? (
+                    <Card key={i} className="overflow-hidden">
+                      <Skeleton className="w-full aspect-[4/3]" />
+                      <CardContent className="p-4 space-y-2">
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                        <Skeleton className="h-4 w-2/3" />
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card key={i} className="flex">
+                      <Skeleton className="w-48 h-36" />
+                      <CardContent className="flex-1 p-4 space-y-2">
+                        <Skeleton className="h-5 w-1/2" />
+                        <Skeleton className="h-4 w-1/3" />
+                        <Skeleton className="h-4 w-2/3" />
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : salons.length > 0 ? (
+              <div className={viewMode === 'grid' ? `grid ${gridCols} gap-6` : 'space-y-4'}>
+                {salons.map(function (salon) {
+                  return viewMode === 'grid' ? (
+                    <SalonCardGrid key={salon.id} salon={salon} />
+                  ) : (
+                    <SalonCardList key={salon.id} salon={salon} />
+                  );
+                })}
+              </div>
             ) : (
-              <Card key={i} className="flex">
-                <Skeleton className="w-48 h-36" />
-                <CardContent className="flex-1 p-4 space-y-2">
-                  <Skeleton className="h-5 w-1/2" />
-                  <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-4 w-2/3" />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : salons.length > 0 ? (
-        <div className={viewMode === 'grid'
-          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
-          : 'space-y-4'
-        }>
-          {salons.map(function (salon) {
-            return viewMode === 'grid' ? (
-              <SalonCardGrid key={salon.id} salon={salon} />
-            ) : (
-              <SalonCardList key={salon.id} salon={salon} />
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-16">
-          <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-semibold mb-2">No salons found</h3>
-          <p className="text-muted-foreground mb-4">
-            Try adjusting your search or filters
-          </p>
-          <Button variant="outline" onClick={clearFilters}>
-            Clear Filters
-          </Button>
-        </div>
-      )}
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold mb-2">No salons found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your search or filters
+                </p>
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Map Panel */}
+        {showMap && (
+          <div className={
+            isMapExpanded
+              ? "w-full h-[calc(100vh-7rem)] rounded-xl overflow-hidden" 
+              : "hidden lg:block w-[480px] xl:w-[560px] shrink-0 sticky top-20 h-[calc(100vh-7rem)] rounded-xl overflow-hidden"
+          }>
+            <SalonMap
+              salons={salons}
+              searchLocation={location ? { lat: null, lng: null } : null}
+              className="w-full h-full"
+              isExpanded={isMapExpanded}
+              onToggleExpand={() => setIsMapExpanded(!isMapExpanded)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
