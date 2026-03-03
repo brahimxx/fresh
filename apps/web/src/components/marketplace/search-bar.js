@@ -32,6 +32,11 @@ import { Badge } from '@/components/ui/badge';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useAuth } from '@/providers/auth-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useJsApiLoader } from '@react-google-maps/api';
+
+const MAPS_LIBRARIES = ['places'];
+const autocompleteCache = new globalThis.Map();
+const geocodeCache = new globalThis.Map();
 
 function SearchBarContent({ 
   initialSearchQuery, 
@@ -46,6 +51,11 @@ function SearchBarContent({
   const defaultLocation = initialLocationQuery !== undefined ? initialLocationQuery : (searchParams.get('location') || '');
 
   const { isAuthenticated } = useAuth();
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: MAPS_LIBRARIES,
+  });
 
   const [searchQuery, setSearchQuery] = useState(defaultSearch);
   const [locationQuery, setLocationQuery] = useState(defaultLocation);
@@ -309,7 +319,7 @@ function SearchBarContent({
         setShowLocationSuggestions(false);
       }
     }
-    // Use capture phase so UI like Leaflet maps can't swallow the event before it reaches the document
+    // Use capture phase so the map can't swallow the event before it reaches the document
     document.addEventListener('mousedown', handleClickOutside, true);
     return () => document.removeEventListener('mousedown', handleClickOutside, true);
   }, []);
@@ -361,47 +371,75 @@ function SearchBarContent({
         setLocationSuggestions([]);
         return;
       }
-      setIsSearchingLocation(true);
-      try {
-        let endpoint = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(debouncedLocationQuery)}&limit=5&addressdetails=1`;
-        if (silentLocation) {
-          endpoint += `&lat=${silentLocation.lat}&lon=${silentLocation.lng}`;
-        }
-        const res = await fetch(endpoint);
-        if (res.ok) {
-          const data = await res.json();
-          const formatted = data.map(item => {
-            const city = item.address?.city || item.address?.town || item.address?.village || item.name;
-            const state = item.address?.state || item.address?.country;
-            return {
-              label: item.display_name,
-              city: city,
-              state: state,
-              lat: item.lat,
-              lon: item.lon
-            };
-          });
-          // Deduplicate by city + state to avoid confusing identical suggestions
-          const unique = [];
-          const seen = new Set();
-          for (const loc of formatted) {
-            const key = `${loc.city}-${loc.state}`;
-            if (!seen.has(key) && loc.city) {
-              seen.add(key);
-              unique.push(loc);
-            }
-          }
-          // fallback to data if no city names found (e.g. searched for a state)
-          setLocationSuggestions(unique.length > 0 ? unique : formatted);
-        }
-      } catch (e) {
-        console.error('Failed to fetch city suggestions:', e);
-      } finally {
-        setIsSearchingLocation(false);
+      if (!isLoaded || !window.google?.maps?.places) {
+        return;
       }
+
+        // Require at least 3 characters to save API calls
+        if (debouncedLocationQuery.length < 3) {
+          setLocationSuggestions([]);
+          return;
+        }
+
+        // Check local memory cache before hitting Google API
+        const cacheKey = debouncedLocationQuery.toLowerCase().trim();
+        if (autocompleteCache.has(cacheKey)) {
+          setLocationSuggestions(autocompleteCache.get(cacheKey));
+          return;
+        }
+
+        setIsSearchingLocation(true);
+        try {
+          const autocompleteService = new window.google.maps.places.AutocompleteService();
+          
+          const request = {
+            input: debouncedLocationQuery,
+          };
+          
+          if (silentLocation?.lat && silentLocation?.lng) {
+            request.locationBias = {
+              radius: 50000, // 50km radius bias
+              center: { lat: silentLocation.lat, lng: silentLocation.lng }
+            };
+          }
+
+          autocompleteService.getPlacePredictions(request, (predictions, status) => {
+            setIsSearchingLocation(false);
+            
+            if (status !== window.google.maps.places.PlacesServiceStatus.OK || !predictions) {
+              setLocationSuggestions([]);
+              return;
+            }
+
+            const formatted = predictions.map(item => ({
+              label: item.description,
+              city: item.structured_formatting?.main_text || item.description,
+              state: item.structured_formatting?.secondary_text || '',
+              place_id: item.place_id,
+            }));
+
+            // Deduplicate
+            const unique = [];
+            const seen = new Set();
+            for (const loc of formatted) {
+              const key = `${loc.city}-${loc.state}`;
+              if (!seen.has(key) && loc.city) {
+                seen.add(key);
+                unique.push(loc);
+              }
+            }
+            
+            const finalSuggestions = unique.length > 0 ? unique : formatted;
+            autocompleteCache.set(cacheKey, finalSuggestions); // Cache the result
+            setLocationSuggestions(finalSuggestions);
+          });
+        } catch (e) {
+          console.error('Failed to fetch Google Places suggestions:', e);
+          setIsSearchingLocation(false);
+        }
     }
     fetchCities();
-  }, [debouncedLocationQuery, silentLocation]);
+  }, [debouncedLocationQuery, silentLocation, isLoaded]);
 
   // Fetch live suggestions when debounced query changes
   useEffect(() => {
@@ -457,7 +495,7 @@ function SearchBarContent({
     router.push('/salons?q=' + encodeURIComponent(serviceName));
   };
 
-  const handleLocationSuggestionClick = (locArg) => {
+  const handleLocationSuggestionClick = async (locArg) => {
     let cityLabel = '';
     const params = new URLSearchParams();
     if (searchQuery) params.append('q', searchQuery);
@@ -468,9 +506,35 @@ function SearchBarContent({
     } else {
       cityLabel = locArg.city || locArg.label;
       params.append('location', cityLabel);
+      
       if (locArg.lat && locArg.lon) {
         params.append('userLat', locArg.lat.toString());
         params.append('userLng', locArg.lon.toString());
+      } else if (locArg.place_id) {
+        // Quick check of memory cache
+        if (geocodeCache.has(locArg.place_id)) {
+          const coords = geocodeCache.get(locArg.place_id);
+          params.append('userLat', coords.lat.toString());
+          params.append('userLng', coords.lng.toString());
+        } else if (window.google?.maps?.Geocoder) {
+          // Geocode fallback without cache
+          try {
+            const geocoder = new window.google.maps.Geocoder();
+            const response = await geocoder.geocode({ placeId: locArg.place_id });
+            if (response.results && response.results[0]) {
+              const loc = response.results[0].geometry.location;
+              const lat = loc.lat();
+              const lng = loc.lng();
+              
+              geocodeCache.set(locArg.place_id, { lat, lng }); // Cache it
+              
+              params.append('userLat', lat.toString());
+              params.append('userLng', lng.toString());
+            }
+          } catch (e) {
+            console.error('Failed to geocode place_id:', e);
+          }
+        }
       }
     }
 
@@ -569,7 +633,7 @@ function SearchBarContent({
                 }}
               >
                 {/* We removed the inline Add/Manage UI from here. It is now a Dialog overlay at the end of the component. */}
-                {!debouncedLocationQuery.trim() ? (
+                {(!locationQuery.trim() || !debouncedLocationQuery.trim()) ? (
                   <div className="flex flex-col w-full py-4 space-y-4">
                     
                     {/* 1. High-Accuracy Current Location */}
@@ -736,7 +800,7 @@ function SearchBarContent({
         </form>
 
         {/* Live Search Suggestions Dropdown */}
-        {showSuggestions && debouncedSearchQuery.trim() && (
+        {showSuggestions && searchQuery.trim() && debouncedSearchQuery.trim() && (
           <div 
             ref={dropdownRef}
             className="absolute top-[calc(100%+0.5rem)] left-0 w-full md:w-[420px] rounded-2xl z-[100] animate-in fade-in slide-in-from-top-2 duration-200 bg-popover text-popover-foreground border border-border/20"

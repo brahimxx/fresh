@@ -1,132 +1,166 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { GoogleMap, useJsApiLoader, OverlayView } from '@react-google-maps/api';
 
 /* ───────────────────────────────────────────────────────────────────────────
    CONSTANTS
    ─────────────────────────────────────────────────────────────────────────── */
-const DEFAULT_CENTER = [48.8566, 2.3522];
+const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
 const DEFAULT_ZOOM = 12;
 
+const MAP_OPTIONS = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  zoomControlOptions: typeof window !== 'undefined' ? { position: 9 } : undefined, // 9 = RIGHT_BOTTOM
+  clickableIcons: false,
+  gestureHandling: 'greedy',
+  styles: [
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  ],
+};
+
+const MAP_CONTAINER_STYLE = {
+  width: '100%',
+  height: '100%',
+  minHeight: '100%',
+};
+
 /* ───────────────────────────────────────────────────────────────────────────
-   Custom marker: dark teardrop pin with rating + star
+   Custom Pin Component
    ─────────────────────────────────────────────────────────────────────────── */
-function createStaticRatingIcon(rating, salonId) {
-  return L.divIcon({
-    className: 'salon-marker-custom',
-    html: `
-      <div class="salon-pin-base" data-salon-id="${salonId}" style="-webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
-        <svg viewBox="-2 -2 46 59" width="46" height="59" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
-          <path d="M21 54 C21 54 42 33 42 21 C42 9.4 32.6 0 21 0 C9.4 0 0 9.4 0 21 C0 33 21 54 21 54Z" fill="#2d2d2d" stroke="white" stroke-width="2.5" stroke-linejoin="round" />
-          <text class="salon-pin-text" x="21" y="24" text-anchor="middle" fill="white" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" dominant-baseline="central">${rating}</text>
-          <text class="salon-star" x="21" y="35" text-anchor="middle" fill="#ffc00a" font-size="11" dominant-baseline="central" opacity="0">★</text>
-        </svg>
+function SalonPin({ salon, ratingText, onClick }) {
+  return (
+    <div
+      className="salon-pin-base"
+      data-salon-id={salon.id}
+      onClick={onClick}
+      style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}
+    >
+      <svg viewBox="-2 -2 46 59" width="46" height="59" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
+        <path d="M21 54 C21 54 42 33 42 21 C42 9.4 32.6 0 21 0 C9.4 0 0 9.4 0 21 C0 33 21 54 21 54Z" fill="#2d2d2d" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
+        <text className="salon-pin-text" x="21" y="24" textAnchor="middle" fill="white" fontFamily="Inter, system-ui, -apple-system, sans-serif" fontSize="14" fontWeight="700" dominantBaseline="central">{ratingText}</text>
+        <text className="salon-star" x="21" y="35" textAnchor="middle" fill="#ffc00a" fontSize="11" dominantBaseline="central" opacity="0">★</text>
+      </svg>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   InfoWindow (popup) Component
+   ─────────────────────────────────────────────────────────────────────────── */
+function SalonInfoWindow({ salon, ratingText, onClose }) {
+  return (
+    <div
+      className="salon-info-window"
+      style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute', top: 8, left: 8, zIndex: 10,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          border: 'none', borderRadius: '50%', width: 24, height: 24,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: 'white', fontSize: 14, lineHeight: 1,
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Image */}
+      <div style={{
+        height: 100,
+        background: 'linear-gradient(135deg, #fdf2f8, #fce7f3, #fbcfe8)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {salon.cover_image_url ? (
+          <img src={salon.cover_image_url} alt={salon.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: 28 }}>💇</span>
+        )}
+        <div style={{
+          position: 'absolute', top: 8, right: 8,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+          color: '#fff', fontSize: 11, fontWeight: 600,
+          padding: '3px 8px', borderRadius: 20,
+          display: 'flex', alignItems: 'center', gap: 3,
+        }}>
+          <span style={{ color: '#ffc00a' }}>★</span>
+          {ratingText}
+        </div>
       </div>
-    `,
-    iconSize: [46, 59],
-    iconAnchor: [23, 58],
-    popupAnchor: [0, -60],
-  });
+
+      {/* Info */}
+      <div style={{ padding: '10px 14px 12px' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 4, lineHeight: 1.3 }}>
+        {salon.name}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280' }}>
+          <span>{salon.category || 'Salon'}</span>
+          {salon.price_level && (
+            <>
+              <span style={{ color: '#d1d5db' }}>·</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>{'$'.repeat(salon.price_level)}</span>
+            </>
+          )}
+        </div>
+        {salon.address && (
+          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+            📍 {salon.address}
+          </div>
+        )}
+        <a
+          href={`/salon/${salon.id}`}
+          style={{
+            display: 'block', textAlign: 'center', marginTop: 10,
+            padding: '7px 0', background: 'linear-gradient(135deg, #f43f5e, #e11d48)',
+            color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            textDecoration: 'none', transition: 'opacity 0.2s',
+          }}
+        >
+          View Salon →
+        </a>
+      </div>
+    </div>
+  );
 }
 
-const iconCache = new Map();
-
-function getCachedStaticIcon(rating, salonId) {
-  const key = `salon-${salonId}-${rating}`;
-  if (!iconCache.has(key)) {
-    iconCache.set(key, createStaticRatingIcon(rating, salonId));
-  }
-  return iconCache.get(key);
-}
-
-/* ───────────────────────────────────────────────────────────────────────────
-   Auto-fit bounds to salon markers
-   ─────────────────────────────────────────────────────────────────────────── */
-function FitBounds({ salons, isMapSearch, userLocation }) {
-  const map = useMap();
-
-  useEffect(() => {
-    // If we have an explicit user location (e.g. from "Current location" button), fly to it and don't auto-fit bounds
-    if (userLocation?.lat && userLocation?.lng && !isMapSearch) {
-      map.flyTo([userLocation.lat, userLocation.lng], 13);
-      return;
-    }
-
-    if (isMapSearch) return; // Disable auto-fit if user is manually searching the map area
-    const withCoords = salons.filter(s => s.latitude && s.longitude);
-    if (withCoords.length > 1) {
-      const bounds = L.latLngBounds(
-        withCoords.map(s => [parseFloat(s.latitude), parseFloat(s.longitude)])
-      );
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
-    } else if (withCoords.length === 1) {
-      map.flyTo(
-        [parseFloat(withCoords[0].latitude), parseFloat(withCoords[0].longitude)],
-        14
-      );
-    }
-  }, [salons, map, isMapSearch, userLocation]);
-
-  return null;
-}
-
-/* ───────────────────────────────────────────────────────────────────────────
-   Event listener for map user interactions
-   ─────────────────────────────────────────────────────────────────────────── */
-function MapEventsBounds({ onBoundsChange }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!onBoundsChange) return;
-    
-    const handleMoveEnd = () => {
-      const bounds = map.getBounds();
-      onBoundsChange({
-        minLat: bounds.getSouth(),
-        maxLat: bounds.getNorth(),
-        minLng: bounds.getWest(),
-        maxLng: bounds.getEast()
-      });
-    };
-    
-    map.on('dragend', handleMoveEnd);
-    map.on('zoomend', handleMoveEnd);
-
-    return () => {
-      map.off('dragend', handleMoveEnd);
-      map.off('zoomend', handleMoveEnd);
-    };
-  }, [map, onBoundsChange]);
-
-  return null;
-}
+/* ── Global references  ──────────────────────────────────────────────── */
+const MAPS_LIBRARIES = ['places'];
 
 /* ───────────────────────────────────────────────────────────────────────────
    SALON MAP COMPONENT
    ─────────────────────────────────────────────────────────────────────────── */
-export function SalonMap({ 
-  salons = [], 
-  userLocation = null, 
-  searchLocation = null, 
-  className = '', 
-  isExpanded = false, 
+export function SalonMap({
+  salons = [],
+  userLocation = null,
+  searchLocation = null,
+  className = '',
+  isExpanded = false,
   onToggleExpand = () => {},
   hoveredSalonId = null,
   onBoundsChange = null,
   isMapSearch = false
 }) {
   const mapRef = useRef(null);
+  const isProgrammatic = useRef(false);
+  const [selectedSalon, setSelectedSalon] = useState(null);
 
-  // Sync external hover state strictly through DOM classes to avoid Leaflet re-rendering icons
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: MAPS_LIBRARIES,
+  });
+
+  // Sync external hover state through DOM classes
   useEffect(() => {
-    // Clear old hovers
     const oldHovers = document.querySelectorAll('.salon-pin-base.is-external-hovered');
     oldHovers.forEach(el => el.classList.remove('is-external-hovered'));
 
-    // Apply new hover
     if (hoveredSalonId) {
       const newHover = document.querySelector(`.salon-pin-base[data-salon-id="${hoveredSalonId}"]`);
       if (newHover) {
@@ -137,13 +171,13 @@ export function SalonMap({
 
   // Determine initial center
   const center = useMemo(() => {
-    if (userLocation?.lat && userLocation?.lng) return [userLocation.lat, userLocation.lng];
-    if (searchLocation?.lat && searchLocation?.lng) return [searchLocation.lat, searchLocation.lng];
+    if (userLocation?.lat && userLocation?.lng) return { lat: userLocation.lat, lng: userLocation.lng };
+    if (searchLocation?.lat && searchLocation?.lng) return { lat: searchLocation.lat, lng: searchLocation.lng };
     const withCoords = salons.filter(s => s.latitude && s.longitude);
     if (withCoords.length > 0) {
       const avgLat = withCoords.reduce((sum, s) => sum + parseFloat(s.latitude), 0) / withCoords.length;
       const avgLng = withCoords.reduce((sum, s) => sum + parseFloat(s.longitude), 0) / withCoords.length;
-      return [avgLat, avgLng];
+      return { lat: avgLat, lng: avgLng };
     }
     return DEFAULT_CENTER;
   }, [userLocation, searchLocation, salons]);
@@ -153,24 +187,78 @@ export function SalonMap({
     [salons]
   );
 
+  // onLoad callback: store map ref
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+  }, []);
+
+  // Auto-fit bounds to salon markers
+  useEffect(() => {
+    if (!mapRef.current || !isLoaded) return;
+    const map = mapRef.current;
+
+    isProgrammatic.current = true;
+
+    // If we have an explicit user location, pan to it
+    if (userLocation?.lat && userLocation?.lng && !isMapSearch) {
+      map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      map.setZoom(13);
+      setTimeout(() => { isProgrammatic.current = false; }, 500);
+      return;
+    }
+
+    if (isMapSearch) {
+      isProgrammatic.current = false;
+      return; // Don't auto-fit when user is manually panning
+    }
+
+    const withCoords = salonsWithCoords;
+    if (withCoords.length > 1) {
+      const bounds = new window.google.maps.LatLngBounds();
+      withCoords.forEach(s => {
+        bounds.extend({ lat: parseFloat(s.latitude), lng: parseFloat(s.longitude) });
+      });
+      map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    } else if (withCoords.length === 1) {
+      map.panTo({ lat: parseFloat(withCoords[0].latitude), lng: parseFloat(withCoords[0].longitude) });
+      map.setZoom(14);
+    }
+    
+    setTimeout(() => { isProgrammatic.current = false; }, 500);
+  }, [salonsWithCoords, isLoaded, isMapSearch, userLocation]);
+
   // Handle resize on expand toggle
   useEffect(() => {
-    if (mapRef.current) {
-      setTimeout(() => mapRef.current.invalidateSize(), 200);
+    if (mapRef.current && isLoaded) {
+      setTimeout(() => {
+        window.google.maps.event.trigger(mapRef.current, 'resize');
+      }, 200);
     }
-  }, [isExpanded]);
+  }, [isExpanded, isLoaded]);
 
-  /* ── Global CSS overrides for Leaflet popups ─────────────────────────── */
+  // Bounds change handler
+  const handleBoundsChanged = useCallback(() => {
+    if (!mapRef.current || !onBoundsChange || isProgrammatic.current) return;
+    const bounds = mapRef.current.getBounds();
+    if (!bounds) return;
+    const ne = bounds.getNorthEast();
+    const sw = bounds.getSouthWest();
+    onBoundsChange({
+      minLat: sw.lat(),
+      maxLat: ne.lat(),
+      minLng: sw.lng(),
+      maxLng: ne.lng(),
+    });
+  }, [onBoundsChange]);
+
+  /* ── Global CSS for pin animations ───────────────────────────────────── */
   useEffect(() => {
-    const styleId = 'salon-map-leaflet-styles';
-    // Always replace to ensure updates take effect on HMR
+    const styleId = 'salon-map-google-styles';
     const existing = document.getElementById(styleId);
     if (existing) existing.remove();
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      .salon-marker-custom { background: none !important; border: none !important; }
-
       /* ── Pin scale animation (Pure CSS Transitions) ── */
       .salon-pin-base {
         cursor: pointer;
@@ -186,10 +274,6 @@ export function SalonMap({
       .salon-pin-base.is-external-hovered {
         transform: translateZ(0) scale(1.25);
         filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
-      }
-
-      .leaflet-marker-icon:has(.salon-pin-base:hover),
-      .leaflet-marker-icon:has(.salon-pin-base.is-external-hovered) {
         z-index: 10000 !important;
       }
 
@@ -213,173 +297,94 @@ export function SalonMap({
         transition-delay: 0.1s;
       }
 
-      .salon-popup .leaflet-popup-content-wrapper {
-        border-radius: 14px !important;
-        padding: 0 !important;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06) !important;
+      /* ── InfoWindow ── */
+      .salon-info-window {
+        width: 240px;
+        background: white;
+        border-radius: 14px;
         overflow: hidden;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
         border: 1px solid rgba(0,0,0,0.06);
+        position: relative;
       }
-      .salon-popup .leaflet-popup-content { margin: 0 !important; width: 240px !important; }
-      .salon-popup .leaflet-popup-tip { 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
-        border: 1px solid rgba(0,0,0,0.04);
-      }
-      .leaflet-control-attribution {
-        font-size: 9px !important;
-        background: rgba(255,255,255,0.7) !important;
-        padding: 2px 6px !important;
-        border-radius: 4px 0 0 0 !important;
+
+      /* ── InfoWindow arrow ── */
+      .salon-info-arrow {
+        width: 0; height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-top: 10px solid white;
+        margin: 0 auto;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08));
       }
     `;
     document.head.appendChild(style);
     return () => style.remove();
   }, []);
 
-  /* ── Map render ────────────────────────────────────────────────────── */
-  const mapContent = (
-    <MapContainer
-      center={center}
-      zoom={DEFAULT_ZOOM}
-      className="w-full h-full"
-      style={{ minHeight: '100%', background: '#f5f5f0' }}
-      ref={mapRef}
-      zoomControl={false}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-      />
-
-      <ZoomControl position="bottomright" />
-
-      <FitBounds salons={salonsWithCoords} isMapSearch={isMapSearch} userLocation={userLocation} />
-      <MapEventsBounds onBoundsChange={onBoundsChange} />
-
-      {salonsWithCoords.map(salon => {
-        const ratingText = salon.rating ? salon.rating.toFixed(1) : 'New';
-
-        return (
-          <Marker
-            key={salon.id}
-            position={[parseFloat(salon.latitude), parseFloat(salon.longitude)]}
-            icon={getCachedStaticIcon(ratingText, salon.id)}
-          >
-            <Popup className="salon-popup" closeButton={false} autoPan={true} autoPanPadding={[20, 20]}>
-              <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
-                {/* Image */}
-                <div style={{
-                  height: 100,
-                  background: 'linear-gradient(135deg, #fdf2f8, #fce7f3, #fbcfe8)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}>
-                  {salon.cover_image_url ? (
-                    <img
-                      src={salon.cover_image_url}
-                      alt={salon.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 28 }}>💇</span>
-                  )}
-                  {/* Rating badge overlay */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    background: 'rgba(0,0,0,0.7)',
-                    backdropFilter: 'blur(8px)',
-                    color: '#fff',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: '3px 8px',
-                    borderRadius: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}>
-                    <span style={{ color: '#ffc00a' }}>★</span>
-                    {ratingText}
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div style={{ padding: '10px 14px 12px' }}>
-                  <div style={{
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: '#1a1a1a',
-                    marginBottom: 4,
-                    lineHeight: 1.3,
-                  }}>{salon.name}</div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    color: '#6b7280',
-                  }}>
-                    <span>{salon.category || 'Salon'}</span>
-                    {salon.price_level && (
-                      <>
-                        <span style={{ color: '#d1d5db' }}>·</span>
-                        <span style={{ color: '#10b981', fontWeight: 600 }}>
-                          {'$'.repeat(salon.price_level)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-
-                  {salon.address && (
-                    <div style={{
-                      fontSize: 11,
-                      color: '#9ca3af',
-                      marginTop: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}>
-                      📍 {salon.address}
-                    </div>
-                  )}
-
-                  {/* CTA */}
-                  <a
-                    href={`/salon/${salon.id}`}
-                    style={{
-                      display: 'block',
-                      textAlign: 'center',
-                      marginTop: 10,
-                      padding: '7px 0',
-                      background: 'linear-gradient(135deg, #f43f5e, #e11d48)',
-                      color: '#fff',
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                      transition: 'opacity 0.2s',
-                    }}
-                  >
-                    View Salon →
-                  </a>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        );
-      })}
-    </MapContainer>
-  );
+  if (!isLoaded) {
+    return (
+      <div className={`relative rounded-2xl overflow-hidden border border-border/30 w-full h-full min-h-125 flex items-center justify-center bg-muted/30 ${className}`}>
+        <div className="animate-pulse text-muted-foreground text-sm">Loading map...</div>
+      </div>
+    );
+  }
 
   return (
     <div className={`relative rounded-2xl overflow-hidden border border-border/30 w-full h-full min-h-125 ${className}`}>
       <div className="w-full h-full">
-        {mapContent}
+        <GoogleMap
+          mapContainerStyle={MAP_CONTAINER_STYLE}
+          center={center}
+          zoom={DEFAULT_ZOOM}
+          options={MAP_OPTIONS}
+          onLoad={onMapLoad}
+          onDragEnd={handleBoundsChanged}
+          onZoomChanged={handleBoundsChanged}
+          onClick={() => setSelectedSalon(null)}
+        >
+          {/* Salon markers */}
+          {salonsWithCoords.map(salon => {
+            const ratingText = salon.rating ? salon.rating.toFixed(1) : 'New';
+            const position = { lat: parseFloat(salon.latitude), lng: parseFloat(salon.longitude) };
+
+            return (
+              <OverlayView
+                key={salon.id}
+                position={position}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                getPixelPositionOffset={() => ({ x: -23, y: -58 })}
+              >
+                <SalonPin
+                  salon={salon}
+                  ratingText={ratingText}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSalon(salon);
+                  }}
+                />
+              </OverlayView>
+            );
+          })}
+
+          {/* InfoWindow for selected salon */}
+          {selectedSalon && (
+            <OverlayView
+              position={{ lat: parseFloat(selectedSalon.latitude), lng: parseFloat(selectedSalon.longitude) }}
+              mapPaneName={OverlayView.FLOAT_PANE}
+              getPixelPositionOffset={() => ({ x: -120, y: -280 })}
+            >
+              <div>
+                <SalonInfoWindow
+                  salon={selectedSalon}
+                  ratingText={selectedSalon.rating ? selectedSalon.rating.toFixed(1) : 'New'}
+                  onClose={() => setSelectedSalon(null)}
+                />
+                <div className="salon-info-arrow" />
+              </div>
+            </OverlayView>
+          )}
+        </GoogleMap>
       </div>
 
       {/* Expand/Shrink Toggle */}
