@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -15,33 +15,48 @@ const DEFAULT_ZOOM = 12;
 /* ───────────────────────────────────────────────────────────────────────────
    Custom marker: dark teardrop pin with rating + star
    ─────────────────────────────────────────────────────────────────────────── */
-function createRatingIcon(rating, pinClass = 'salon-pin-default') {
-  const isHovered = pinClass === 'salon-pin-hovered';
-
+function createStaticRatingIcon(rating, salonId) {
   return L.divIcon({
     className: 'salon-marker-custom',
     html: `
-      <div class="${pinClass}">
-        <svg viewBox="0 0 42 55" width="42" height="55" xmlns="http://www.w3.org/2000/svg">
-          <path d="M21 54 C21 54 42 33 42 21 C42 9.4 32.6 0 21 0 C9.4 0 0 9.4 0 21 C0 33 21 54 21 54Z" fill="#2d2d2d"/>
-          <text x="21" y="${isHovered ? '20' : '24'}" text-anchor="middle" fill="white" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" dominant-baseline="central">${rating}</text>
-          <text x="21" y="35" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="11" dominant-baseline="central" class="${isHovered ? 'salon-star-reveal' : ''}" opacity="0">★</text>
+      <div class="salon-pin-base" data-salon-id="${salonId}" style="-webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+        <svg viewBox="-2 -2 46 59" width="46" height="59" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+          <path d="M21 54 C21 54 42 33 42 21 C42 9.4 32.6 0 21 0 C9.4 0 0 9.4 0 21 C0 33 21 54 21 54Z" fill="#2d2d2d" stroke="white" stroke-width="2.5" stroke-linejoin="round" />
+          <text class="salon-pin-text" x="21" y="24" text-anchor="middle" fill="white" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" dominant-baseline="central">${rating}</text>
+          <text class="salon-star" x="21" y="35" text-anchor="middle" fill="#ffc00a" font-size="11" dominant-baseline="central" opacity="0">★</text>
         </svg>
       </div>
     `,
-    iconSize: [42, 55],
-    iconAnchor: [21, 55],
-    popupAnchor: [0, -57],
+    iconSize: [46, 59],
+    iconAnchor: [23, 58],
+    popupAnchor: [0, -60],
   });
+}
+
+const iconCache = new Map();
+
+function getCachedStaticIcon(rating, salonId) {
+  const key = `salon-${salonId}-${rating}`;
+  if (!iconCache.has(key)) {
+    iconCache.set(key, createStaticRatingIcon(rating, salonId));
+  }
+  return iconCache.get(key);
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
    Auto-fit bounds to salon markers
    ─────────────────────────────────────────────────────────────────────────── */
-function FitBounds({ salons }) {
+function FitBounds({ salons, isMapSearch, userLocation }) {
   const map = useMap();
 
   useEffect(() => {
+    // If we have an explicit user location (e.g. from "Current location" button), fly to it and don't auto-fit bounds
+    if (userLocation?.lat && userLocation?.lng && !isMapSearch) {
+      map.flyTo([userLocation.lat, userLocation.lng], 13);
+      return;
+    }
+
+    if (isMapSearch) return; // Disable auto-fit if user is manually searching the map area
     const withCoords = salons.filter(s => s.latitude && s.longitude);
     if (withCoords.length > 1) {
       const bounds = L.latLngBounds(
@@ -54,7 +69,37 @@ function FitBounds({ salons }) {
         14
       );
     }
-  }, [salons, map]);
+  }, [salons, map, isMapSearch, userLocation]);
+
+  return null;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Event listener for map user interactions
+   ─────────────────────────────────────────────────────────────────────────── */
+function MapEventsBounds({ onBoundsChange }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!onBoundsChange) return;
+    
+    const handleMoveEnd = () => {
+      const bounds = map.getBounds();
+      onBoundsChange({
+        minLat: bounds.getSouth(),
+        maxLat: bounds.getNorth(),
+        minLng: bounds.getWest(),
+        maxLng: bounds.getEast()
+      });
+    };
+    
+    map.on('dragend', handleMoveEnd);
+    map.on('zoomend', handleMoveEnd);
+
+    return () => {
+      map.off('dragend', handleMoveEnd);
+      map.off('zoomend', handleMoveEnd);
+    };
+  }, [map, onBoundsChange]);
 
   return null;
 }
@@ -62,11 +107,33 @@ function FitBounds({ salons }) {
 /* ───────────────────────────────────────────────────────────────────────────
    SALON MAP COMPONENT
    ─────────────────────────────────────────────────────────────────────────── */
-export function SalonMap({ salons = [], userLocation = null, searchLocation = null, className = '', isExpanded = false, onToggleExpand = () => {} }) {
-  const [hoveredId, setHoveredId] = useState(null);
-  const [leavingId, setLeavingId] = useState(null);
-  const leaveTimerRef = useRef(null);
+export function SalonMap({ 
+  salons = [], 
+  userLocation = null, 
+  searchLocation = null, 
+  className = '', 
+  isExpanded = false, 
+  onToggleExpand = () => {},
+  hoveredSalonId = null,
+  onBoundsChange = null,
+  isMapSearch = false
+}) {
   const mapRef = useRef(null);
+
+  // Sync external hover state strictly through DOM classes to avoid Leaflet re-rendering icons
+  useEffect(() => {
+    // Clear old hovers
+    const oldHovers = document.querySelectorAll('.salon-pin-base.is-external-hovered');
+    oldHovers.forEach(el => el.classList.remove('is-external-hovered'));
+
+    // Apply new hover
+    if (hoveredSalonId) {
+      const newHover = document.querySelector(`.salon-pin-base[data-salon-id="${hoveredSalonId}"]`);
+      if (newHover) {
+        newHover.classList.add('is-external-hovered');
+      }
+    }
+  }, [hoveredSalonId]);
 
   // Determine initial center
   const center = useMemo(() => {
@@ -104,39 +171,46 @@ export function SalonMap({ salons = [], userLocation = null, searchLocation = nu
     style.textContent = `
       .salon-marker-custom { background: none !important; border: none !important; }
 
-      /* ── Pin scale animation (keyframes because Leaflet replaces the DOM) ── */
-      @keyframes pinScaleUp {
-        0%   { transform: scale(1);    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
-        100% { transform: scale(1.25); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
-      }
-      @keyframes pinScaleDown {
-        0%   { transform: scale(1.25); filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
-        100% { transform: scale(1);    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
-      }
-      .salon-pin-default {
+      /* ── Pin scale animation (Pure CSS Transitions) ── */
+      .salon-pin-base {
         cursor: pointer;
         transform-origin: center bottom;
-        transform: scale(1);
+        transform: translateZ(0) scale(1);
         filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        will-change: transform, filter;
+        backface-visibility: hidden;
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
       }
-      .salon-pin-leaving {
-        cursor: pointer;
-        transform-origin: center bottom;
-        animation: pinScaleDown 0.3s ease-out forwards;
-      }
-      .salon-pin-hovered {
-        cursor: pointer;
-        transform-origin: center bottom;
-        animation: pinScaleUp 0.3s ease-out forwards;
+      
+      .salon-pin-base:hover,
+      .salon-pin-base.is-external-hovered {
+        transform: translateZ(0) scale(1.25);
+        filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
       }
 
-      /* ── Star fade-in AFTER scale finishes (250ms delay) ──────────── */
-      @keyframes starReveal {
-        0%   { opacity: 0; }
-        100% { opacity: 1; }
+      .leaflet-marker-icon:has(.salon-pin-base:hover),
+      .leaflet-marker-icon:has(.salon-pin-base.is-external-hovered) {
+        z-index: 10000 !important;
       }
-      .salon-star-reveal {
-        animation: starReveal 0.2s ease-out 0.25s both;
+
+      .salon-pin-text {
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      
+      .salon-pin-base:hover .salon-pin-text,
+      .salon-pin-base.is-external-hovered .salon-pin-text {
+        transform: translateY(-4px);
+      }
+
+      .salon-star {
+        opacity: 0;
+        transition: opacity 0.2s ease-out;
+      }
+      
+      .salon-pin-base:hover .salon-star,
+      .salon-pin-base.is-external-hovered .salon-star {
+        opacity: 1;
+        transition-delay: 0.1s;
       }
 
       .salon-popup .leaflet-popup-content-wrapper {
@@ -177,32 +251,19 @@ export function SalonMap({ salons = [], userLocation = null, searchLocation = nu
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
 
-      <FitBounds salons={salonsWithCoords} />
+      <ZoomControl position="bottomright" />
+
+      <FitBounds salons={salonsWithCoords} isMapSearch={isMapSearch} userLocation={userLocation} />
+      <MapEventsBounds onBoundsChange={onBoundsChange} />
 
       {salonsWithCoords.map(salon => {
-        const isHovered = hoveredId === salon.id;
-        const isLeaving = leavingId === salon.id;
-        const pinClass = isHovered ? 'salon-pin-hovered' : isLeaving ? 'salon-pin-leaving' : 'salon-pin-default';
         const ratingText = salon.rating ? salon.rating.toFixed(1) : 'New';
 
         return (
           <Marker
             key={salon.id}
             position={[parseFloat(salon.latitude), parseFloat(salon.longitude)]}
-            icon={createRatingIcon(ratingText, pinClass)}
-            zIndexOffset={isHovered ? 1000 : 0}
-            eventHandlers={{
-              mouseover: () => {
-                if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-                setLeavingId(null);
-                setHoveredId(salon.id);
-              },
-              mouseout: () => {
-                setHoveredId(null);
-                setLeavingId(salon.id);
-                leaveTimerRef.current = setTimeout(() => setLeavingId(null), 350);
-              },
-            }}
+            icon={getCachedStaticIcon(ratingText, salon.id)}
           >
             <Popup className="salon-popup" closeButton={false} autoPan={true} autoPanPadding={[20, 20]}>
               <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
@@ -241,7 +302,7 @@ export function SalonMap({ salons = [], userLocation = null, searchLocation = nu
                     alignItems: 'center',
                     gap: 3,
                   }}>
-                    <span style={{ color: '#fbbf24' }}>★</span>
+                    <span style={{ color: '#ffc00a' }}>★</span>
                     {ratingText}
                   </div>
                 </div>

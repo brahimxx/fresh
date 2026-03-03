@@ -18,6 +18,12 @@ export async function GET(request) {
     const sort        = searchParams.get('sort') || 'recommended';
     const limit       = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
     const offset      = Math.max(0, parseInt(searchParams.get('offset')) || 0);
+    
+    // Bounds for map
+    const minLat = parseFloat(searchParams.get('minLat'));
+    const maxLat = parseFloat(searchParams.get('maxLat'));
+    const minLng = parseFloat(searchParams.get('minLng'));
+    const maxLng = parseFloat(searchParams.get('maxLng'));
 
     // ── Base query ──────────────────────────────────────────────────────────
     // Safety gates are hardcoded — cannot be bypassed via query params.
@@ -64,10 +70,18 @@ export async function GET(request) {
       params.push(city);
     }
 
-    if (location) {
+    if (location && location !== 'Map area') {
       sql += ` AND (s.city LIKE ? OR s.state LIKE ? OR s.postal_code LIKE ?)`;
       const term = '%' + location + '%';
       params.push(term, term, term);
+    }
+    
+    // Geographical bounds filter
+    if (!isNaN(minLat) && !isNaN(maxLat) && !isNaN(minLng) && !isNaN(maxLng)) {
+      sql += ` AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL 
+               AND s.latitude >= ? AND s.latitude <= ? 
+               AND s.longitude >= ? AND s.longitude <= ?`;
+      params.push(minLat, maxLat, minLng, maxLng);
     }
 
     if (categories.length > 0) {

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, User, LogOut, Calendar, LayoutDashboard, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/marketplace/search-bar';
@@ -48,12 +48,12 @@ export default function MarketplaceLayout({ children }) {
             {/* Search Bar - Desktop */}
             {showHeaderSearch && (
               <div className="hidden md:block flex-1 max-w-2xl mx-8">
-                <SearchBar 
-                  initialSearchQuery="" 
-                  initialLocationQuery="" 
-                  size="compact"
-                  className=""
-                />
+                <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
+                  <SearchBar 
+                    size="compact"
+                    className=""
+                  />
+                </Suspense>
               </div>
             )}
 
@@ -153,11 +153,11 @@ export default function MarketplaceLayout({ children }) {
           <div className="md:hidden border-t bg-background p-4 space-y-4">
             {pathname !== '/' && (
               <div className="mb-2">
-                <SearchBar
-                  initialSearchQuery=""
-                  initialLocationQuery=""
-                  size="compact"
-                />
+                <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
+                  <SearchBar
+                    size="compact"
+                  />
+                </Suspense>
               </div>
             )}
             {!isAuthenticated && (
@@ -175,46 +175,48 @@ export default function MarketplaceLayout({ children }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-muted/30 border-t border-border/50 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="font-semibold mb-4">Discover</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/salons" className="hover:text-foreground">Hair Salons</Link></li>
-                <li><Link href="/salons?category=nails" className="hover:text-foreground">Nail Salons</Link></li>
-                <li><Link href="/salons?category=spa" className="hover:text-foreground">Spas</Link></li>
-                <li><Link href="/salons?category=barber" className="hover:text-foreground">Barbershops</Link></li>
-              </ul>
+      {pathname !== '/salons' && (
+        <footer className="bg-muted/30 border-t border-border/50 mt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              <div>
+                <h3 className="font-semibold mb-4">Discover</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/salons" className="hover:text-foreground">Hair Salons</Link></li>
+                  <li><Link href="/salons?category=nails" className="hover:text-foreground">Nail Salons</Link></li>
+                  <li><Link href="/salons?category=spa" className="hover:text-foreground">Spas</Link></li>
+                  <li><Link href="/salons?category=barber" className="hover:text-foreground">Barbershops</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">For Business</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/register?type=professional" className="hover:text-foreground">Partner with us</Link></li>
+                  <li><Link href="/pricing" className="hover:text-foreground">Pricing</Link></li>
+                  <li><Link href="/features" className="hover:text-foreground">Features</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Support</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/help" className="hover:text-foreground">Help Center</Link></li>
+                  <li><Link href="/contact" className="hover:text-foreground">Contact Us</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Legal</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
+                  <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4">For Business</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/register?type=professional" className="hover:text-foreground">Partner with us</Link></li>
-                <li><Link href="/pricing" className="hover:text-foreground">Pricing</Link></li>
-                <li><Link href="/features" className="hover:text-foreground">Features</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/help" className="hover:text-foreground">Help Center</Link></li>
-                <li><Link href="/contact" className="hover:text-foreground">Contact Us</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Legal</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
-              </ul>
+            <div className="border-t border-border/50 mt-8 pt-8 text-center text-sm text-muted-foreground">
+              © 2026 Fresh. All rights reserved.
             </div>
           </div>
-          <div className="border-t border-border/50 mt-8 pt-8 text-center text-sm text-muted-foreground">
-            © 2026 Fresh. All rights reserved.
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

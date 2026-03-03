@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Search, 
   MapPin, 
@@ -30,17 +30,38 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useAuth } from '@/providers/auth-provider';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export function SearchBar({ 
-  initialSearchQuery = '', 
-  initialLocationQuery = '', 
+function SearchBarContent({ 
+  initialSearchQuery, 
+  initialLocationQuery, 
   className = '', 
   size = 'lg' 
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
-  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
-  const [locationQuery, setLocationQuery] = useState(initialLocationQuery);
+  const defaultSearch = initialSearchQuery !== undefined ? initialSearchQuery : (searchParams.get('q') || '');
+  const defaultLocation = initialLocationQuery !== undefined ? initialLocationQuery : (searchParams.get('location') || '');
+
+  const { isAuthenticated } = useAuth();
+
+  const [searchQuery, setSearchQuery] = useState(defaultSearch);
+  const [locationQuery, setLocationQuery] = useState(defaultLocation);
+
+  // Sync when URL changes
+  useEffect(() => {
+    if (initialSearchQuery === undefined) {
+      setSearchQuery(searchParams.get('q') || '');
+    }
+  }, [searchParams, initialSearchQuery]);
+
+  useEffect(() => {
+    if (initialLocationQuery === undefined) {
+      setLocationQuery(searchParams.get('location') || '');
+    }
+  }, [searchParams, initialLocationQuery]);
   
   // Suggestion Dropdown States
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -51,6 +72,7 @@ export function SearchBar({
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [silentLocation, setSilentLocation] = useState(null);
 
   // New location data states
   const [recentSearches, setRecentSearches] = useState([]);
@@ -111,6 +133,16 @@ export function SearchBar({
     } catch (e) {
       console.error('Failed to parse recent locations', e);
     }
+    
+    // 3. Silently fetch IP-based rough coords to prioritize search suggestions
+    fetch('http://ip-api.com/json/?fields=lat,lon')
+      .then(res => res.json())
+      .then(data => {
+        if (data.lat && data.lon) {
+          setSilentLocation({ lat: data.lat, lng: data.lon });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Save to recent searches
@@ -201,8 +233,16 @@ export function SearchBar({
             setLocationQuery(city);
             setShowLocationSuggestions(false);
             saveRecentSearch(city);
+            
+            const params = new URLSearchParams();
+            if (searchQuery) params.append('q', searchQuery);
+            params.append('location', city);
+            params.append('userLat', latitude.toString());
+            params.append('userLng', longitude.toString());
+            
+            router.push('/salons?' + params.toString());
           } catch (e) {
-            fallbackToIP();
+            fallbackToIP(position.coords);
           } finally {
             setIsGettingLocation(false);
           }
@@ -221,17 +261,39 @@ export function SearchBar({
       fallbackToIP();
     }
     
-    async function fallbackToIP() {
+    async function fallbackToIP(coords = null) {
       try {
-        const res = await fetch('http://ip-api.com/json/?fields=city');
+        const res = await fetch('http://ip-api.com/json/?fields=city,lat,lon');
         const data = await res.json();
         const city = data.city || 'Current Location';
         setLocationQuery(city);
         setShowLocationSuggestions(false);
         saveRecentSearch(city);
+        
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('q', searchQuery);
+        params.append('location', city);
+        
+        const finalLat = coords?.latitude || data.lat;
+        const finalLng = coords?.longitude || data.lon;
+        if (finalLat && finalLng) {
+          params.append('userLat', finalLat.toString());
+          params.append('userLng', finalLng.toString());
+        }
+        
+        router.push('/salons?' + params.toString());
       } catch (e) {
         setLocationQuery('Current Location');
         setShowLocationSuggestions(false);
+        
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('q', searchQuery);
+        params.append('location', 'Current Location');
+        if (coords) {
+          params.append('userLat', coords.latitude.toString());
+          params.append('userLng', coords.longitude.toString());
+        }
+        router.push('/salons?' + params.toString());
         console.error('IP Fallback failed', e);
       } finally {
         setIsGettingLocation(false);
@@ -247,8 +309,9 @@ export function SearchBar({
         setShowLocationSuggestions(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    // Use capture phase so UI like Leaflet maps can't swallow the event before it reaches the document
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
   }, []);
 
   // Calculate dynamic height for service suggestions dropdown
@@ -300,10 +363,36 @@ export function SearchBar({
       }
       setIsSearchingLocation(true);
       try {
-        const res = await fetch('/api/marketplace/cities?q=' + encodeURIComponent(debouncedLocationQuery));
+        let endpoint = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(debouncedLocationQuery)}&limit=5&addressdetails=1`;
+        if (silentLocation) {
+          endpoint += `&lat=${silentLocation.lat}&lon=${silentLocation.lng}`;
+        }
+        const res = await fetch(endpoint);
         if (res.ok) {
           const data = await res.json();
-          setLocationSuggestions(data.data || []);
+          const formatted = data.map(item => {
+            const city = item.address?.city || item.address?.town || item.address?.village || item.name;
+            const state = item.address?.state || item.address?.country;
+            return {
+              label: item.display_name,
+              city: city,
+              state: state,
+              lat: item.lat,
+              lon: item.lon
+            };
+          });
+          // Deduplicate by city + state to avoid confusing identical suggestions
+          const unique = [];
+          const seen = new Set();
+          for (const loc of formatted) {
+            const key = `${loc.city}-${loc.state}`;
+            if (!seen.has(key) && loc.city) {
+              seen.add(key);
+              unique.push(loc);
+            }
+          }
+          // fallback to data if no city names found (e.g. searched for a state)
+          setLocationSuggestions(unique.length > 0 ? unique : formatted);
         }
       } catch (e) {
         console.error('Failed to fetch city suggestions:', e);
@@ -312,7 +401,7 @@ export function SearchBar({
       }
     }
     fetchCities();
-  }, [debouncedLocationQuery]);
+  }, [debouncedLocationQuery, silentLocation]);
 
   // Fetch live suggestions when debounced query changes
   useEffect(() => {
@@ -368,10 +457,27 @@ export function SearchBar({
     router.push('/salons?q=' + encodeURIComponent(serviceName));
   };
 
-  const handleLocationSuggestionClick = (cityLabel) => {
+  const handleLocationSuggestionClick = (locArg) => {
+    let cityLabel = '';
+    const params = new URLSearchParams();
+    if (searchQuery) params.append('q', searchQuery);
+
+    if (typeof locArg === 'string') {
+      cityLabel = locArg;
+      params.append('location', cityLabel);
+    } else {
+      cityLabel = locArg.city || locArg.label;
+      params.append('location', cityLabel);
+      if (locArg.lat && locArg.lon) {
+        params.append('userLat', locArg.lat.toString());
+        params.append('userLng', locArg.lon.toString());
+      }
+    }
+
     setLocationQuery(cityLabel);
     saveRecentSearch(cityLabel);
     setShowLocationSuggestions(false);
+    router.push('/salons?' + params.toString());
   };
 
   // Filter popular services locally based on input
@@ -392,7 +498,16 @@ export function SearchBar({
   const isCompact = size === 'compact';
 
   return (
-      <div ref={containerRef} className={`relative w-full ${className}`}>
+      <div 
+        ref={containerRef} 
+        className={`relative w-full ${className}`}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setShowSuggestions(false);
+            setShowLocationSuggestions(false);
+          }
+        }}
+      >
         {/* Pill Container for Search */}
         <form 
           onSubmit={handleSearchSubmit} 
@@ -409,7 +524,10 @@ export function SearchBar({
                 setSearchQuery(e.target.value);
                 setShowSuggestions(true);
               }}
-              onFocus={() => setShowSuggestions(true)}
+              onFocus={() => {
+                setShowSuggestions(true);
+                setShowLocationSuggestions(false);
+              }}
             />
           </div>
 
@@ -431,6 +549,9 @@ export function SearchBar({
                 setIsAddingAddress(false);
               }}
               onFocus={() => {
+                if (locationQuery === 'Map area') {
+                  setLocationQuery('');
+                }
                 setShowLocationSuggestions(true);
                 setShowSuggestions(false);
               }}
@@ -447,110 +568,8 @@ export function SearchBar({
                   overflowY: 'auto',
                 }}
               >
-                {/* Inline Overlay: Add New Address */}
-                {isAddingAddress ? (
-                  <div className="flex flex-col w-full py-4 px-6 space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                       <button onClick={() => setIsAddingAddress(false)} className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm font-medium">
-                         <ChevronLeft className="h-4 w-4" /> Back
-                       </button>
-                       <h4 className="text-[13px] font-bold text-foreground">Add Address</h4>
-                       <div className="w-12"></div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[10px] font-semibold uppercase text-muted-foreground mb-1 block">Label</label>
-                        <Input placeholder="e.g. Gym, Office" value={newAddressForm.label} onChange={e => setNewAddressForm({...newAddressForm, label: e.target.value})} className="h-9 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold uppercase text-muted-foreground mb-1 block">Icon</label>
-                        <select 
-                          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                          value={newAddressForm.icon_name}
-                          onChange={e => setNewAddressForm({...newAddressForm, icon_name: e.target.value})}
-                        >
-                          <option value="Home">Home</option>
-                          <option value="Briefcase">Work</option>
-                          <option value="Heart">Heart</option>
-                          <option value="MapPin">Location Pin</option>
-                          <option value="Building">Building</option>
-                          <option value="Star">Star</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold uppercase text-muted-foreground mb-1 block">Full Address</label>
-                        <Input placeholder="123 Main St, City" value={newAddressForm.full_address} onChange={e => setNewAddressForm({...newAddressForm, full_address: e.target.value})} className="h-9 text-sm" />
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
-                        <input type="checkbox" id="is_default_inline" className="rounded text-primary focus:ring-primary" checked={newAddressForm.is_default} onChange={e => setNewAddressForm({...newAddressForm, is_default: e.target.checked})} />
-                        <label htmlFor="is_default_inline" className="text-[13px] cursor-pointer font-medium">Set as default address</label>
-                      </div>
-                      <Button 
-                        className="w-full mt-2 h-10" 
-                        onClick={handleInlineSaveAddress} 
-                        disabled={!newAddressForm.label || !newAddressForm.full_address || isSavingAddress}
-                      >
-                        {isSavingAddress ? 'Saving...' : 'Save Address'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : isManagingAddresses ? (
-                  <>
-                    {/* Inline Overlay: Manage Addresses */}
-                    <div className="flex flex-col w-full py-4 px-6 space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                       <button onClick={() => setIsManagingAddresses(false)} className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm font-medium">
-                         <ChevronLeft className="h-4 w-4" /> Back to Search
-                       </button>
-                       <h4 className="text-[13px] font-bold text-foreground">Manage Addresses</h4>
-                       <div className="w-16"></div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {userAddresses.length > 0 ? (
-                        userAddresses.map((addr) => {
-                          const IconComponent = { Home, Briefcase, Heart, MapPin, Building, Star }[addr.iconName] || MapPin;
-                          return (
-                            <div key={addr.id} className="w-full flex items-center justify-between py-2 border-b border-border/10 last:border-0 group">
-                              <div className="flex items-center gap-4 min-w-0 pr-4">
-                                <IconComponent className="h-5 w-5 text-muted-foreground shrink-0" />
-                                <div className="flex flex-col min-w-0">
-                                  <span className="text-[14px] font-medium text-popover-foreground flex items-center gap-2">
-                                    {addr.label}
-                                    {addr.isDefault && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3">Default</Badge>}
-                                  </span>
-                                  <span className="text-[12px] text-muted-foreground truncate block">{addr.fullAddress}</span>
-                                </div>
-                              </div>
-                              <button 
-                                onClick={(e) => handleInlineDeleteAddress(addr.id, e)}
-                                disabled={isDeletingAddress === addr.id}
-                                className="text-[12px] text-destructive hover:font-semibold shrink-0"
-                              >
-                                {isDeletingAddress === addr.id ? 'Removing...' : 'Remove'}
-                              </button>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="text-center py-4 text-[13px] text-muted-foreground">No addresses saved yet.</div>
-                      )}
-                      
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingAddress(true)}
-                        className="w-full text-left py-3 mt-2 transition-colors flex items-center gap-3 rounded-lg group"
-                      >
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                           <Plus className="h-4 w-4 text-primary" />
-                        </div>
-                        <span className="text-[14px] font-semibold text-primary group-hover:underline">Add New Address</span>
-                      </button>
-                    </div>
-                  </div>
-                  </>
-                ) : !debouncedLocationQuery.trim() ? (
+                {/* We removed the inline Add/Manage UI from here. It is now a Dialog overlay at the end of the component. */}
+                {!debouncedLocationQuery.trim() ? (
                   <div className="flex flex-col w-full py-4 space-y-4">
                     
                     {/* 1. High-Accuracy Current Location */}
@@ -571,61 +590,68 @@ export function SearchBar({
                     </div>
 
                     {/* 2. Saved Locations */}
-                    <div className="px-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Saved</h4>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (userAddresses.length > 0) {
-                              setIsManagingAddresses(true);
-                            } else {
-                              setIsAddingAddress(true);
-                            }
-                          }}
-                          className="text-[12px] text-primary hover:underline font-medium"
-                        >
-                          Manage
-                        </button>
-                      </div>
-                      <div className="space-y-1">
-                        {userAddresses.length > 0 ? (
-                          userAddresses.map((addr) => {
-                            // Map icon string to component safely
-                            const IconComponent = { Home, Briefcase, Heart, MapPin, Building, Star }[addr.iconName] || MapPin;
-
-                            return (
-                              <button
-                                key={addr.id}
-                                type="button"
-                                onClick={() => handleLocationSuggestionClick(addr.fullAddress)}
-                                className="w-full text-left py-2.5 transition-colors flex items-center gap-4 hover:bg-muted/50 rounded-xl px-2 -mx-2 group"
-                              >
-                                <IconComponent className="h-5 w-5 text-muted-foreground shrink-0 group-hover:text-popover-foreground transition-colors" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                     <span className="text-[14px] font-medium text-popover-foreground block">{addr.label}</span>
-                                     {addr.isDefault && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3">Default</Badge>}
-                                  </div>
-                                  <span className="text-[13px] text-muted-foreground truncate block">{addr.fullAddress}</span>
-                                </div>
-                              </button>
-                            );
-                          })
-                        ) : (
+                    {isAuthenticated && (
+                      <div className="px-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Saved</h4>
                           <button
                             type="button"
-                            onClick={() => setIsAddingAddress(true)}
-                            className="w-full text-left py-2.5 transition-colors flex items-center gap-4 hover:bg-muted/50 rounded-xl px-2 -mx-2 group"
+                            onClick={() => {
+                              if (userAddresses.length > 0) {
+                                setShowLocationSuggestions(false);
+                                setIsManagingAddresses(true);
+                              } else {
+                                setShowLocationSuggestions(false);
+                                setIsAddingAddress(true);
+                              }
+                            }}
+                            className="text-[12px] text-primary hover:underline font-medium"
                           >
-                            <Plus className="h-5 w-5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[14px] font-medium text-primary block hover:underline">Add New Address</span>
-                            </div>
+                            Manage
                           </button>
-                        )}
+                        </div>
+                        <div className="space-y-1">
+                          {userAddresses.length > 0 ? (
+                            userAddresses.map((addr) => {
+                              // Map icon string to component safely
+                              const IconComponent = { Home, Briefcase, Heart, MapPin, Building, Star }[addr.iconName] || MapPin;
+  
+                              return (
+                                <button
+                                  key={addr.id}
+                                  type="button"
+                                  onClick={() => handleLocationSuggestionClick(addr.fullAddress)}
+                                  className="w-full text-left py-2.5 transition-colors flex items-center gap-4 hover:bg-muted/50 rounded-xl px-2 -mx-2 group"
+                                >
+                                  <IconComponent className="h-5 w-5 text-muted-foreground shrink-0 group-hover:text-popover-foreground transition-colors" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                       <span className="text-[14px] font-medium text-popover-foreground block">{addr.label}</span>
+                                       {addr.isDefault && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3">Default</Badge>}
+                                    </div>
+                                    <span className="text-[13px] text-muted-foreground truncate block">{addr.fullAddress}</span>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowLocationSuggestions(false);
+                                setIsAddingAddress(true);
+                              }}
+                              className="w-full text-left py-2.5 transition-colors flex items-center gap-4 hover:bg-muted/50 rounded-xl px-2 -mx-2 group"
+                            >
+                              <Plus className="h-5 w-5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-[14px] font-medium text-primary block hover:underline">Add New Address</span>
+                              </div>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* 3. Recent Searches */}
                     {recentSearches.length > 0 && (
@@ -671,7 +697,7 @@ export function SearchBar({
                         <button
                           key={loc.label + i}
                           type="button"
-                          onClick={() => handleLocationSuggestionClick(loc.label)}
+                          onClick={() => handleLocationSuggestionClick(loc)}
                           className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3 hover:bg-muted"
                         >
                           <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -787,12 +813,128 @@ export function SearchBar({
                   </div>
                 )}
                 
-
               </div>
             )}
           </div>
         )}
 
+        {/* Address Management Overlays */}
+        <Dialog 
+          open={isAddingAddress || isManagingAddresses} 
+          onOpenChange={(val) => {
+            if (!val) {
+              setIsAddingAddress(false);
+              setIsManagingAddresses(false);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            {isAddingAddress ? (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center">
+                    {isManagingAddresses && (
+                      <button onClick={() => setIsAddingAddress(false)} className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm font-medium mr-2">
+                        <ChevronLeft className="h-4 w-4" /> Back
+                      </button>
+                    )}
+                    <DialogTitle>Add Address</DialogTitle>
+                  </div>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Label</label>
+                    <Input placeholder="e.g. Gym, Office" value={newAddressForm.label} onChange={e => setNewAddressForm({...newAddressForm, label: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Icon</label>
+                    <select 
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                      value={newAddressForm.icon_name}
+                      onChange={e => setNewAddressForm({...newAddressForm, icon_name: e.target.value})}
+                    >
+                      <option value="Home">Home</option>
+                      <option value="Briefcase">Work</option>
+                      <option value="Heart">Heart</option>
+                      <option value="MapPin">Location Pin</option>
+                      <option value="Building">Building</option>
+                      <option value="Star">Star</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Full Address</label>
+                    <Input placeholder="123 Main St, City" value={newAddressForm.full_address} onChange={e => setNewAddressForm({...newAddressForm, full_address: e.target.value})} />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="is_default_modal" className="rounded text-primary focus:ring-primary" checked={newAddressForm.is_default} onChange={e => setNewAddressForm({...newAddressForm, is_default: e.target.checked})} />
+                    <label htmlFor="is_default_modal" className="text-sm cursor-pointer font-medium">Set as default address</label>
+                  </div>
+                  <Button 
+                    className="w-full mt-4" 
+                    onClick={handleInlineSaveAddress} 
+                    disabled={!newAddressForm.label || !newAddressForm.full_address || isSavingAddress}
+                  >
+                    {isSavingAddress ? 'Saving...' : 'Save Address'}
+                  </Button>
+                </div>
+              </>
+            ) : isManagingAddresses ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Manage Addresses</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                  {userAddresses.length > 0 ? (
+                    userAddresses.map((addr) => {
+                      const IconComponent = { Home, Briefcase, Heart, MapPin, Building, Star }[addr.iconName] || MapPin;
+                      return (
+                        <div key={addr.id} className="w-full flex items-center justify-between py-3 border-b border-border/10 last:border-0 group">
+                          <div className="flex items-center gap-4 min-w-0 pr-4">
+                            <IconComponent className="h-5 w-5 text-muted-foreground shrink-0" />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-medium text-popover-foreground flex items-center gap-2">
+                                {addr.label}
+                                {addr.isDefault && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Default</Badge>}
+                              </span>
+                              <span className="text-xs text-muted-foreground truncate block pt-0.5">{addr.fullAddress}</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => handleInlineDeleteAddress(addr.id, e)}
+                            disabled={isDeletingAddress === addr.id}
+                            className="text-xs text-destructive hover:font-semibold shrink-0"
+                          >
+                            {isDeletingAddress === addr.id ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No saved addresses.</p>
+                  )}
+                  
+                  <button 
+                    onClick={() => setIsAddingAddress(true)}
+                    className="w-full text-left py-4 mt-2 transition-colors flex items-center gap-3 rounded-lg group"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                       <Plus className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-semibold text-primary group-hover:underline">Add New Address</span>
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </div>
+  );
+}
+
+export function SearchBar(props) {
+  return (
+    <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
+      <SearchBarContent {...props} />
+    </Suspense>
   );
 }
