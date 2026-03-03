@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, MapPin, Menu, X, User, LogOut, Calendar, LayoutDashboard, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, X, User, LogOut, Calendar, LayoutDashboard, Settings } from 'lucide-react';
+import { useState, Suspense } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SearchBar } from '@/components/marketplace/search-bar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/providers/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -26,18 +26,10 @@ export default function MarketplaceLayout({ children }) {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationQuery, setLocationQuery] = useState('');
-
   const isOwner = user?.role === 'owner';
 
-  const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.append('q', searchQuery);
-    if (locationQuery) params.append('location', locationQuery);
-    router.push(`/salons?${params.toString()}`);
-    setMobileMenuOpen(false);
-  };
+  // Show header search on all pages except the homepage
+  const showHeaderSearch = pathname !== '/';
 
   return (
     <div className="min-h-screen bg-background">
@@ -54,29 +46,14 @@ export default function MarketplaceLayout({ children }) {
             </Link>
 
             {/* Search Bar - Desktop */}
-            {pathname !== '/' && (
-              <div className="hidden md:flex items-center gap-2 flex-1 max-w-xl mx-8">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search for services or salons..."
-                    className="pl-10 bg-muted"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            {showHeaderSearch && (
+              <div className="hidden md:block flex-1 max-w-2xl mx-8">
+                <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
+                  <SearchBar 
+                    size="compact"
+                    className=""
                   />
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Location"
-                    className="pl-10 w-40 bg-muted"
-                    value={locationQuery}
-                    onChange={(e) => setLocationQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                </div>
-                <Button onClick={handleSearch}>Search</Button>
+                </Suspense>
               </div>
             )}
 
@@ -142,7 +119,7 @@ export default function MarketplaceLayout({ children }) {
                         </DropdownMenuItem>
                       </Link>
                     )}
-                    <Link href="/dashboard/settings">
+                    <Link href="/profile">
                       <DropdownMenuItem className="cursor-pointer">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
@@ -175,27 +152,13 @@ export default function MarketplaceLayout({ children }) {
         {mobileMenuOpen && (
           <div className="md:hidden border-t bg-background p-4 space-y-4">
             {pathname !== '/' && (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search services or salons..."
-                    className="pl-10"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+              <div className="mb-2">
+                <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
+                  <SearchBar
+                    size="compact"
                   />
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Location"
-                    className="pl-10"
-                    value={locationQuery}
-                    onChange={(e) => setLocationQuery(e.target.value)}
-                  />
-                </div>
-                <Button className="w-full" onClick={handleSearch}>Search</Button>
-              </>
+                </Suspense>
+              </div>
             )}
             {!isAuthenticated && (
               <Link href="/login?type=professional" className="block text-center text-sm font-medium">
@@ -212,46 +175,48 @@ export default function MarketplaceLayout({ children }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-muted/30 border-t border-border/50 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="font-semibold mb-4">Discover</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/salons" className="hover:text-foreground">Hair Salons</Link></li>
-                <li><Link href="/salons?category=nails" className="hover:text-foreground">Nail Salons</Link></li>
-                <li><Link href="/salons?category=spa" className="hover:text-foreground">Spas</Link></li>
-                <li><Link href="/salons?category=barber" className="hover:text-foreground">Barbershops</Link></li>
-              </ul>
+      {pathname !== '/salons' && (
+        <footer className="bg-muted/30 border-t border-border/50 mt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              <div>
+                <h3 className="font-semibold mb-4">Discover</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/salons" className="hover:text-foreground">Hair Salons</Link></li>
+                  <li><Link href="/salons?category=nails" className="hover:text-foreground">Nail Salons</Link></li>
+                  <li><Link href="/salons?category=spa" className="hover:text-foreground">Spas</Link></li>
+                  <li><Link href="/salons?category=barber" className="hover:text-foreground">Barbershops</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">For Business</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/register?type=professional" className="hover:text-foreground">Partner with us</Link></li>
+                  <li><Link href="/pricing" className="hover:text-foreground">Pricing</Link></li>
+                  <li><Link href="/features" className="hover:text-foreground">Features</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Support</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/help" className="hover:text-foreground">Help Center</Link></li>
+                  <li><Link href="/contact" className="hover:text-foreground">Contact Us</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Legal</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
+                  <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4">For Business</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/register?type=professional" className="hover:text-foreground">Partner with us</Link></li>
-                <li><Link href="/pricing" className="hover:text-foreground">Pricing</Link></li>
-                <li><Link href="/features" className="hover:text-foreground">Features</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/help" className="hover:text-foreground">Help Center</Link></li>
-                <li><Link href="/contact" className="hover:text-foreground">Contact Us</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Legal</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
-              </ul>
+            <div className="border-t border-border/50 mt-8 pt-8 text-center text-sm text-muted-foreground">
+              © 2026 Fresh. All rights reserved.
             </div>
           </div>
-          <div className="border-t border-border/50 mt-8 pt-8 text-center text-sm text-muted-foreground">
-            © 2026 Fresh. All rights reserved.
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

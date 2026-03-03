@@ -32,6 +32,13 @@ export async function GET(request) {
       params.push(salonId);
     }
 
+    // Allow filtering by purchaser (for client profile)
+    const purchasedBy = searchParams.get("purchased_by");
+    if (purchasedBy) {
+      sql += " AND purchased_by = ?";
+      params.push(parseInt(purchasedBy));
+    }
+
     if (status === "active") {
       sql += " AND status = 'active' AND remaining_balance > 0";
     } else if (status === "used") {

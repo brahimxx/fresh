@@ -35,7 +35,11 @@ export async function GET(request) {
        LEFT JOIN payments p ON p.booking_id = b.id
        LEFT JOIN reviews r ON r.booking_id = b.id
        WHERE b.client_id = ? AND (b.start_datetime <= NOW() OR b.status IN ('completed', 'cancelled', 'no_show'))
-       GROUP BY b.id
+       GROUP BY 
+         b.id, s.name, s.id, 
+         u2.first_name, u2.last_name, 
+         p.amount, p.status, 
+         r.id, r.rating
        ORDER BY b.start_datetime DESC
        LIMIT ? OFFSET ?`,
       [session.userId, limit, offset]

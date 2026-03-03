@@ -21,7 +21,9 @@ export async function GET(request) {
        LEFT JOIN staff st ON st.id = b.staff_id
        LEFT JOIN users u2 ON u2.id = st.user_id
        WHERE b.client_id = ? AND b.start_datetime > NOW() AND b.status IN ('pending', 'confirmed')
-       GROUP BY b.id
+       GROUP BY 
+         b.id, s.name, s.address, s.phone,
+         u2.first_name, u2.last_name
        ORDER BY b.start_datetime ASC
        LIMIT ?`,
       [session.userId, limit]

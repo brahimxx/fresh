@@ -18,6 +18,12 @@ export async function GET(request) {
     const sort        = searchParams.get('sort') || 'recommended';
     const limit       = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
     const offset      = Math.max(0, parseInt(searchParams.get('offset')) || 0);
+    
+    // Bounds for map
+    const minLat = parseFloat(searchParams.get('minLat'));
+    const maxLat = parseFloat(searchParams.get('maxLat'));
+    const minLng = parseFloat(searchParams.get('minLng'));
+    const maxLng = parseFloat(searchParams.get('maxLng'));
 
     // ── Base query ──────────────────────────────────────────────────────────
     // Safety gates are hardcoded — cannot be bypassed via query params.
@@ -27,6 +33,7 @@ export async function GET(request) {
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
         s.address, s.city, s.state, s.postal_code,
         s.phone, s.website, s.price_level, s.category,
+        s.latitude, s.longitude,
         AVG(r.rating)        AS rating,
         COUNT(DISTINCT r.id) AS review_count,
         svc.services_preview
@@ -63,10 +70,18 @@ export async function GET(request) {
       params.push(city);
     }
 
-    if (location) {
+    if (location && location !== 'Map area') {
       sql += ` AND (s.city LIKE ? OR s.state LIKE ? OR s.postal_code LIKE ?)`;
       const term = '%' + location + '%';
       params.push(term, term, term);
+    }
+    
+    // Geographical bounds filter
+    if (!isNaN(minLat) && !isNaN(maxLat) && !isNaN(minLng) && !isNaN(maxLng)) {
+      sql += ` AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL 
+               AND s.latitude >= ? AND s.latitude <= ? 
+               AND s.longitude >= ? AND s.longitude <= ?`;
+      params.push(minLat, maxLat, minLng, maxLng);
     }
 
     if (categories.length > 0) {
@@ -155,6 +170,8 @@ export async function GET(request) {
       website:          salon.website,
       price_level:      salon.price_level,
       category:         salon.category,
+      latitude:         salon.latitude ? parseFloat(salon.latitude) : null,
+      longitude:        salon.longitude ? parseFloat(salon.longitude) : null,
       rating:           salon.rating ? parseFloat(parseFloat(salon.rating).toFixed(1)) : null,
       review_count:     parseInt(salon.review_count) || 0,
       services_preview: salon.services_preview

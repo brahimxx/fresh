@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SearchBar } from '@/components/marketplace/search-bar';
 import { useMarketplaceSalons } from '@/hooks/use-marketplace';
 
 var FEATURED_CATEGORIES = [
@@ -19,11 +20,7 @@ var FEATURED_CATEGORIES = [
   { name: 'Barbershops', icon: Scissors, slug: 'barber', count: '1,200+', gradient: 'from-amber-500/20 to-orange-500/20' },
 ];
 
-var POPULAR_SERVICES = [
-  'Haircut', 'Hair Coloring', 'Manicure', 'Pedicure',
-  'Massage', 'Facial', 'Waxing', 'Eyebrow Threading',
-  'Beard Trim', 'Balayage', 'Keratin Treatment', 'Gel Nails'
-];
+
 
 var TRUST_STATS = [
   { value: '10,000+', label: 'Happy Clients' },
@@ -33,9 +30,6 @@ var TRUST_STATS = [
 ];
 
 export default function HomePage() {
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationQuery, setLocationQuery] = useState('');
   const [mounted, setMounted] = useState(false);
 
   useEffect(function() { setMounted(true); }, []);
@@ -45,17 +39,12 @@ export default function HomePage() {
     { sort: 'rating', limit: 4 }
   );
 
-  const handleSearch = function() {
-    const params = new URLSearchParams();
-    if (searchQuery) params.append('q', searchQuery);
-    if (locationQuery) params.append('location', locationQuery);
-    router.push('/salons?' + params.toString());
-  };
+
 
   return (
     <div className="overflow-hidden">
       {/* ─── Hero Section ─────────────────────────────────────────────── */}
-      <section className="relative py-20 pb-32 overflow-hidden">
+      <section className="flex flex-col items-center justify-center gap-10 relative pt-24 pb-32 md:pt-25 md:pb-58">
         {/* Animated background gradients */}
         <div className="absolute inset-0 pointer-events-none">
           <div
@@ -75,7 +64,7 @@ export default function HomePage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-3xl mx-auto">
+          <div className="text-center  mx-auto">
             {/* Animated heading */}
             <div
               className="transition-all duration-1000 ease-out"
@@ -84,12 +73,10 @@ export default function HomePage() {
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
-              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
-                The easiest way to book beauty services
-              </Badge>
-              <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight leading-tight">
-                Book beauty &{' '}
-                <span className="text-primary">wellness</span>{' '}
+             
+              <h1 className="text-nowrap text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight leading-tight">
+                Book beauty &
+                <span className="text-primary"> wellness </span>
                 near you
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -105,58 +92,15 @@ export default function HomePage() {
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
-              <div className="mt-10 bg-card/80 backdrop-blur-xl rounded-2xl shadow-2xl p-5 border border-border/50">
-                <div className="flex flex-col md:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      placeholder="Service or salon name..."
-                      className="pl-12 h-13 text-base rounded-xl border-border/50 bg-background/50"
-                      value={searchQuery}
-                      onChange={function(e) { setSearchQuery(e.target.value); }}
-                      onKeyDown={function(e) { if (e.key === 'Enter') handleSearch(); }}
-                    />
-                  </div>
-                  <div className="relative flex-1 md:max-w-xs">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      placeholder="City or zip code"
-                      className="pl-12 h-13 text-base rounded-xl border-border/50 bg-background/50"
-                      value={locationQuery}
-                      onChange={function(e) { setLocationQuery(e.target.value); }}
-                      onKeyDown={function(e) { if (e.key === 'Enter') handleSearch(); }}
-                    />
-                  </div>
-                  <Button
-                    size="lg"
-                    className="h-13 px-8 rounded-xl text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 transition-all"
-                    onClick={handleSearch}
-                  >
-                    <Search className="h-5 w-5 mr-2" />
-                    Search
-                  </Button>
-                </div>
-
-                {/* Popular Services */}
-                <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                  <span className="text-sm text-muted-foreground">Popular:</span>
-                  {POPULAR_SERVICES.slice(0, 6).map(function(service) {
-                    return (
-                      <Link key={service} href={'/salons?q=' + encodeURIComponent(service)}>
-                        <Badge
-                          variant="secondary"
-                          className="cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
-                        >
-                          {service}
-                        </Badge>
-                      </Link>
-                    );
-                  })}
-                </div>
+              <div className="mt-10">
+                <SearchBar size="lg" className="w-full max-w-4xl mx-auto" />
               </div>
             </div>
           </div>
         </div>
+         <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
+                The easiest way to book beauty services
+              </Badge>
       </section>
 
       {/* ─── Trust Stats ──────────────────────────────────────────────── */}
