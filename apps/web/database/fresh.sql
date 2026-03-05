@@ -1682,6 +1682,41 @@ LOCK TABLES `support_tickets` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `user_addresses`
+--
+
+DROP TABLE IF EXISTS `user_addresses`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_addresses` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `label` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'e.g., Home, Work, Gym, Mom''s House',
+  `icon_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'MapPin' COMMENT 'Lucide icon name',
+  `full_address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `lat` decimal(10,7) NOT NULL,
+  `lng` decimal(10,7) NOT NULL,
+  `is_default` tinyint(1) DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` datetime DEFAULT NULL COMMENT 'Strict soft deletion',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_addresses_user` (`user_id`,`deleted_at`),
+  CONSTRAINT `user_addresses_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user_addresses`
+--
+
+LOCK TABLES `user_addresses` WRITE;
+/*!40000 ALTER TABLE `user_addresses` DISABLE KEYS */;
+INSERT INTO `user_addresses` VALUES (1,185,'Work','Briefcase','Developatic, Bâtiment, escalier B, Djasr Kasentina, Algeria',36.7089597,3.0899134,0,'2026-03-03 17:15:33','2026-03-03 17:15:33',NULL),(2,185,'Home','Home','CACOBATPH, Djasr Kasentina, Algeria',36.6929659,3.0727577,0,'2026-03-03 18:02:07','2026-03-03 18:02:07',NULL);
+/*!40000 ALTER TABLE `user_addresses` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `users`
 --
 
@@ -1830,4 +1865,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-03 16:38:00
+-- Dump completed on 2026-03-05  2:33:05
