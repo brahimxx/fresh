@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { GoogleMap, useJsApiLoader, OverlayView } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, OverlayView, OverlayViewF } from '@react-google-maps/api';
 
 /* ───────────────────────────────────────────────────────────────────────────
    CONSTANTS
@@ -32,8 +32,33 @@ const MAP_CONTAINER_STYLE = {
    Custom Pin Component
    ─────────────────────────────────────────────────────────────────────────── */
 function SalonPin({ salon, ratingText, onClick }) {
+  const pinRef = useRef(null);
+
+  useEffect(() => {
+    const el = pinRef.current;
+    if (!el) return;
+
+    const handleMouseEnter = () => {
+      if (el.parentNode) el.parentNode.style.zIndex = '10000';
+    };
+    const handleMouseLeave = () => {
+      if (el.parentNode && !el.classList.contains('is-external-hovered')) {
+        el.parentNode.style.zIndex = '1';
+      }
+    };
+
+    el.addEventListener('mouseenter', handleMouseEnter);
+    el.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      el.removeEventListener('mouseenter', handleMouseEnter);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
+
   return (
     <div
+      ref={pinRef}
       className="salon-pin-base"
       data-salon-id={salon.id}
       onClick={onClick}
@@ -98,7 +123,7 @@ function SalonInfoWindow({ salon, ratingText, onClose }) {
       {/* Info */}
       <div style={{ padding: '10px 14px 12px' }}>
         <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 4, lineHeight: 1.3 }}>
-        {salon.name}
+          {salon.name}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280' }}>
           <span>{salon.category || 'Salon'}</span>
@@ -142,7 +167,7 @@ export function SalonMap({
   searchLocation = null,
   className = '',
   isExpanded = false,
-  onToggleExpand = () => {},
+  onToggleExpand = () => { },
   hoveredSalonId = null,
   onBoundsChange = null,
   isMapSearch = false
@@ -159,33 +184,60 @@ export function SalonMap({
   // Sync external hover state through DOM classes
   useEffect(() => {
     const oldHovers = document.querySelectorAll('.salon-pin-base.is-external-hovered');
-    oldHovers.forEach(el => el.classList.remove('is-external-hovered'));
+    oldHovers.forEach(el => {
+      el.classList.remove('is-external-hovered');
+      if (el.parentNode && !el.matches(':hover')) {
+        el.parentNode.style.zIndex = '1';
+      }
+    });
 
     if (hoveredSalonId) {
       const newHover = document.querySelector(`.salon-pin-base[data-salon-id="${hoveredSalonId}"]`);
       if (newHover) {
         newHover.classList.add('is-external-hovered');
+        if (newHover.parentNode) {
+          newHover.parentNode.style.zIndex = '10000';
+        }
       }
     }
   }, [hoveredSalonId]);
 
   // Determine initial center
-  const center = useMemo(() => {
-    if (userLocation?.lat && userLocation?.lng) return { lat: userLocation.lat, lng: userLocation.lng };
-    if (searchLocation?.lat && searchLocation?.lng) return { lat: searchLocation.lat, lng: searchLocation.lng };
+  const [center, setCenter] = useState(DEFAULT_CENTER);
+
+  useEffect(() => {
+    if (isMapSearch) return; // Do not recalculate center when map is being manually dragged
+
+    if (userLocation?.lat && userLocation?.lng) {
+      setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+      return;
+    }
+    if (searchLocation?.lat && searchLocation?.lng) {
+      setCenter({ lat: searchLocation.lat, lng: searchLocation.lng });
+      return;
+    }
+
     const withCoords = salons.filter(s => s.latitude && s.longitude);
     if (withCoords.length > 0) {
       const avgLat = withCoords.reduce((sum, s) => sum + parseFloat(s.latitude), 0) / withCoords.length;
       const avgLng = withCoords.reduce((sum, s) => sum + parseFloat(s.longitude), 0) / withCoords.length;
-      return { lat: avgLat, lng: avgLng };
+      setCenter({ lat: avgLat, lng: avgLng });
+    } else {
+      setCenter(DEFAULT_CENTER);
     }
-    return DEFAULT_CENTER;
-  }, [userLocation, searchLocation, salons]);
+  }, [userLocation, searchLocation, salons, isMapSearch]);
 
   const salonsWithCoords = useMemo(
-    () => salons.filter(s => s.latitude && s.longitude),
+    () => salons.filter(s => s.latitude && s.longitude).map(s => ({
+      ...s,
+      __position: { lat: parseFloat(s.latitude), lng: parseFloat(s.longitude) },
+      __ratingText: s.rating ? s.rating.toFixed(1) : 'New'
+    })),
     [salons]
   );
+
+  const getMarkerOffset = useCallback(() => ({ x: -23, y: -58 }), []);
+  const getInfoWindowOffset = useCallback(() => ({ x: -120, y: -280 }), []);
 
   // onLoad callback: store map ref
   const onMapLoad = useCallback((map) => {
@@ -223,7 +275,7 @@ export function SalonMap({
       map.panTo({ lat: parseFloat(withCoords[0].latitude), lng: parseFloat(withCoords[0].longitude) });
       map.setZoom(14);
     }
-    
+
     setTimeout(() => { isProgrammatic.current = false; }, 500);
   }, [salonsWithCoords, isLoaded, isMapSearch, userLocation]);
 
@@ -236,19 +288,30 @@ export function SalonMap({
     }
   }, [isExpanded, isLoaded]);
 
-  // Bounds change handler
+  // Bounds change handler (Debounced)
+  const debounceTimerRef = useRef(null);
+
   const handleBoundsChanged = useCallback(() => {
     if (!mapRef.current || !onBoundsChange || isProgrammatic.current) return;
-    const bounds = mapRef.current.getBounds();
-    if (!bounds) return;
-    const ne = bounds.getNorthEast();
-    const sw = bounds.getSouthWest();
-    onBoundsChange({
-      minLat: sw.lat(),
-      maxLat: ne.lat(),
-      minLng: sw.lng(),
-      maxLng: ne.lng(),
-    });
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      const bounds = mapRef.current.getBounds();
+      if (!bounds) return;
+
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+
+      onBoundsChange({
+        minLat: sw.lat(),
+        maxLat: ne.lat(),
+        minLng: sw.lng(),
+        maxLng: ne.lng(),
+      });
+    }, 500); // 500ms debounce
   }, [onBoundsChange]);
 
   /* ── Global CSS for pin animations ───────────────────────────────────── */
@@ -265,8 +328,10 @@ export function SalonMap({
         transform-origin: center bottom;
         transform: translateZ(0) scale(1);
         filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-        will-change: transform, filter;
-        backface-visibility: hidden;
+        will-change: transform, filter; /* GPU acceleration hint */
+        backface-visibility: hidden; /* Prevent flickering on iOS/Safari */
+        -webkit-font-smoothing: antialiased; /* Prevent text jank during scale */
+        perspective: 1000px;
         transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
       }
       
@@ -345,34 +410,49 @@ export function SalonMap({
         >
           {/* Salon markers */}
           {salonsWithCoords.map(salon => {
-            const ratingText = salon.rating ? salon.rating.toFixed(1) : 'New';
-            const position = { lat: parseFloat(salon.latitude), lng: parseFloat(salon.longitude) };
-
             return (
-              <OverlayView
+              <OverlayViewF
                 key={salon.id}
-                position={position}
+                position={salon.__position}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                getPixelPositionOffset={() => ({ x: -23, y: -58 })}
+                getPixelPositionOffset={getMarkerOffset}
               >
                 <SalonPin
                   salon={salon}
-                  ratingText={ratingText}
+                  ratingText={salon.__ratingText}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedSalon(salon);
+
+                    if (mapRef.current) {
+                      isProgrammatic.current = true;
+                      mapRef.current.panTo(salon.__position);
+
+                      // Pan the map camera up by 150px (pushes pin down) to leave room for the tall popup
+                      setTimeout(() => {
+                        if (mapRef.current) {
+                          mapRef.current.panBy(0, -150);
+                        }
+
+                        // Release programmatic lock after animation completes
+                        setTimeout(() => {
+                          isProgrammatic.current = false;
+                        }, 500);
+                      }, 50);
+                    }
                   }}
                 />
-              </OverlayView>
+              </OverlayViewF>
             );
           })}
 
           {/* InfoWindow for selected salon */}
           {selectedSalon && (
-            <OverlayView
-              position={{ lat: parseFloat(selectedSalon.latitude), lng: parseFloat(selectedSalon.longitude) }}
+            <OverlayViewF
+              position={selectedSalon.__position || { lat: parseFloat(selectedSalon.latitude), lng: parseFloat(selectedSalon.longitude) }}
               mapPaneName={OverlayView.FLOAT_PANE}
-              getPixelPositionOffset={() => ({ x: -120, y: -280 })}
+              getPixelPositionOffset={getInfoWindowOffset}
+              preventMapHitsAndGestures={true}
             >
               <div>
                 <SalonInfoWindow
@@ -382,7 +462,7 @@ export function SalonMap({
                 />
                 <div className="salon-info-arrow" />
               </div>
-            </OverlayView>
+            </OverlayViewF>
           )}
         </GoogleMap>
       </div>

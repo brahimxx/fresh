@@ -16,9 +16,14 @@ import {
   useDeleteAddress,
 } from '@/hooks/use-my-profile';
 
+import { useJsApiLoader } from '@react-google-maps/api';
+
+const MAPS_LIBRARIES = ['places'];
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -499,7 +504,7 @@ function AddressesTab() {
       });
       setIsAdding(false);
       setFormData({ label: '', full_address: '', lat: '', lng: '', icon_name: 'Home', is_default: false });
-    } catch(err) {
+    } catch (err) {
       console.error(err);
     }
   };
@@ -526,25 +531,47 @@ function AddressesTab() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Label</label>
-                <Input placeholder="e.g. Gym, Mom's House" value={formData.label} onChange={e => setFormData({...formData, label: e.target.value})} />
+                <Input placeholder="e.g. Gym, Mom's House" value={formData.label} onChange={e => setFormData({ ...formData, label: e.target.value })} />
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Icon</label>
-                <select 
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={formData.icon_name}
-                  onChange={e => setFormData({...formData, icon_name: e.target.value})}
-                >
-                  {Object.keys(ICONS).map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  {[
+                    { name: 'Home', Icon: Home },
+                    { name: 'Briefcase', Icon: Briefcase },
+                    { name: 'Heart', Icon: Heart },
+                    { name: 'MapPin', Icon: MapPin },
+                    { name: 'Building', Icon: Building },
+                    { name: 'Star', Icon: Star }
+                  ].map(({ name, Icon }) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, icon_name: name })}
+                      className={`h-10 flex-1 rounded-md border flex items-center justify-center transition-colors ${formData.icon_name === name ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-background/50 text-muted-foreground hover:bg-muted'}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold uppercase text-muted-foreground mb-1 block">Full Address</label>
-              <Input placeholder="123 Main St, City, Country" value={formData.full_address} onChange={e => setFormData({...formData, full_address: e.target.value})} />
+              <AddressAutocomplete
+                value={formData.full_address}
+                onChange={(loc) => {
+                  setFormData({
+                    ...formData,
+                    full_address: loc.full_address,
+                    lat: loc.lat || formData.lat,
+                    lng: loc.lng || formData.lng,
+                  });
+                }}
+              />
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id="is_default" checked={formData.is_default} onChange={e => setFormData({...formData, is_default: e.target.checked})} />
+              <input type="checkbox" id="is_default" checked={formData.is_default} onChange={e => setFormData({ ...formData, is_default: e.target.checked })} />
               <label htmlFor="is_default" className="text-sm cursor-pointer">Set as default address</label>
             </div>
             <div className="flex gap-2 justify-end pt-2">

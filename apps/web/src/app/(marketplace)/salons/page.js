@@ -63,7 +63,7 @@ function SalonSearchContent() {
   var [salons, setSalons] = useState([]);
   var [loading, setLoading] = useState(true);
   var [viewMode, setViewMode] = useState('grid');
-  
+
   // Map visibility — persisted in sessionStorage
   var [showMap, setShowMap] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -160,7 +160,7 @@ function SalonSearchContent() {
       }
     }
     loadSalons(isMapDragging);
-    
+
     // Reset dragging state after the load
     if (isMapDragging) {
       setIsMapDragging(false);
@@ -177,7 +177,7 @@ function SalonSearchContent() {
     params.set('maxLng', newBounds.maxLng);
     params.delete('userLat');
     params.delete('userLng');
-    
+
     // Replace URL without scrolling to top
     router.replace(`/salons?${params.toString()}`, { scroll: false });
   }
@@ -221,7 +221,7 @@ function SalonSearchContent() {
           <div className={showMap ? 'flex-1 min-w-0' : 'w-full'}>
             <div className="sticky top-16 z-30 bg-background -mt-6 pt-6 pb-4 mb-2">
               <Breadcrumbs className="mb-4" />
-              
+
               {/* Filter Bar */}
               <div className="flex items-center gap-3 flex-wrap">
                 {/* Mobile Filter Button */}
@@ -342,7 +342,7 @@ function SalonSearchContent() {
                   onClick={() => setShowMap(!showMap)}
                 >
                   {showMap ? <EyeOff className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
-                  {showMap ? 'Hide Map' :   'Show Map'}
+                  {showMap ? 'Hide Map' : 'Show Map'}
                 </Button>
 
                 {/* Sort & View */}
@@ -407,11 +407,11 @@ function SalonSearchContent() {
               )}
             </div>
 
-      <div className="mb-4">
-        <p className="text-muted-foreground transition-opacity">
-          {loading ? 'Searching...' : isMapLoading ? 'Updating map...' : salons.length + ' salons found'}
-        </p>
-      </div>
+            <div className="mb-4">
+              <p className="text-muted-foreground transition-opacity">
+                {loading ? 'Searching...' : isMapLoading ? 'Updating map...' : salons.length + ' salons found'}
+              </p>
+            </div>
 
             {loading ? (
               <div className={`grid ${gridCols} gap-6`}>
@@ -441,16 +441,16 @@ function SalonSearchContent() {
               <div className={`transition-opacity duration-200 ${isMapLoading ? 'opacity-50' : 'opacity-100'} ${viewMode === 'grid' ? `grid ${gridCols} gap-6` : 'space-y-4'}`}>
                 {salons.map(function (salon) {
                   return viewMode === 'grid' ? (
-                    <SalonCardGrid 
-                      key={salon.id} 
-                      salon={salon} 
+                    <SalonCardGrid
+                      key={salon.id}
+                      salon={salon}
                       onMouseEnter={() => setHoveredSalonId(salon.id)}
                       onMouseLeave={() => setHoveredSalonId(null)}
                     />
                   ) : (
-                    <SalonCardList 
-                      key={salon.id} 
-                      salon={salon} 
+                    <SalonCardList
+                      key={salon.id}
+                      salon={salon}
                       onMouseEnter={() => setHoveredSalonId(salon.id)}
                       onMouseLeave={() => setHoveredSalonId(null)}
                     />
@@ -476,8 +476,8 @@ function SalonSearchContent() {
         {showMap && (
           <div className={
             isMapExpanded
-              ? "w-full h-[calc(100vh-7rem)] rounded-xl overflow-hidden" 
-              : "hidden lg:block w-[480px] xl:w-[560px] shrink-0 sticky top-22 h-[calc(100vh-7rem)] rounded-xl overflow-hidden"
+              ? "w-full h-[calc(100vh-8.5rem)] rounded-xl overflow-hidden"
+              : "hidden lg:block w-[480px] xl:w-[50%] shrink-0 sticky top-22 h-[calc(100vh-8.5rem)] rounded-xl overflow-hidden"
           }>
             <SalonMap
               salons={salons}
@@ -499,8 +499,8 @@ function SalonSearchContent() {
 
 function SalonCardGrid({ salon, onMouseEnter, onMouseLeave }) {
   return (
-    <Link 
-      href={'/salon/' + salon.id} 
+    <Link
+      href={'/salon/' + salon.id}
       className="block h-full w-full"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -548,8 +548,8 @@ function SalonCardGrid({ salon, onMouseEnter, onMouseLeave }) {
 
 function SalonCardList({ salon, onMouseEnter, onMouseLeave }) {
   return (
-    <Link 
-      href={'/salon/' + salon.id} 
+    <Link
+      href={'/salon/' + salon.id}
       className="block w-full"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

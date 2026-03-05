@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "lint": "eslint"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",

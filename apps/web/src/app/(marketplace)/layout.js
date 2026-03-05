@@ -35,7 +35,7 @@ export default function MarketplaceLayout({ children }) {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-background/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${pathname === '/salons' ? 'max-w-[1800px]' : 'max-w-7xl'}`}>
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5">
@@ -49,7 +49,7 @@ export default function MarketplaceLayout({ children }) {
             {showHeaderSearch && (
               <div className="hidden md:block flex-1 max-w-2xl mx-8">
                 <Suspense fallback={<div className="h-10 w-full bg-muted rounded-full animate-pulse" />}>
-                  <SearchBar 
+                  <SearchBar
                     size="compact"
                     className=""
                   />
@@ -59,12 +59,12 @@ export default function MarketplaceLayout({ children }) {
 
             {/* Right Side */}
             <div className="flex items-center gap-4">
-              {!isAuthenticated && (
+              {!isAuthenticated && pathname === '/' && (
                 <Link href="/auth/choose" className="hidden sm:block text-sm font-medium hover:text-primary">
                   For Business
                 </Link>
               )}
-              {isAuthenticated && !isOwner && (
+              {isAuthenticated && !isOwner && pathname === '/' && (
                 <Link href="/onboarding" className="hidden sm:block text-sm font-medium hover:text-primary">
                   List Your Business
                 </Link>

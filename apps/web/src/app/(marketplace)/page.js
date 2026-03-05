@@ -32,7 +32,7 @@ var TRUST_STATS = [
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
 
-  useEffect(function() { setMounted(true); }, []);
+  useEffect(function () { setMounted(true); }, []);
 
   // Fetch featured salons using TanStack Query
   const { data: featuredSalons = [], isLoading: loading } = useMarketplaceSalons(
@@ -73,7 +73,7 @@ export default function HomePage() {
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
-             
+
               <h1 className="text-nowrap text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight leading-tight">
                 Book beauty &
                 <span className="text-primary"> wellness </span>
@@ -98,16 +98,16 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-         <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
-                The easiest way to book beauty services
-              </Badge>
+        <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
+          The easiest way to book beauty services
+        </Badge>
       </section>
 
       {/* ─── Trust Stats ──────────────────────────────────────────────── */}
       <section className="py-8 border-y border-border/50 bg-muted/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {TRUST_STATS.map(function(stat, i) {
+            {TRUST_STATS.map(function (stat, i) {
               return (
                 <div
                   key={stat.label}
@@ -141,7 +141,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {FEATURED_CATEGORIES.map(function(cat, i) {
+            {FEATURED_CATEGORIES.map(function (cat, i) {
               var Icon = cat.icon;
               return (
                 <Link key={cat.slug} href={'/salons?category=' + cat.slug}>
@@ -184,7 +184,7 @@ export default function HomePage() {
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map(function(i) {
+              {[1, 2, 3, 4].map(function (i) {
                 return (
                   <Card key={i} className="overflow-hidden">
                     <Skeleton className="aspect-4/3" />
@@ -198,7 +198,7 @@ export default function HomePage() {
             </div>
           ) : featuredSalons.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featuredSalons.map(function(salon, i) {
+              {featuredSalons.map(function (salon, i) {
                 return (
                   <Link key={salon.id} href={`/salon/${salon.id}`} className="block h-full group">
                     <Card
@@ -276,7 +276,7 @@ export default function HomePage() {
               { step: '1', title: 'Search', desc: 'Find salons and services near you with our intelligent search', icon: Search },
               { step: '2', title: 'Book', desc: 'Choose your service, staff, and time slot — confirmed instantly', icon: Clock },
               { step: '3', title: 'Enjoy', desc: 'Arrive at your appointment and enjoy a premium experience', icon: CheckCircle },
-            ].map(function(item, i) {
+            ].map(function (item, i) {
               var StepIcon = item.icon;
               return (
                 <div
