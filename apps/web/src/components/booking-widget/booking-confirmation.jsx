@@ -9,7 +9,10 @@ import {
   Mail,
   Printer,
   CalendarPlus,
+  Home,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,12 +37,12 @@ export function BookingConfirmation({
   }
 
   function formatTime(time) {
-    var parts = time.split(":");
-    var hour = parseInt(parts[0]);
-    var min = parts[1];
-    var ampm = hour >= 12 ? "PM" : "AM";
-    hour = hour % 12 || 12;
-    return hour + ":" + min + " " + ampm;
+    if (!time) return "";
+    var date = new Date(time);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
   }
 
   var totalPrice =
@@ -61,8 +64,8 @@ export function BookingConfirmation({
   function addToCalendar(type) {
     var title = encodeURIComponent("Appointment at " + salon.name);
 
-    // Parse the ISO timestamp from selectedTime (format: "ISO-timestamp-staffId")
-    var startTime = selectedTime.split("-")[0];
+    // Parse the ISO timestamp from selectedTime
+    var startTime = selectedTime;
     var startDate = new Date(startTime);
     var endDate = new Date(startDate.getTime() + totalDuration * 60000);
 
@@ -230,6 +233,22 @@ export function BookingConfirmation({
             <Printer className="h-4 w-4" />
             Print Confirmation
           </Button>
+        </div>
+
+        {/* Navigation */}
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/bookings" className="w-full">
+            <Button className="w-full gap-2">
+              <Calendar className="h-4 w-4" />
+              My Bookings
+            </Button>
+          </Link>
+          <Link href="/" className="w-full">
+            <Button variant="outline" className="w-full gap-2">
+              <Home className="h-4 w-4" />
+              Back to Home
+            </Button>
+          </Link>
         </div>
 
         {/* Cancellation Policy */}

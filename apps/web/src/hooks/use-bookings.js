@@ -30,7 +30,8 @@ export function useCalendarBookings(salonId, startDate, endDate, options = {}) {
       }),
     enabled: !!salonId && !!startDate && !!endDate,
     select: (response) => response.data?.events || [],
-    staleTime: 1000 * 60 * 2, // Consider data fresh for 2 minutes
+    staleTime: 1000 * 15, // Consider data fresh for 15 seconds
+    refetchInterval: 1000 * 15, // Auto-refresh every 15 seconds for live updates
     ...options,
   });
 }
@@ -53,24 +54,16 @@ export function useBookings(filters = {}, options = {}) {
     queryKey: bookingKeys.list(filters),
     queryFn: async () => {
       const response = await api.get("/bookings", filters);
-      console.log("=== BOOKINGS API RESPONSE ===");
-      console.log("Full response:", response);
-      console.log("response.success:", response.success);
-      console.log("response.data:", response.data);
-      console.log("response.data.bookings:", response.data?.bookings);
       return response;
     },
     select: (response) => {
-      console.log("=== BOOKINGS SELECT TRANSFORM ===");
-      console.log("Input to select:", response);
-      const result = {
+      return {
         data: response.data?.bookings || [],
         pagination: response.data?.pagination || response.pagination,
       };
-      console.log("Output from select:", result);
-      return result;
     },
-    staleTime: 1000 * 60, // Consider data fresh for 1 minute
+    staleTime: 1000 * 15, // Consider data fresh for 15 seconds
+    refetchInterval: 1000 * 15, // Auto-refresh every 15 seconds for live updates
     ...options,
   });
 }

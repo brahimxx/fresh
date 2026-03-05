@@ -121,7 +121,7 @@ export default function BookingPage({ params }) {
           var dateStr = year + '-' + month + '-' + day;
 
           var servicesParam = selectedServices
-            .map(function(s) { return s.id + ':' + s.staffId; })
+            .map(function (s) { return s.id + ':' + s.staffId; })
             .join(',');
 
           var res = await fetch(
@@ -132,8 +132,8 @@ export default function BookingPage({ params }) {
           if (res.ok) {
             var data = await res.json();
             var slots = data.data?.slots || [];
-            var selectedStartTime = selectedTime.split("-")[0];
-            var isAvailable = slots.some(function(slot) {
+            var selectedStartTime = selectedTime;
+            var isAvailable = slots.some(function (slot) {
               return slot.startTime === selectedStartTime;
             });
 
@@ -185,10 +185,10 @@ export default function BookingPage({ params }) {
     switch (currentStep) {
       case 0:
         // All services must have staff assigned
-        return selectedServices && 
-               Array.isArray(selectedServices) && 
-               selectedServices.length > 0 &&
-               selectedServices.every(function(s) { return s.staffId; });
+        return selectedServices &&
+          Array.isArray(selectedServices) &&
+          selectedServices.length > 0 &&
+          selectedServices.every(function (s) { return s.staffId; });
       case 1:
         return selectedDate && selectedTime;
       case 2:
@@ -209,13 +209,13 @@ export default function BookingPage({ params }) {
 
     try {
       // Parse the selected time to get startTime
-      var startTime = selectedTime.split("-")[0]; // Remove any suffix if present
+      var startTime = selectedTime; // Set slot start time
 
       // Get token for authenticated request
       var token = api.getToken();
 
       // Prepare services with staff assignments
-      var servicesWithStaff = selectedServices.map(function(service) {
+      var servicesWithStaff = selectedServices.map(function (service) {
         return {
           serviceId: service.id,
           staffId: service.staffId,
@@ -293,7 +293,7 @@ export default function BookingPage({ params }) {
                 {errorMsg === "Salon not found" ? "Salon Not Found" : "Booking Unavailable"}
               </h2>
               <p className="text-muted-foreground">
-                {errorMsg === "Salon not found" 
+                {errorMsg === "Salon not found"
                   ? "We couldn't find this salon. It may have been removed or the link is incorrect."
                   : errorMsg || "This booking page is temporarily unavailable. Please try again later."}
               </p>
@@ -453,126 +453,126 @@ export default function BookingPage({ params }) {
             </div>
           </div>
         )}
-        
+
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Step Content */}
           <div className="lg:col-span-2 transition-all duration-300 ease-in-out">
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {currentStep === 0 && (
-              <ServiceSelection
-                salonId={salonId}
-                selected={selectedServices}
-                onSelect={setSelectedServices}
-              />
-            )}
+              {currentStep === 0 && (
+                <ServiceSelection
+                  salonId={salonId}
+                  selected={selectedServices}
+                  onSelect={setSelectedServices}
+                />
+              )}
 
-            {currentStep === 1 && (
-              <DateTimeSelection
-                salonId={salonId}
-                selectedServices={selectedServices}
-                selectedDate={selectedDate}
-                selectedTime={selectedTime}
-                onDateSelect={setSelectedDate}
-                onTimeSelect={setSelectedTime}
-              />
-            )}
+              {currentStep === 1 && (
+                <DateTimeSelection
+                  salonId={salonId}
+                  selectedServices={selectedServices}
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  onDateSelect={setSelectedDate}
+                  onTimeSelect={setSelectedTime}
+                />
+              )}
 
-            {currentStep === 2 && (
-              <BookingAuth
-                onAuthenticated={function () {
-                  /* User just logged in, can proceed */
-                }}
-              />
-            )}
+              {currentStep === 2 && (
+                <BookingAuth
+                  onAuthenticated={function () {
+                    /* User just logged in, can proceed */
+                  }}
+                />
+              )}
 
-            {currentStep === 3 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Review Your Booking</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isVerifyingSlot && (
-                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                      <span className="text-sm text-blue-700 dark:text-blue-300">Verifying availability...</span>
-                    </div>
-                  )}
+              {currentStep === 3 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Review Your Booking</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {isVerifyingSlot && (
+                      <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        <span className="text-sm text-blue-700 dark:text-blue-300">Verifying availability...</span>
+                      </div>
+                    )}
 
-                  {!isVerifyingSlot && slotVerified && (
-                    <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <span className="text-sm text-green-700 dark:text-green-300">Time slot confirmed available</span>
-                    </div>
-                  )}
+                    {!isVerifyingSlot && slotVerified && (
+                      <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-700 dark:text-green-300">Time slot confirmed available</span>
+                      </div>
+                    )}
 
-                  <div>
-                    <h4 className="font-medium mb-2">Services</h4>
-                    {selectedServices.map(function (service) {
-                      return (
-                        <div
-                          key={service.id}
-                          className="py-2 border-b last:border-0"
-                        >
-                          <div className="flex justify-between">
-                            <span className="font-medium">{service.name}</span>
-                            <span>${(parseFloat(service.price) || 0).toFixed(2)}</span>
-                          </div>
-                          {service.staffName && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              with {service.staffName}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div>
-                    <h4 className="font-medium mb-1">Date & Time</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedDate && selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {selectedTime && new Date(selectedTime.split('-')[0]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                    </p>
-                  </div>
-
-                  {user && (
                     <div>
-                      <h4 className="font-medium mb-1">Contact</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {user.firstName || user.first_name}{" "}
-                        {user.lastName || user.last_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {user.email}
-                      </p>
-                      {user.phone && (
-                        <p className="text-sm text-muted-foreground">
-                          {user.phone}
-                        </p>
-                      )}
+                      <h4 className="font-medium mb-2">Services</h4>
+                      {selectedServices.map(function (service) {
+                        return (
+                          <div
+                            key={service.id}
+                            className="py-2 border-b last:border-0"
+                          >
+                            <div className="flex justify-between">
+                              <span className="font-medium">{service.name}</span>
+                              <span>${(parseFloat(service.price) || 0).toFixed(2)}</span>
+                            </div>
+                            {service.staffName && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                with {service.staffName}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
 
-                  {/* Optional notes */}
-                  <div className="space-y-2 pt-2 border-t">
-                    <label
-                      htmlFor="booking-notes"
-                      className="font-medium text-sm"
-                    >
-                      Additional Notes (Optional)
-                    </label>
-                    <textarea
-                      id="booking-notes"
-                      className="w-full min-h-[80px] p-3 border rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Any special requests or information?"
-                      value={bookingNotes}
-                      onChange={function (e) {
-                        setBookingNotes(e.target.value);
-                      }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                    <div>
+                      <h4 className="font-medium mb-1">Date & Time</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedDate && selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </p>
+                    </div>
+
+                    {user && (
+                      <div>
+                        <h4 className="font-medium mb-1">Contact</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {user.firstName || user.first_name}{" "}
+                          {user.lastName || user.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {user.email}
+                        </p>
+                        {user.phone && (
+                          <p className="text-sm text-muted-foreground">
+                            {user.phone}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Optional notes */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <label
+                        htmlFor="booking-notes"
+                        className="font-medium text-sm"
+                      >
+                        Additional Notes (Optional)
+                      </label>
+                      <textarea
+                        id="booking-notes"
+                        className="w-full min-h-[80px] p-3 border rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="Any special requests or information?"
+                        value={bookingNotes}
+                        onChange={function (e) {
+                          setBookingNotes(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 
@@ -625,7 +625,7 @@ export default function BookingPage({ params }) {
                         </div>
                         <div className="flex items-center gap-2 text-sm mt-1">
                           <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>{new Date(selectedTime.split('-')[0]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                          <span>{new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
                         </div>
                       </div>
                     )}

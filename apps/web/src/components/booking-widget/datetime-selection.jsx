@@ -24,7 +24,7 @@ export function DateTimeSelection({
 
   // Check if multiple staff are involved
   var uniqueStaffIds = selectedServices && Array.isArray(selectedServices)
-    ? new Set(selectedServices.map(function(s) { return s.staffId; }).filter(Boolean))
+    ? new Set(selectedServices.map(function (s) { return s.staffId; }).filter(Boolean))
     : new Set();
   var hasMultipleStaff = uniqueStaffIds.size > 1;
 
@@ -57,7 +57,7 @@ export function DateTimeSelection({
       }
 
       // Validate all services have staff assigned
-      var servicesWithoutStaff = selectedServices.filter(function(s) {
+      var servicesWithoutStaff = selectedServices.filter(function (s) {
         return !s.staffId;
       });
 
@@ -77,7 +77,7 @@ export function DateTimeSelection({
 
           // Build services parameter with staff assignments
           var servicesParam = selectedServices
-            .map(function(s) {
+            .map(function (s) {
               return s.id + ':' + s.staffId;
             })
             .join(',');
@@ -95,7 +95,7 @@ export function DateTimeSelection({
           console.log('Date string for API:', dateStr);
           console.log('Services with staff:', servicesParam);
           console.log('Full URL:', url);
-          
+
           var res = await fetch(url);
           if (res.ok) {
             var data = await res.json();
@@ -214,7 +214,7 @@ export function DateTimeSelection({
   }
 
   function getSlotKey(slot) {
-    return slot.startTime + "-" + slot.staffId;
+    return slot.startTime;
   }
 
   function isSlotSelected(slot) {

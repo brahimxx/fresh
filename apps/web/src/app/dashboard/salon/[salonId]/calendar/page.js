@@ -41,7 +41,6 @@ export default function CalendarPage({ params }) {
 
   var handleReschedule = useCallback(function (booking) {
     setDetailOpen(false);
-    // Could open a reschedule dialog here
     setSelectedBooking(booking);
     setNewBookingOpen(true);
   }, []);

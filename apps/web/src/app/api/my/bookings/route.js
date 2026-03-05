@@ -16,8 +16,12 @@ export async function GET(request) {
 
     let sql = `
       SELECT b.*, s.name as salon_name, s.address as salon_address, s.city as salon_city,
+        s.phone as salon_phone, s.email as salon_email,
+        (SELECT image_url FROM salon_photos WHERE salon_id = s.id AND is_cover = 1 LIMIT 1) as salon_image,
         GROUP_CONCAT(DISTINCT sv.name) as services,
-        st.id as staff_id, u2.first_name as staff_first_name, u2.last_name as staff_last_name
+        GROUP_CONCAT(DISTINCT CONCAT(sv.name, '|', COALESCE(bs.price, 0), '|', COALESCE(bs.duration_minutes, 0)) SEPARATOR ';;') as service_details,
+        st.id as staff_id, u2.first_name as staff_first_name, u2.last_name as staff_last_name,
+        SUM(bs.price) as total_price
       FROM bookings b
       JOIN salons s ON s.id = b.salon_id
       LEFT JOIN booking_services bs ON bs.booking_id = b.id
@@ -43,7 +47,8 @@ export async function GET(request) {
     sql += ' GROUP BY b.id';
 
     // Get total count
-    const countSql = sql.replace(/SELECT[\s\S]*?FROM/i, 'SELECT COUNT(DISTINCT b.id) as total FROM').replace(' GROUP BY b.id', '');
+    const fromIndex = sql.indexOf('FROM bookings b');
+    const countSql = 'SELECT COUNT(DISTINCT b.id) as total ' + sql.substring(fromIndex).replace(' GROUP BY b.id', '');
     const countResult = await query(countSql, sqlParams);
     const total = countResult[0] ? countResult[0].total : 0;
 
@@ -53,21 +58,42 @@ export async function GET(request) {
     const bookings = await query(sql, sqlParams);
 
     return success({
-      bookings: bookings.map((b) => ({
-        id: b.id,
-        salonId: b.salon_id,
-        salonName: b.salon_name,
-        salonAddress: b.salon_address,
-        salonCity: b.salon_city,
-        staffId: b.staff_id,
-        staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
-        services: b.services,
-        startTime: String(b.start_datetime).replace(' ', 'T'),
-        endTime: String(b.end_datetime).replace(' ', 'T'),
-        status: b.status,
-        notes: b.notes,
-        createdAt: b.created_at,
-      })),
+      bookings: bookings.map((b) => {
+        // Parse service details
+        var serviceList = [];
+        if (b.service_details) {
+          serviceList = b.service_details.split(';;').map(function (s) {
+            var parts = s.split('|');
+            return { name: parts[0], price: parseFloat(parts[1]) || 0, duration: parseInt(parts[2]) || 0 };
+          });
+        }
+        // Calculate duration in minutes
+        var start = new Date(String(b.start_datetime).replace(' ', 'T'));
+        var end = new Date(String(b.end_datetime).replace(' ', 'T'));
+        var durationMinutes = Math.round((end - start) / (1000 * 60));
+
+        return {
+          id: b.id,
+          salonId: b.salon_id,
+          salonName: b.salon_name,
+          salonAddress: b.salon_address,
+          salonCity: b.salon_city,
+          salonPhone: b.salon_phone,
+          salonEmail: b.salon_email,
+          salonImage: b.salon_image,
+          staffId: b.staff_id,
+          staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
+          services: b.services,
+          serviceDetails: serviceList,
+          startTime: String(b.start_datetime).replace(' ', 'T'),
+          endTime: String(b.end_datetime).replace(' ', 'T'),
+          duration: durationMinutes,
+          totalPrice: b.total_price,
+          status: b.status,
+          notes: b.notes,
+          createdAt: b.created_at,
+        };
+      }),
       pagination: {
         page,
         limit,
