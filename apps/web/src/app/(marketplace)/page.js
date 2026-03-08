@@ -6,11 +6,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SearchBar } from '@/components/marketplace/search-bar';
+import { SalonCard } from '@/components/marketplace/salon-card';
 import { useMarketplaceSalons } from '@/hooks/use-marketplace';
 
 var FEATURED_CATEGORIES = [
@@ -31,6 +31,7 @@ var TRUST_STATS = [
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(function () { setMounted(true); }, []);
 
@@ -44,39 +45,47 @@ export default function HomePage() {
   return (
     <div className="overflow-hidden">
       {/* ─── Hero Section ─────────────────────────────────────────────── */}
-      <section className="flex flex-col items-center justify-center gap-10 relative pt-24 pb-32 md:pt-25 md:pb-58">
+      <section className="flex flex-col items-center justify-center gap-10 relative pt-24 pb-32 md:pt-32 md:pb-48">
         {/* Animated background gradients */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div
-            className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full opacity-30 blur-3xl"
+            className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full opacity-30 blur-3xl animate-blob"
             style={{
               background: 'radial-gradient(circle, oklch(0.65 0.19 15 / 40%) 0%, transparent 70%)',
-              animation: 'pulse 6s ease-in-out infinite alternate',
             }}
           />
           <div
-            className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full opacity-20 blur-3xl"
+            className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full opacity-20 blur-3xl animate-blob animation-delay-2000"
             style={{
               background: 'radial-gradient(circle, oklch(0.65 0.17 280 / 30%) 0%, transparent 70%)',
-              animation: 'pulse 8s ease-in-out infinite alternate-reverse',
+            }}
+          />
+          <div
+            className="absolute md:top-[20%] right-[10%] w-[40%] h-[40%] rounded-full opacity-20 blur-3xl animate-blob animation-delay-4000"
+            style={{
+              background: 'radial-gradient(circle, oklch(0.7 0.1 200 / 40%) 0%, transparent 70%)',
             }}
           />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center  mx-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+          <div className="text-center mx-auto">
             {/* Animated heading */}
             <div
-              className="transition-all duration-1000 ease-out"
+              className="transition-all duration-1000 ease-out flex flex-col items-center"
               style={{
                 opacity: mounted ? 1 : 0,
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
+              <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm font-medium bg-background/50 backdrop-blur-md border-primary/20 text-primary">
+                <Sparkles className="w-4 h-4 mr-2 inline-block -mt-0.5" />
+                The easiest way to book beauty services
+              </Badge>
 
-              <h1 className="text-nowrap text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight leading-tight">
+              <h1 className="text-nowrap text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight md:leading-[1.1] text-foreground">
                 Book beauty &
-                <span className="text-primary"> wellness </span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-violet-500"> wellness </span>
                 near you
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -86,21 +95,33 @@ export default function HomePage() {
 
             {/* Animated search box */}
             <div
-              className="transition-all duration-1000 ease-out delay-200"
+              className="transition-all duration-1000 ease-out delay-200 mt-10 md:mt-12 w-full max-w-4xl mx-auto"
               style={{
                 opacity: mounted ? 1 : 0,
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
-              <div className="mt-10">
-                <SearchBar size="lg" className="w-full max-w-4xl mx-auto" />
+              <div className="relative z-50 bg-white/40 dark:bg-black/40 backdrop-blur-2xl p-2 md:p-3 rounded-3xl border border-white/40 dark:border-white/10 shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+                <SearchBar size="lg" className="w-full" />
+              </div>
+
+              {/* Quick Search Pills */}
+              <div className="relative z-10 flex flex-wrap justify-center gap-2 mt-6">
+                {['Haircut', 'Coloring', 'Manicure', 'Massage', 'Facial'].map((service, idx) => (
+                  <button
+                    key={service}
+                    className="px-4 py-2 rounded-full bg-background/60 backdrop-blur-md border border-border/50 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 shadow-sm"
+                    onClick={() => {
+                      router.push(`/salons?q=${encodeURIComponent(service)}`);
+                    }}
+                  >
+                    {service}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
         </div>
-        <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
-          The easiest way to book beauty services
-        </Badge>
       </section>
 
       {/* ─── Trust Stats ──────────────────────────────────────────────── */}
@@ -200,53 +221,16 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {featuredSalons.map(function (salon, i) {
                 return (
-                  <Link key={salon.id} href={`/salon/${salon.id}`} className="block h-full group">
-                    <Card
-                      className="overflow-hidden h-full border-border/50 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-                      style={{
-                        opacity: mounted ? 1 : 0,
-                        transform: mounted ? 'translateY(0)' : 'translateY(20px)',
-                        transition: 'all 0.6s ease-out',
-                        transitionDelay: (300 + i * 100) + 'ms',
-                      }}
-                    >
-                      <div className="aspect-4/3 overflow-hidden bg-muted">
-                        {salon.cover_image_url ? (
-                          <img
-                            src={salon.cover_image_url}
-                            alt={salon.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
-                            <Scissors className="h-12 w-12 text-primary/40" />
-                          </div>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-semibold truncate">{salon.name}</h3>
-                            <p className="text-sm text-muted-foreground">{salon.category || 'Salon'}</p>
-                          </div>
-                          {salon.price_level && (
-                            <Badge variant="secondary">{'$'.repeat(salon.price_level)}</Badge>
-                          )}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2 text-sm">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">{salon.rating ? salon.rating.toFixed(1) : 'New'}</span>
-                          {salon.review_count > 0 && (
-                            <span className="text-muted-foreground">({salon.review_count} reviews)</span>
-                          )}
-                        </div>
-                        <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          {salon.city}{salon.state ? ', ' + salon.state : ''}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <SalonCard
+                    key={salon.id}
+                    salon={salon}
+                    style={{
+                      opacity: mounted ? 1 : 0,
+                      transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+                      transition: 'all 0.6s ease-out',
+                      transitionDelay: (300 + i * 100) + 'ms',
+                    }}
+                  />
                 );
               })}
             </div>
@@ -337,6 +321,21 @@ export default function HomePage() {
         @keyframes pulse {
           0% { transform: scale(1) translate(0, 0); }
           100% { transform: scale(1.1) translate(2%, 3%); }
+        }
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+           animation: blob 15s infinite alternate ease-in-out;
+        }
+        .animation-delay-2000 {
+           animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+           animation-delay: 4s;
         }
       `}</style>
     </div>

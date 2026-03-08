@@ -105,17 +105,7 @@ function SearchBarContent({
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const debouncedLocationQuery = useDebounce(locationQuery, 300);
 
-  // Prevent background scrolling when location dropdown is open
-  useEffect(() => {
-    if (showLocationSuggestions) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [showLocationSuggestions]);
+  // Removed the prevent background scrolling effect to allow user to scroll while searching
 
   // Load Saved Locations and Recent Searches on mount
   useEffect(() => {
@@ -581,7 +571,7 @@ function SearchBarContent({
           <Search className={`text-muted-foreground mr-2 shrink-0 ${isCompact ? 'h-3.5 w-3.5' : isLg ? 'h-5 w-5' : 'h-4 w-4'}`} />
           <input
             placeholder={isCompact ? 'Services or salons...' : 'All treatments and venues'}
-            className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
+            className={`w-full bg-transparent outline-none border-none focus:ring-0 placeholder:text-muted-foreground ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base md:text-lg font-medium' : 'h-10 text-sm'}`}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -606,7 +596,7 @@ function SearchBarContent({
                 locationQuery === 'Map area' ? 'Map area' :
                   (isCompact ? 'Location' : 'City or location')
             }
-            className={`w-full bg-transparent outline-none border-none focus:ring-0 ${locationQuery === 'Current Location' || locationQuery === 'Map area' ? 'placeholder:text-foreground font-medium' : 'placeholder:text-muted-foreground'} ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base' : 'h-10 text-sm'}`}
+            className={`w-full bg-transparent outline-none border-none focus:ring-0 ${locationQuery === 'Current Location' || locationQuery === 'Map area' ? 'placeholder:text-foreground font-medium' : 'placeholder:text-muted-foreground'} ${isCompact ? 'h-8 text-xs' : isLg ? 'h-14 text-base md:text-lg font-medium' : 'h-10 text-sm'}`}
             value={locationQuery === 'Current Location' || locationQuery === 'Map area' ? '' : locationQuery}
             onChange={(e) => {
               setLocationQuery(e.target.value);
@@ -797,7 +787,7 @@ function SearchBarContent({
         <Button
           type="submit"
           size={isCompact ? 'icon-sm' : isLg ? 'lg' : 'default'}
-          className={`shrink-0 ${isCompact ? 'h-7 w-7 rounded-full shadow-none' : isLg ? 'w-full md:w-auto font-semibold shadow-md h-14 px-8 rounded-full text-base mt-2 md:mt-0' : 'w-full md:w-auto font-semibold shadow-md h-10 px-6 rounded-full mt-2 md:mt-0'}`}
+          className={`shrink-0 ${isCompact ? 'h-7 w-7 rounded-full shadow-none' : isLg ? 'w-full md:w-auto font-bold shadow-[0_4px_20px_-4px_rgba(124,58,237,0.5)] bg-gradient-to-r from-primary to-violet-600 hover:opacity-90 h-14 px-10 rounded-full text-base mt-2 md:mt-0 transition-opacity whitespace-nowrap' : 'w-full md:w-auto font-semibold shadow-md h-10 px-6 rounded-full mt-2 md:mt-0'}`}
         >
           {isCompact ? <Search className="h-3.5 w-3.5" /> : isLg ? 'Search' : <><Search className="h-4 w-4 mr-2" /> Search</>}
         </Button>

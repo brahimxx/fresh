@@ -39,8 +39,8 @@ export default function SalonProfilePage({ params }) {
   var [activeImageIndex, setActiveImageIndex] = useState(0);
 
   // --- Dynamic Data Calculations ---
-  var galleryImages = (salon && salon.gallery && salon.gallery.length > 0) 
-    ? salon.gallery.map(g => g.image_url) 
+  var galleryImages = (salon && salon.gallery && salon.gallery.length > 0)
+    ? salon.gallery.map(g => g.image_url)
     : (salon && salon.cover_image_url ? [salon.cover_image_url] : []);
 
   // Calculate review distribution
@@ -353,14 +353,24 @@ export default function SalonProfilePage({ params }) {
           {/* Main Content Area (8/12) */}
           <div className="lg:col-span-8 space-y-12">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full justify-start mb-8 bg-transparent border-b rounded-none h-auto p-0 gap-8">
-                {['services', 'team', 'reviews', 'about'].map((tab) => (
+              <TabsList className="w-full justify-start mb-8 bg-muted/50 rounded-2xl h-auto p-1.5 gap-1">
+                {[
+                  { value: 'services', label: 'Services', count: services.length },
+                  { value: 'team', label: 'Team', count: staff.length },
+                  { value: 'reviews', label: 'Reviews', count: reviews.length },
+                  { value: 'about', label: 'About', count: null },
+                ].map((tab) => (
                   <TabsTrigger
-                    key={tab}
-                    value={tab}
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-4 text-base font-medium transition-all capitalize"
+                    key={tab.value}
+                    value={tab.value}
+                    className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/20 data-[state=inactive]:text-muted-foreground hover:text-foreground flex items-center gap-2"
                   >
-                    {tab}
+                    {tab.label}
+                    {tab.count !== null && (
+                      <span className="text-[11px] font-bold bg-white/20 data-[state=active]:bg-white/20 px-1.5 py-0.5 rounded-md min-w-[20px] text-center">
+                        {tab.count}
+                      </span>
+                    )}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -410,9 +420,9 @@ export default function SalonProfilePage({ params }) {
                                     ${parseFloat(service.price).toFixed(2)}
                                   </p>
                                   <Link href={'/book/' + salonId + '?service=' + service.id}>
-                                    <Button size="sm" className="rounded-full px-6 font-bold shadow-sm hover:shadow-md group-hover:scale-105 transition-all">
+                                    <Button size="sm" variant="outline" className="rounded-full px-6 font-bold border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-lg hover:shadow-primary/20 group-hover:scale-105 transition-all duration-300">
                                       Book
-                                      <ChevronRight className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      <ChevronRight className="h-4 w-4 ml-0.5 -mr-1 group-hover:translate-x-0.5 transition-transform" />
                                     </Button>
                                   </Link>
                                 </div>
@@ -625,8 +635,8 @@ export default function SalonProfilePage({ params }) {
           {/* Right Column - Premium Sidebar (4/12) */}
           <div className="lg:col-span-4 space-y-8 h-fit">
             {/* Elegant Booking Summary Card */}
-            <Card className="sticky top-24 border-none shadow-2xl rounded-[2.5rem] overflow-hidden group border-border">
-              <div className="bg-primary p-8 text-primary-foreground relative overflow-hidden">
+            <Card className="sticky top-24 border-none !p-0 shadow-2xl rounded-[2.5rem] overflow-hidden group border-border">
+              <div className="bg-primary p-8 text-primary-foreground relative overflow-hidden ">
                 <div className="relative z-10 space-y-2">
                   <h3 className="text-2xl font-black">Experience Beauty</h3>
                   <p className="opacity-90 font-medium">Ready for your transformation?</p>

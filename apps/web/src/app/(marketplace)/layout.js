@@ -60,8 +60,8 @@ export default function MarketplaceLayout({ children }) {
             {/* Right Side */}
             <div className="flex items-center gap-4">
               {!isAuthenticated && pathname === '/' && (
-                <Link href="/auth/choose" className="hidden sm:block text-sm font-medium hover:text-primary">
-                  For Business
+                <Link href="/register?type=professional" className="hidden sm:block text-sm font-medium hover:text-primary">
+                  List Your Business
                 </Link>
               )}
               {isAuthenticated && !isOwner && pathname === '/' && (
@@ -161,8 +161,8 @@ export default function MarketplaceLayout({ children }) {
               </div>
             )}
             {!isAuthenticated && (
-              <Link href="/login?type=professional" className="block text-center text-sm font-medium">
-                For Business
+              <Link href="/register?type=professional" className="block text-center text-sm font-medium hover:text-primary">
+                List Your Business
               </Link>
             )}
           </div>

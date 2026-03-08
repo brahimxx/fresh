@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { SearchBar } from '@/components/marketplace/search-bar';
+import { SalonCard } from '@/components/marketplace/salon-card';
 
 // Dynamic import to avoid SSR issues with mapbox-gl
 const SalonMap = dynamic(
@@ -499,50 +500,11 @@ function SalonSearchContent() {
 
 function SalonCardGrid({ salon, onMouseEnter, onMouseLeave }) {
   return (
-    <Link
-      href={'/salon/' + salon.id}
-      className="block h-full w-full"
+    <SalonCard
+      salon={salon}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-    >
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group h-full">
-        <div className="aspect-4/3 overflow-hidden bg-muted">
-          {salon.cover_image_url ? (
-            <img
-              src={salon.cover_image_url}
-              alt={salon.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl">
-              💇
-            </div>
-          )}
-        </div>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold group-hover:text-primary transition-colors">{salon.name}</h3>
-              <p className="text-sm text-muted-foreground">{salon.category || 'Salon'}</p>
-            </div>
-            {salon.price_level && (
-              <Badge variant="secondary">{'$'.repeat(salon.price_level)}</Badge>
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-medium">{salon.rating?.toFixed(1) || 'New'}</span>
-            {salon.review_count > 0 && (
-              <span className="text-muted-foreground">({salon.review_count} reviews)</span>
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            {salon.city}{salon.state ? ', ' + salon.state : ''}
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    />
   );
 }
 
