@@ -24,6 +24,7 @@ import {
     FileText,
     Hash,
 } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,7 +55,7 @@ function formatDuration(minutes) {
 
 function formatPrice(price) {
     if (price == null || isNaN(price)) return "";
-    return "DZD " + Number(price).toLocaleString();
+    return formatCurrency(price);
 }
 
 function BookingsContent() {
@@ -271,9 +272,9 @@ function BookingsContent() {
                 <div className="hidden md:block flex-1 min-w-0">
                     {selectedBooking ? (
                         <div className="sticky top-24">
-                            <Card className="overflow-hidden border-border/50 shadow-sm">
+                            <Card className="overflow-hidden border-border/50 pt-0 shadow-sm">
                                 {/* Salon Banner */}
-                                <div className="relative h-48 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center overflow-hidden">
+                                <div className="relative h-48 bg-gradient-to-br  from-slate-800 to-slate-900 flex items-center justify-center overflow-hidden">
                                     {selectedBooking.salonImage ? (
                                         <img
                                             src={selectedBooking.salonImage}

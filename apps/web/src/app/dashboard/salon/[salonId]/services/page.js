@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { useServices, useCategories, useDeleteService, useDeleteCategory } from '@/hooks/use-services';
+import { useDiscounts } from '@/hooks/use-discounts';
 import { ServiceFormDialog } from '@/components/services/service-form';
 import { CategoryFormDialog } from '@/components/services/category-form';
 
@@ -58,6 +59,7 @@ export default function ServicesPage({ params }) {
   
   var { data: services, isLoading: servicesLoading } = useServices(salonId);
   var { data: categories, isLoading: categoriesLoading } = useCategories(salonId);
+  var { data: discounts } = useDiscounts(salonId, { status: 'active' });
   var deleteService = useDeleteService();
   var deleteCategory = useDeleteCategory();
   
@@ -132,7 +134,50 @@ export default function ServicesPage({ params }) {
     return 'EUR ' + Number(price).toFixed(2);
   }
   
+  function getDiscountedPrice(service) {
+    if (!discounts || discounts.length === 0) return null;
+    var bestPrice = null;
+    var basePrice = Number(service.price);
+    var serviceId = Number(service.id);
+
+    for (var i = 0; i < discounts.length; i++) {
+      var discount = discounts[i];
+      // Check if this discount applies to services at all
+      if (!Number(discount.appliesToServices) && !Number(discount.applies_to_services)) continue;
+      
+      // Check if this discount is restricted to specific services
+      var specificServices = discount.specificServices || discount.specific_services || [];
+      if (specificServices.length > 0) {
+        var found = false;
+        for (var j = 0; j < specificServices.length; j++) {
+          if (Number(specificServices[j]) === serviceId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) continue;
+      }
+
+      var newPrice;
+      if (discount.type === 'percentage') {
+        var amountOff = basePrice * (Number(discount.value) / 100);
+        if (discount.maxDiscount && amountOff > Number(discount.maxDiscount)) {
+          amountOff = Number(discount.maxDiscount);
+        }
+        newPrice = basePrice - amountOff;
+      } else {
+        newPrice = Math.max(0, basePrice - Number(discount.value));
+      }
+
+      if (bestPrice === null || newPrice < bestPrice) {
+        bestPrice = newPrice;
+      }
+    }
+    return bestPrice;
+  }
+  
   function renderService(service) {
+    const discountedPrice = getDiscountedPrice(service);
     return (
       <div 
         key={service.id}
@@ -144,12 +189,19 @@ export default function ServicesPage({ params }) {
             <p className="text-sm text-muted-foreground truncate">{service.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
           <Clock className="h-4 w-4" />
           <span>{formatDuration(service.duration)}</span>
         </div>
-        <div className="w-24 text-right font-medium">
-          {formatPrice(service.price)}
+        <div className="w-32 text-right font-medium flex flex-col justify-center items-end">
+          {discountedPrice !== null && discountedPrice < Number(service.price) ? (
+            <>
+               <span className="text-xs text-muted-foreground line-through decoration-destructive">{formatPrice(service.price)}</span>
+               <span className="text-emerald-600 font-bold">{formatPrice(discountedPrice)}</span>
+            </>
+          ) : (
+            <span>{formatPrice(service.price)}</span>
+          )}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

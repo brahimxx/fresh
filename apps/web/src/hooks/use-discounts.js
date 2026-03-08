@@ -27,11 +27,15 @@ export var DISCOUNT_STATUSES = {
 
 // Get discount status based on dates
 export function getDiscountStatus(discount) {
-  if (!discount.is_active) return 'inactive';
+  var isActive = discount.isActive !== undefined ? discount.isActive : discount.is_active;
+  if (!isActive) return 'inactive';
   
   var now = new Date();
-  var startDate = discount.start_date ? new Date(discount.start_date) : null;
-  var endDate = discount.end_date ? new Date(discount.end_date) : null;
+  var start = discount.startDate || discount.start_date;
+  var end = discount.endDate || discount.end_date;
+  
+  var startDate = start ? new Date(start) : null;
+  var endDate = end ? new Date(end) : null;
   
   if (startDate && startDate > now) return 'scheduled';
   if (endDate && endDate < now) return 'expired';
@@ -66,7 +70,7 @@ export function useDiscounts(salonId, filters) {
       var res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch discounts');
       var json = await res.json();
-      return json.data || [];
+      return json.data?.discounts || json.data?.data || (Array.isArray(json.data) ? json.data : []);
     },
     enabled: !!salonId,
   });
@@ -92,14 +96,14 @@ export function useCreateDiscount() {
   
   return useMutation({
     mutationFn: async function(data) {
-      var res = await fetch('/api/discounts/' + data.salon_id, {
+      var res = await fetch('/api/discounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        var error = await res.json();
-        throw new Error(error.message || 'Failed to create discount');
+        var errBody = await res.json();
+        throw new Error(errBody.error?.message || errBody.message || 'Failed to create discount');
       }
       return res.json();
     },
@@ -124,8 +128,8 @@ export function useUpdateDiscount() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        var error = await res.json();
-        throw new Error(error.message || 'Failed to update discount');
+        var errBody = await res.json();
+        throw new Error(errBody.error?.message || errBody.message || 'Failed to update discount');
       }
       return res.json();
     },

@@ -375,6 +375,7 @@ export async function createSafeBooking({
           WHERE salon_id = ?
             AND code = ?
             AND is_active = 1
+            AND deleted_at IS NULL
             AND (start_date IS NULL OR start_date <= CURDATE())
             AND (end_date IS NULL OR end_date >= CURDATE())
           FOR UPDATE`,

@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 8.0.44, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.42, for macos15 (x86_64)
 --
 -- Host: 127.0.0.1    Database: fresh
 -- ------------------------------------------------------
--- Server version	8.0.44
+-- Server version	9.3.0
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -269,6 +269,40 @@ CREATE TABLE `client_packages` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `discount_products`
+--
+
+DROP TABLE IF EXISTS `discount_products`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `discount_products` (
+  `discount_id` bigint unsigned NOT NULL,
+  `product_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`discount_id`,`product_id`),
+  KEY `product_id` (`product_id`),
+  CONSTRAINT `discount_products_ibfk_1` FOREIGN KEY (`discount_id`) REFERENCES `discounts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `discount_products_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `discount_services`
+--
+
+DROP TABLE IF EXISTS `discount_services`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `discount_services` (
+  `discount_id` bigint unsigned NOT NULL,
+  `service_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`discount_id`,`service_id`),
+  KEY `service_id` (`service_id`),
+  CONSTRAINT `discount_services_ibfk_1` FOREIGN KEY (`discount_id`) REFERENCES `discounts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `discount_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `discounts`
 --
 
@@ -301,7 +335,7 @@ CREATE TABLE `discounts` (
   KEY `idx_discounts_salon` (`salon_id`),
   KEY `idx_discounts_code` (`code`),
   CONSTRAINT `discounts_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1246,9 +1280,9 @@ DROP TABLE IF EXISTS `user_addresses`;
 CREATE TABLE `user_addresses` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
-  `label` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'e.g., Home, Work, Gym, Mom''s House',
-  `icon_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'MapPin' COMMENT 'Lucide icon name',
-  `full_address` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `label` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'e.g., Home, Work, Gym, Mom''s House',
+  `icon_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'MapPin' COMMENT 'Lucide icon name',
+  `full_address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `lat` decimal(10,7) NOT NULL,
   `lng` decimal(10,7) NOT NULL,
   `is_default` tinyint(1) DEFAULT '0',
@@ -1381,4 +1415,4 @@ CREATE TABLE `widget_settings` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-05  2:33:21
+-- Dump completed on 2026-03-08 11:13:17

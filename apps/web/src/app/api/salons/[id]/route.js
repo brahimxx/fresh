@@ -78,6 +78,21 @@ export async function GET(request, { params }) {
       [id],
     );
 
+    // Get business hours
+    const dbHours = await query(
+      'SELECT day_of_week, open_time, close_time, is_closed FROM business_hours WHERE salon_id = ? ORDER BY day_of_week',
+      [id]
+    );
+    
+    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const business_hours = dbHours.length > 0 ? dbHours.map(h => ({
+      day: h.day_of_week,
+      name: DAYS[h.day_of_week],
+      enabled: !h.is_closed,
+      open: h.open_time ? h.open_time.slice(0, 5) : '09:00',
+      close: h.close_time ? h.close_time.slice(0, 5) : '17:00'
+    })) : undefined;
+
     return success({
       id: salon.id,
       ownerId: salon.owner_id,
@@ -94,6 +109,7 @@ export async function GET(request, { params }) {
       avgRating: parseFloat(salon.avg_rating).toFixed(1),
       reviewCount: salon.review_count,
       createdAt: salon.created_at,
+      business_hours,
       settings: settings
         ? {
           cancellationPolicyHours: settings.cancellation_policy_hours,

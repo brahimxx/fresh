@@ -139,6 +139,10 @@ export default function SalonProfilePage({ params }) {
   }
 
   function getStatus(hours) {
+    // Special one-off closure takes priority over weekly schedule
+    if (salon && salon.is_closed_today) {
+      return { label: 'Closed Today', color: 'bg-red-500' };
+    }
     if (!hours || hours.length === 0) return { label: 'Closed', color: 'bg-red-500' };
     var now = new Date();
     var dayOfWeek = now.getDay();
@@ -667,6 +671,16 @@ export default function SalonProfilePage({ params }) {
                     <Clock className="w-4 h-4" />
                     Working Hours
                   </h4>
+                  {/* Special closure banner */}
+                  {salon.is_closed_today && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                      <span className="text-base leading-none mt-0.5">🚫</span>
+                      <div className="text-xs font-semibold">
+                        <p>Closed today</p>
+                        {salon.closure_reason && <p className="font-normal opacity-80 mt-0.5">{salon.closure_reason}</p>}
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {salon.business_hours?.map(function (hours, idx) {
                       var today = new Date().getDay();
@@ -677,10 +691,20 @@ export default function SalonProfilePage({ params }) {
                           className={'flex justify-between items-center px-4 py-2.5 rounded-xl transition-all ' + (isToday ? 'bg-primary/5 border border-primary/20 scale-105 shadow-sm' : 'hover:bg-muted/30')}
                         >
                           <span className={'text-sm font-bold ' + (isToday ? 'text-primary' : 'text-foreground')}>{DAYS[hours.day_of_week]}</span>
-                          <span className={'text-sm font-black ' + (hours.is_closed ? 'text-muted-foreground/50 line-through' : (isToday ? 'text-primary' : 'text-foreground/80'))}>
-                            {hours.is_closed
-                              ? 'Off'
-                              : formatTime(hours.open_time) + ' - ' + formatTime(hours.close_time)}
+                          <span className={'text-sm font-black ' + (
+                            (isToday && salon.is_closed_today)
+                              ? 'text-red-500'
+                              : hours.is_closed
+                                ? 'text-muted-foreground/50 line-through'
+                                : isToday
+                                  ? 'text-primary'
+                                  : 'text-foreground/80'
+                          )}>
+                            {isToday && salon.is_closed_today
+                              ? 'Closed (Special)'
+                              : hours.is_closed
+                                ? 'Off'
+                                : formatTime(hours.open_time) + ' - ' + formatTime(hours.close_time)}
                           </span>
                         </div>
                       );

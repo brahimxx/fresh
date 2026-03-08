@@ -22,6 +22,19 @@ export async function GET(request, { params }) {
       return notFound('Salon not found');
     }
 
+    // Check if the salon is closed on this specific date (one-off closure)
+    const closure = await getOne(
+      'SELECT reason FROM salon_closures WHERE salon_id = ? AND date = ?',
+      [salonId, date]
+    );
+    if (closure) {
+      return success({
+        slots: [],
+        closed: true,
+        message: closure.reason ? `Closed: ${closure.reason}` : 'Salon is closed on this date',
+      });
+    }
+
     // Parse services parameter: "serviceId:staffId,serviceId:staffId"
     const serviceStaffPairs = servicesParam.split(',').map((pair) => {
       const [serviceIdRaw, staffIdRaw] = pair.split(':');

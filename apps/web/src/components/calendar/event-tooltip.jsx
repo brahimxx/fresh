@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format, isValid } from "date-fns";
 import { Clock, User, Scissors, FileText, CircleDot } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
 
 var statusConfig = {
   pending: {
@@ -205,7 +206,7 @@ export function EventTooltip({ booking, children }) {
                             {service.name}
                           </span>
                           <span className="text-muted-foreground font-medium shrink-0">
-                            ${parseFloat(service.price || 0).toFixed(2)}
+                            {formatCurrency(service.price)}
                           </span>
                         </div>
                       );
@@ -216,7 +217,7 @@ export function EventTooltip({ booking, children }) {
                           Total
                         </span>
                         <span className="font-semibold text-foreground">
-                          ${totalPrice.toFixed(2)}
+                          {formatCurrency(totalPrice)}
                         </span>
                       </div>
                     )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Clock } from 'lucide-react';
+import { Clock, CalendarOff, Plus, Trash2, AlertTriangle } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ import {
   DEFAULT_BUSINESS_HOURS,
   formatTime,
 } from '@/hooks/use-settings';
+import { useSalonClosures, useCreateClosure, useDeleteClosure } from '@/hooks/use-salon-closures';
+import { Input } from '@/components/ui/input';
 
 // Generate time slots
 function generateTimeSlots() {
@@ -47,6 +49,13 @@ export default function BusinessHoursPage() {
   var updatePolicies = useUpdateSalonPolicies();
   
   var [hours, setHours] = useState(DEFAULT_BUSINESS_HOURS);
+
+  // Closures state
+  var { data: closures } = useSalonClosures(params.salonId);
+  var createClosure = useCreateClosure();
+  var deleteClosure = useDeleteClosure();
+  var [closureDate, setClosureDate] = useState('');
+  var [closureReason, setClosureReason] = useState('');
   
   // Load saved hours
   useEffect(function() {
@@ -102,6 +111,32 @@ export default function BusinessHoursPage() {
       },
       onError: function(error) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      },
+    });
+  }
+
+  function handleAddClosure() {
+    if (!closureDate) return;
+    createClosure.mutate({
+      salonId: params.salonId,
+      date: closureDate,
+      reason: closureReason.trim() || null,
+    }, {
+      onSuccess: function() {
+        setClosureDate('');
+        setClosureReason('');
+        toast({ title: 'Closure added', description: 'Bookings are now blocked for this date.' });
+      },
+      onError: function(err) {
+        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      },
+    });
+  }
+
+  function handleDeleteClosure(closureId) {
+    deleteClosure.mutate({ salonId: params.salonId, closureId }, {
+      onSuccess: function() {
+        toast({ title: 'Closure removed' });
       },
     });
   }
@@ -226,6 +261,81 @@ export default function BusinessHoursPage() {
           {updatePolicies.isPending ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
+
+      {/* Special Closures */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarOff className="h-5 w-5" />
+            Special Closures
+          </CardTitle>
+          <CardDescription>
+            Block specific dates for holidays, renovations or any one-off closure. Clients will see no available slots on these days.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add closure form */}
+          <div className="flex gap-2 items-end">
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-sm font-medium">Date</label>
+              <Input
+                type="date"
+                value={closureDate}
+                onChange={function(e) { setClosureDate(e.target.value); }}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                placeholder="e.g. Public holiday, Renovation"
+                value={closureReason}
+                onChange={function(e) { setClosureReason(e.target.value); }}
+              />
+            </div>
+            <Button
+              onClick={handleAddClosure}
+              disabled={!closureDate || createClosure.isPending}
+              className="gap-1.5 shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
+
+          {/* Closures list */}
+          {closures && closures.length > 0 ? (
+            <div className="space-y-2">
+              {closures.map(function(c) {
+                var d = new Date(c.date + 'T00:00:00');
+                var label = d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                return (
+                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                    <div>
+                      <p className="font-medium text-sm">{label}</p>
+                      {c.reason && <p className="text-xs text-muted-foreground">{c.reason}</p>}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={function() { handleDeleteClosure(c.id); }}
+                      disabled={deleteClosure.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed text-muted-foreground">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <p className="text-sm">No special closures scheduled. Add dates above to block client bookings.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

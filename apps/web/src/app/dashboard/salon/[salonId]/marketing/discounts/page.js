@@ -98,7 +98,7 @@ export default function DiscountsPage({ params }) {
   }).length;
   
   var totalUsage = (discounts || []).reduce(function(sum, d) {
-    return sum + Number(d.times_used || 0);
+    return sum + Number(d.currentUses || 0);
   }, 0);
   
   function handleCopyCode(code) {
@@ -110,7 +110,8 @@ export default function DiscountsPage({ params }) {
   }
   
   function handleToggle(discount) {
-    var newStatus = !discount.is_active;
+    var currentStatus = discount.isActive !== undefined ? discount.isActive : discount.is_active;
+    var newStatus = !currentStatus;
     toggleDiscount.mutate({
       discountId: discount.id,
       isActive: newStatus,
@@ -225,6 +226,7 @@ export default function DiscountsPage({ params }) {
                 <TableHead>Discount</TableHead>
                 <TableHead>Usage</TableHead>
                 <TableHead>Valid Period</TableHead>
+                <TableHead>Applies To</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -267,27 +269,32 @@ export default function DiscountsPage({ params }) {
                           </>
                         )}
                       </div>
-                      {discount.min_purchase > 0 && (
+                      {discount.minPurchase > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Min: ${discount.minPurchase}
+                        </p>
+                      )}
+                      {discount.maxDiscount > 0 && (
                         <p className="text-xs text-muted-foreground">
-                          Min: ${discount.min_purchase}
+                          Max: ${discount.maxDiscount}
                         </p>
                       )}
                     </TableCell>
                     <TableCell>
-                      <span>{discount.times_used || 0}</span>
-                      {discount.max_uses && (
-                        <span className="text-muted-foreground"> / {discount.max_uses}</span>
+                      <span>{discount.currentUses || 0}</span>
+                      {discount.maxUses && (
+                        <span className="text-muted-foreground"> / {discount.maxUses}</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {discount.start_date || discount.end_date ? (
+                      {discount.startDate || discount.endDate ? (
                         <div className="text-sm">
-                          {discount.start_date && (
-                            <p>{format(new Date(discount.start_date), 'MMM d, yyyy')}</p>
+                          {discount.startDate && (
+                            <p>{format(new Date(discount.startDate), 'MMM d, yyyy')}</p>
                           )}
-                          {discount.end_date && (
+                          {discount.endDate && (
                             <p className="text-muted-foreground">
-                              to {format(new Date(discount.end_date), 'MMM d, yyyy')}
+                              to {format(new Date(discount.endDate), 'MMM d, yyyy')}
                             </p>
                           )}
                         </div>
@@ -296,12 +303,22 @@ export default function DiscountsPage({ params }) {
                       )}
                     </TableCell>
                     <TableCell>
+                      <div className="flex flex-col gap-1 items-start">
+                        {discount.appliesToServices ? (
+                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">Services</Badge>
+                        ) : null}
+                        {discount.appliesToProducts ? (
+                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">Products</Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {getStatusBadge(discount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Switch
-                          checked={discount.is_active}
+                          checked={discount.isActive}
                           onCheckedChange={function() { handleToggle(discount); }}
                         />
                         <DropdownMenu>

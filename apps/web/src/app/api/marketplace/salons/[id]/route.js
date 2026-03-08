@@ -54,6 +54,13 @@ export async function GET(request, { params }) {
       [id]
     );
 
+    // Check if salon has a special closure today
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+    const todayClosure = await getOne(
+      'SELECT reason FROM salon_closures WHERE salon_id = ? AND date = ?',
+      [id, todayStr]
+    );
+
     const payload = {
       success: true,
       data: {
@@ -64,6 +71,8 @@ export async function GET(request, { params }) {
           ? JSON.parse(salon.business_hours_json).sort((a, b) => a.day_of_week - b.day_of_week)
           : (salon.business_hours_json || []).sort((a, b) => a.day_of_week - b.day_of_week),
         business_hours_json: undefined, // strip raw field
+        is_closed_today: !!todayClosure,
+        closure_reason: todayClosure?.reason || null,
         amenities: amenities.map(a => a.name),
         gallery: gallery.map((g, index) => ({
           image_url: g.image_url,

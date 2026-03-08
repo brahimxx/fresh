@@ -24,7 +24,7 @@ export async function GET(request) {
     const salonId = searchParams.get("salon_id");
     const status = searchParams.get("status");
 
-    let sql = `SELECT * FROM discounts WHERE 1=1`;
+    let sql = `SELECT * FROM discounts WHERE deleted_at IS NULL`;
     const params = [];
 
     if (salonId) {
@@ -45,27 +45,43 @@ export async function GET(request) {
 
     const discounts = await query(sql, params);
 
+    const discountsWithRelations = await Promise.all(
+      discounts.map(async (d) => {
+        const services = await query(
+          "SELECT service_id FROM discount_services WHERE discount_id = ?",
+          [d.id]
+        );
+        const products = await query(
+          "SELECT product_id FROM discount_products WHERE discount_id = ?",
+          [d.id]
+        );
+        return {
+          id: d.id,
+          salonId: d.salon_id,
+          code: d.code,
+          name: d.name,
+          description: d.description,
+          type: d.type,
+          value: d.value,
+          minPurchase: d.min_purchase,
+          maxDiscount: d.max_discount,
+          startDate: d.start_date,
+          endDate: d.end_date,
+          maxUses: d.max_uses,
+          maxUsesPerClient: d.max_uses_per_client,
+          currentUses: d.current_uses,
+          isActive: d.is_active,
+          appliesToServices: d.applies_to_services,
+          appliesToProducts: d.applies_to_products,
+          firstBookingOnly: d.first_booking_only,
+          specificServices: services.map((s) => s.service_id),
+          specificProducts: products.map((p) => p.product_id),
+        };
+      })
+    );
+
     return success({
-      data: discounts.map((d) => ({
-        id: d.id,
-        salonId: d.salon_id,
-        code: d.code,
-        name: d.name,
-        description: d.description,
-        type: d.type,
-        value: d.value,
-        minPurchase: d.min_purchase,
-        maxDiscount: d.max_discount,
-        startDate: d.start_date,
-        endDate: d.end_date,
-        maxUses: d.max_uses,
-        maxUsesPerClient: d.max_uses_per_client,
-        currentUses: d.current_uses,
-        isActive: d.is_active,
-        appliesToServices: d.applies_to_services,
-        appliesToProducts: d.applies_to_products,
-        firstBookingOnly: d.first_booking_only,
-      })),
+      data: discountsWithRelations,
     });
   } catch (err) {
     console.error("Get discounts error:", err);
@@ -94,6 +110,8 @@ export async function POST(request) {
       applies_to_services,
       applies_to_products,
       first_booking_only,
+      specific_services,
+      specific_products,
     } = body;
 
     if (!salon_id) {
@@ -114,14 +132,20 @@ export async function POST(request) {
       return forbidden("Not authorized to create discounts for this salon");
     }
 
-    // Check for duplicate code
+    // Check for duplicate code (only among non-deleted discounts)
     const existing = await getOne(
-      "SELECT id FROM discounts WHERE salon_id = ? AND code = ?",
+      "SELECT id FROM discounts WHERE salon_id = ? AND code = ? AND deleted_at IS NULL",
       [salon_id, code]
     );
     if (existing) {
       return error("A discount with this code already exists", 400);
     }
+
+    // Clear any soft-deleted discounts with the same code so the unique constraint doesn't block
+    await query(
+      "DELETE FROM discounts WHERE salon_id = ? AND code = ? AND deleted_at IS NOT NULL",
+      [salon_id, code]
+    );
 
     const result = await query(
       `INSERT INTO discounts (
@@ -148,6 +172,20 @@ export async function POST(request) {
         first_booking_only ? 1 : 0,
       ]
     );
+
+    const discountId = result.insertId;
+
+    if (specific_services && specific_services.length > 0) {
+      const serviceValues = specific_services.map(id => [discountId, id]);
+      const placeholders = serviceValues.map(() => "(?, ?)").join(", ");
+      await query(`INSERT INTO discount_services (discount_id, service_id) VALUES ${placeholders}`, serviceValues.flat());
+    }
+
+    if (specific_products && specific_products.length > 0) {
+      const productValues = specific_products.map(id => [discountId, id]);
+      const placeholders = productValues.map(() => "(?, ?)").join(", ");
+      await query(`INSERT INTO discount_products (discount_id, product_id) VALUES ${placeholders}`, productValues.flat());
+    }
 
     const newDiscount = await getOne("SELECT * FROM discounts WHERE id = ?", [
       result.insertId,

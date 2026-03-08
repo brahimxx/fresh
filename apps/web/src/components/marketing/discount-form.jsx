@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Form,
   FormControl,
@@ -47,6 +49,8 @@ import {
   DISCOUNT_TYPES,
   generateDiscountCode,
 } from "@/hooks/use-discounts";
+import { useServices } from "@/hooks/use-services";
+import { useProducts } from "@/hooks/use-products";
 
 var discountSchema = z.object({
   code: z.string().min(1, "Code is required").max(20),
@@ -58,6 +62,10 @@ var discountSchema = z.object({
   start_date: z.date().optional().nullable(),
   end_date: z.date().optional().nullable(),
   is_active: z.boolean(),
+  applies_to_services: z.boolean().default(true),
+  applies_to_products: z.boolean().default(true),
+  specific_services: z.array(z.coerce.number()).optional().default([]),
+  specific_products: z.array(z.coerce.number()).optional().default([]),
 });
 
 export function DiscountForm({
@@ -70,6 +78,9 @@ export function DiscountForm({
   var { toast } = useToast();
   var createDiscount = useCreateDiscount();
   var updateDiscount = useUpdateDiscount();
+
+  var { data: services } = useServices(salonId);
+  var { data: products } = useProducts(salonId);
 
   var isEditing = !!discount;
 
@@ -85,6 +96,10 @@ export function DiscountForm({
       start_date: null,
       end_date: null,
       is_active: true,
+      applies_to_services: true,
+      applies_to_products: true,
+      specific_services: [],
+      specific_products: [],
     },
   });
 
@@ -111,6 +126,12 @@ export function DiscountForm({
                 : null,
             is_active:
               discount.is_active !== false && discount.isActive !== false,
+            applies_to_services:
+              discount.applies_to_services !== false && discount.appliesToServices !== false,
+            applies_to_products:
+              discount.applies_to_products !== false && discount.appliesToProducts !== false,
+            specific_services: discount.specificServices || discount.specific_services || [],
+            specific_products: discount.specificProducts || discount.specific_products || [],
           });
         } else {
           form.reset({
@@ -123,6 +144,10 @@ export function DiscountForm({
             start_date: null,
             end_date: null,
             is_active: true,
+            applies_to_services: true,
+            applies_to_products: true,
+            specific_services: [],
+            specific_products: [],
           });
         }
       }
@@ -195,276 +220,391 @@ export function DiscountForm({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Code */}
-            <FormField
-              control={form.control}
-              name="code"
-              render={function ({ field }) {
-                return (
-                  <FormItem>
-                    <FormLabel>Discount Code</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="e.g., SUMMER20"
-                          className="font-mono uppercase"
-                          onChange={function (e) {
-                            field.onChange(e.target.value.toUpperCase());
-                          }}
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={handleGenerateCode}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-
-            {/* Name */}
-            <FormField
-              control={form.control}
-              name="name"
-              render={function ({ field }) {
-                return (
-                  <FormItem>
-                    <FormLabel>Name (Optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g., Summer Sale 2026" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-
-            {/* Type and Value */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="type"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {DISCOUNT_TYPES.map(function (type) {
-                            return (
-                              <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-
-              <FormField
-                control={form.control}
-                name="value"
-                render={function ({ field }) {
-                  var type = form.watch("type");
-                  return (
-                    <FormItem>
-                      <FormLabel>Value</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            {type === "percentage" ? "%" : "$"}
-                          </span>
-                          <Input
-                            type="number"
-                            step={type === "percentage" ? "1" : "0.01"}
-                            min="0"
-                            max={type === "percentage" ? "100" : undefined}
-                            {...field}
-                            className="pl-8"
-                          />
+            <ScrollArea className="h-[60vh] pr-4">
+              <div className="space-y-4">
+                {/* Code */}
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem>
+                        <FormLabel>Discount Code</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="e.g., SUMMER20"
+                              className="font-mono uppercase"
+                              onChange={function (e) {
+                                field.onChange(e.target.value.toUpperCase());
+                              }}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={handleGenerateCode}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                         </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-            </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
 
-            {/* Min Purchase */}
-            <FormField
-              control={form.control}
-              name="min_purchase"
-              render={function ({ field }) {
-                return (
-                  <FormItem>
-                    <FormLabel>Minimum Purchase (Optional)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          $
-                        </span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          {...field}
-                          className="pl-8"
-                        />
-                      </div>
-                    </FormControl>
-                    <FormDescription>Leave 0 for no minimum</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
+                {/* Name */}
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem>
+                        <FormLabel>Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Summer Special 20%" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
 
-            {/* Max Uses */}
-            <FormField
-              control={form.control}
-              name="max_uses"
-              render={function ({ field }) {
-                return (
-                  <FormItem>
-                    <FormLabel>Usage Limit (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        {...field}
-                        value={field.value || ""}
-                        onChange={function (e) {
-                          var val = e.target.value;
-                          field.onChange(val ? parseInt(val) : null);
-                        }}
-                        placeholder="Unlimited"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Maximum number of times this code can be used
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
+                {/* Type and Value */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Type</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {DISCOUNT_TYPES.map(function (type) {
+                                return (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
 
-            {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="start_date"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel>Start Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
+                  <FormField
+                    control={form.control}
+                    name="value"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Value</FormLabel>
                           <FormControl>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start font-normal"
-                            >
-                              <CalendarIcon className="h-4 w-4 mr-2" />
-                              {field.value
-                                ? format(field.value, "MMM d, yyyy")
-                                : "Select"}
-                            </Button>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2.5 text-muted-foreground">
+                                {form.watch("type") === "percentage" ? "%" : "€"}
+                              </span>
+                              <Input {...field} type="number" className="pl-8" />
+                            </div>
                           </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
 
-              <FormField
-                control={form.control}
-                name="end_date"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel>End Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
+                {/* Min Purchase & Max Uses */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="min_purchase"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Min Purchase (€)</FormLabel>
                           <FormControl>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start font-normal"
-                            >
-                              <CalendarIcon className="h-4 w-4 mr-2" />
-                              {field.value
-                                ? format(field.value, "MMM d, yyyy")
-                                : "Select"}
-                            </Button>
+                            <Input {...field} type="number" />
                           </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-            </div>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
 
-            {/* Active */}
-            <FormField
-              control={form.control}
-              name="is_active"
-              render={function ({ field }) {
-                return (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <FormLabel>Active</FormLabel>
-                      <FormDescription>
-                        Enable this discount code for customers
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                );
-              }}
-            />
+                  <FormField
+                    control={form.control}
+                    name="max_uses"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Max Uses</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              value={field.value || ""}
+                              placeholder="Unlimited"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
+
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="start_date"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Start Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start font-normal"
+                                >
+                                  <CalendarIcon className="h-4 w-4 mr-2" />
+                                  {field.value
+                                    ? format(field.value, "MMM d, yyyy")
+                                    : "Select"}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="end_date"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>End Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start font-normal"
+                                >
+                                  <CalendarIcon className="h-4 w-4 mr-2" />
+                                  {field.value
+                                    ? format(field.value, "MMM d, yyyy")
+                                    : "Select"}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="applies_to_services"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem className="flex flex-col rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <FormLabel>Applies to Services</FormLabel>
+                            <FormDescription>
+                              Allow this discount to be used on services
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                        {field.value && services && services.length > 0 && (
+                          <div className="mt-4 border-t pt-4">
+                            <FormLabel className="mb-2 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              Specific Services (Leave empty for all)
+                            </FormLabel>
+                            <ScrollArea className="h-30 rounded-md border p-2">
+                              <div className="space-y-4">
+                                {services.map((svc) => (
+                                  <FormField
+                                    key={svc.id}
+                                    control={form.control}
+                                    name="specific_services"
+                                    render={({ field: svcField }) => {
+                                      return (
+                                        <FormItem
+                                          key={svc.id}
+                                          className="flex flex-row items-start space-x-3 space-y-0"
+                                        >
+                                          <FormControl>
+                                            <Checkbox
+                                              checked={svcField.value?.includes(svc.id)}
+                                              onCheckedChange={(checked) => {
+                                                return checked
+                                                  ? svcField.onChange([...svcField.value, svc.id])
+                                                  : svcField.onChange(
+                                                      svcField.value?.filter(
+                                                        (value) => value !== svc.id
+                                                      )
+                                                    )
+                                              }}
+                                            />
+                                          </FormControl>
+                                          <FormLabel className="text-sm font-normal">
+                                            {svc.name}
+                                          </FormLabel>
+                                        </FormItem>
+                                      )
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        )}
+                      </FormItem>
+                    );
+                  }}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="applies_to_products"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem className="flex flex-col rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <FormLabel>Applies to Products</FormLabel>
+                            <FormDescription>
+                              Allow this discount to be used on products
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                        {field.value && products && products.length > 0 && (
+                          <div className="mt-4 border-t pt-4">
+                            <FormLabel className="mb-2 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              Specific Products (Leave empty for all)
+                            </FormLabel>
+                            <ScrollArea className="h-30 rounded-md border p-2">
+                              <div className="space-y-4">
+                                {products.map((prd) => (
+                                  <FormField
+                                    key={prd.id}
+                                    control={form.control}
+                                    name="specific_products"
+                                    render={({ field: prdField }) => {
+                                      return (
+                                        <FormItem
+                                          key={prd.id}
+                                          className="flex flex-row items-start space-x-3 space-y-0"
+                                        >
+                                          <FormControl>
+                                            <Checkbox
+                                              checked={prdField.value?.includes(prd.id)}
+                                              onCheckedChange={(checked) => {
+                                                return checked
+                                                  ? prdField.onChange([...prdField.value, prd.id])
+                                                  : prdField.onChange(
+                                                      prdField.value?.filter(
+                                                        (value) => value !== prd.id
+                                                      )
+                                                    )
+                                              }}
+                                            />
+                                          </FormControl>
+                                          <FormLabel className="text-sm font-normal">
+                                            {prd.name}
+                                          </FormLabel>
+                                        </FormItem>
+                                      )
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        )}
+                      </FormItem>
+                    );
+                  }}
+                />
+
+                {/* Active */}
+                <FormField
+                  control={form.control}
+                  name="is_active"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <FormLabel>Active</FormLabel>
+                          <FormDescription>
+                            Enable this discount code for customers
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    );
+                  }}
+                />
+              </div>
+            </ScrollArea>
 
             {/* Actions */}
             <div className="flex gap-2 pt-4">

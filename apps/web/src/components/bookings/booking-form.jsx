@@ -7,6 +7,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { CalendarIcon, Search, Plus, User, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,10 +161,14 @@ export function BookingFormDialog({
   // Don't fallback to showing all staff - if no staff can do the service, show empty
   var showAllStaff = false;
 
-  var { data: availability } = useAvailability(salonId, {
+  var { data: availabilityData } = useAvailability(salonId, {
     date: watchDate ? format(watchDate, "yyyy-MM-dd") : null,
     serviceId: watchServiceIds[0] || null,
   });
+  
+  // Extract closure status from availability data
+  var isClosedDay = availabilityData?.closed || false;
+  var closureMessage = availabilityData?.message || "";
 
   // Reset staff when services change
   useEffect(() => {
@@ -530,7 +535,7 @@ export function BookingFormDialog({
                           <span className="shrink-0 text-xs opacity-75">
                             {service.duration_minutes || service.duration}min
                             {parseFloat(service.price) > 0
-                              ? ` · ${Number(service.price).toLocaleString()} DZD`
+                              ? ` · ${formatCurrency(service.price)}`
                               : ""}
                           </span>
                         </button>
@@ -545,7 +550,7 @@ export function BookingFormDialog({
                   return (
                     <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
                       <span>{sel.length} service{sel.length > 1 ? "s" : ""} selected</span>
-                      <span className="font-medium">{totalMin} min · {totalPrice.toLocaleString()} DZD</span>
+                      <span className="font-medium">{totalMin} min · {formatCurrency(totalPrice)}</span>
                     </div>
                   );
                 })()}
@@ -620,10 +625,20 @@ export function BookingFormDialog({
           </div>
 
           {/* Date & Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Date *</Label>
-              <Popover>
+          <div className="space-y-4">
+            {isClosedDay && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive font-medium flex gap-2">
+                <span>🚫</span>
+                <span>
+                  {closureMessage || "The salon is closed on this date. You can still force-book if needed."}
+                </span>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -683,6 +698,7 @@ export function BookingFormDialog({
                 <p className="text-sm text-destructive">{timeError}</p>
               )}
             </div>
+          </div>
           </div>
 
           {/* Notes */}

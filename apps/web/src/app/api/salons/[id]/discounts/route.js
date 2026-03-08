@@ -29,7 +29,7 @@ export async function GET(request, { params }) {
     const includeExpired = searchParams.get('includeExpired') === 'true';
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    let sql = 'SELECT * FROM discounts WHERE salon_id = ?';
+    let sql = 'SELECT * FROM discounts WHERE salon_id = ? AND deleted_at IS NULL';
     const sqlParams = [id];
 
     if (!includeExpired) {
@@ -44,25 +44,33 @@ export async function GET(request, { params }) {
 
     const discounts = await query(sql, sqlParams);
 
-    return success({
-      discounts: discounts.map((d) => ({
-        id: d.id,
-        code: d.code,
-        name: d.name,
-        description: d.description,
-        type: d.type, // percentage, fixed
-        value: parseFloat(d.value),
-        minPurchase: d.min_purchase ? parseFloat(d.min_purchase) : null,
-        maxDiscount: d.max_discount ? parseFloat(d.max_discount) : null,
-        startDate: d.start_date,
-        endDate: d.end_date,
-        maxUses: d.max_uses,
-        currentUses: d.current_uses,
-        isActive: d.is_active,
-        appliesToServices: d.applies_to_services,
-        appliesToProducts: d.applies_to_products,
-      })),
-    });
+    const discountsWithRelations = await Promise.all(
+      discounts.map(async (d) => {
+        const svcRows = await query('SELECT service_id FROM discount_services WHERE discount_id = ?', [d.id]);
+        const prdRows = await query('SELECT product_id FROM discount_products WHERE discount_id = ?', [d.id]);
+        return {
+          id: d.id,
+          code: d.code,
+          name: d.name,
+          description: d.description,
+          type: d.type,
+          value: parseFloat(d.value),
+          minPurchase: d.min_purchase ? parseFloat(d.min_purchase) : null,
+          maxDiscount: d.max_discount ? parseFloat(d.max_discount) : null,
+          startDate: d.start_date,
+          endDate: d.end_date,
+          maxUses: d.max_uses,
+          currentUses: d.current_uses,
+          isActive: d.is_active,
+          appliesToServices: d.applies_to_services,
+          appliesToProducts: d.applies_to_products,
+          specificServices: svcRows.map((s) => s.service_id),
+          specificProducts: prdRows.map((p) => p.product_id),
+        };
+      })
+    );
+
+    return success({ discounts: discountsWithRelations });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Get discounts error:', err);

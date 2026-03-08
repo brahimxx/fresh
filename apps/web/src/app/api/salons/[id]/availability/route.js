@@ -20,6 +20,21 @@ export async function GET(request, { params }) {
       return error('Invalid date format. Use YYYY-MM-DD');
     }
 
+    // Check if salon has a closure on this specific date
+    const closure = await getOne(
+      'SELECT reason FROM salon_closures WHERE salon_id = ? AND date = ?',
+      [id, date]
+    );
+    if (closure) {
+      return success({
+        date,
+        duration: 0,
+        closed: true,
+        message: closure.reason ? `Closed: ${closure.reason}` : 'Salon is closed on this date',
+        availability: [],
+      });
+    }
+
     // Get services duration if provided
     let totalDuration = 30; // Default 30 min slot
     let totalBuffer = 0;

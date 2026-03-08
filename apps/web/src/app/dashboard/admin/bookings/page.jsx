@@ -20,6 +20,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { formatCurrency } from "@/lib/format";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -102,13 +103,6 @@ export default function AdminBookingsPage() {
             bookingId: selectedBooking.id,
             reason: refundReason
         });
-    };
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'EUR',
-        }).format(amount || 0);
     };
 
     const formatDate = (dateString) => {

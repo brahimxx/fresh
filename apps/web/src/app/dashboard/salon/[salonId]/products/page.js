@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/table';
 
 import { useProducts, useDeleteProduct, PRODUCT_CATEGORIES, getStockStatus } from '@/hooks/use-products';
+import { useDiscounts } from '@/hooks/use-discounts';
 import { formatCurrency } from '@/hooks/use-payments';
 import { ProductFormDialog } from '@/components/products/product-form';
 import { StockUpdateDialog } from '@/components/products/stock-update';
@@ -69,6 +70,7 @@ export default function ProductsPage({ params }) {
   var [deleteProduct, setDeleteProduct] = useState(null);
   
   var { data: products, isLoading } = useProducts(salonId);
+  var { data: discounts } = useDiscounts(salonId, { status: 'active' });
   var deleteProductMutation = useDeleteProduct();
   
   // Filter products
@@ -136,6 +138,48 @@ export default function ProductsPage({ params }) {
   var totalValue = products?.reduce(function(sum, p) { 
     return sum + (Number(p.price || 0) * Number(p.stockQuantity || 0)); 
   }, 0) || 0;
+  
+  function getDiscountedPrice(product) {
+    if (!discounts || discounts.length === 0) return null;
+    var bestPrice = null;
+    var basePrice = Number(product.price);
+    var productId = Number(product.id);
+
+    for (var i = 0; i < discounts.length; i++) {
+      var discount = discounts[i];
+      // Check if this discount applies to products at all
+      if (!Number(discount.appliesToProducts) && !Number(discount.applies_to_products)) continue;
+      
+      // Check if this discount is restricted to specific products
+      var specificProducts = discount.specificProducts || discount.specific_products || [];
+      if (specificProducts.length > 0) {
+        var found = false;
+        for (var j = 0; j < specificProducts.length; j++) {
+          if (Number(specificProducts[j]) === productId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) continue;
+      }
+
+      var newPrice;
+      if (discount.type === 'percentage') {
+        var amountOff = basePrice * (Number(discount.value) / 100);
+        if (discount.maxDiscount && amountOff > Number(discount.maxDiscount)) {
+          amountOff = Number(discount.maxDiscount);
+        }
+        newPrice = basePrice - amountOff;
+      } else {
+        newPrice = Math.max(0, basePrice - Number(discount.value));
+      }
+
+      if (bestPrice === null || newPrice < bestPrice) {
+        bestPrice = newPrice;
+      }
+    }
+    return bestPrice;
+  }
   
   return (
     <div className="space-y-6">
@@ -260,7 +304,18 @@ export default function ProductsPage({ params }) {
                       {product.sku || '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(product.price)}
+                      {(() => {
+                        const discountedPrice = getDiscountedPrice(product);
+                        if (discountedPrice !== null && discountedPrice < Number(product.price)) {
+                          return (
+                            <div className="flex flex-col justify-center items-end">
+                              <span className="text-xs text-muted-foreground line-through decoration-destructive">{formatCurrency(product.price)}</span>
+                              <span className="text-emerald-600 font-bold">{formatCurrency(discountedPrice)}</span>
+                            </div>
+                          );
+                        }
+                        return formatCurrency(product.price);
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-2">

@@ -78,10 +78,15 @@ export default function CheckoutPage({ params }) {
   
   var discountAmount = 0;
   if (appliedDiscount) {
-    if (appliedDiscount.type === 'percentage') {
-      discountAmount = subtotal * (appliedDiscount.value / 100);
+    if (appliedDiscount.calculatedAmount !== undefined) {
+      discountAmount = appliedDiscount.calculatedAmount;
     } else {
-      discountAmount = appliedDiscount.value;
+      // Fallback
+      if (appliedDiscount.type === 'percentage') {
+        discountAmount = subtotal * (appliedDiscount.value / 100);
+      } else {
+        discountAmount = appliedDiscount.value;
+      }
     }
   }
   
@@ -93,7 +98,13 @@ export default function CheckoutPage({ params }) {
     if (!discountCode) return;
     
     validateDiscount.mutate(
-      { code: discountCode, salon_id: salonId, amount: subtotal },
+      { 
+        code: discountCode, 
+        salonId: salonId, 
+        subtotal: subtotal,
+        services: checkout?.services || [],
+        products: addedProducts || [],
+      },
       {
         onSuccess: function(data) {
           setAppliedDiscount(data);

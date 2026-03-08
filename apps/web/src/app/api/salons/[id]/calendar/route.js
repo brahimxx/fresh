@@ -107,6 +107,7 @@ export async function GET(request, { params }) {
           .map((bs) => ({
             name: bs.service_name,
             duration: bs.duration_minutes,
+            price: bs.price,
           })),
       })),
       ...timeOff.map((to) => ({

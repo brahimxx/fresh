@@ -21,6 +21,8 @@ export function DateTimeSelection({
   var [loading, setLoading] = useState(false);
   var [loadingSlots, setLoadingSlots] = useState(false);
   var [currentMonth, setCurrentMonth] = useState(new Date());
+  var [isClosedDay, setIsClosedDay] = useState(false);
+  var [closureMessage, setClosureMessage] = useState("");
 
   // Check if multiple staff are involved
   var uniqueStaffIds = selectedServices && Array.isArray(selectedServices)
@@ -105,6 +107,8 @@ export function DateTimeSelection({
             console.log('Slots array:', data.data?.slots);
             console.log('Number of slots:', data.data?.slots?.length || 0);
             setTimeSlots(data.data?.slots || []);
+            setIsClosedDay(data.data?.closed || false);
+            setClosureMessage(data.data?.message || "");
           } else {
             console.error('Availability API error:', res.status, await res.text());
           }
@@ -441,6 +445,16 @@ export function DateTimeSelection({
                     </div>
                   </div>
                 )}
+              </div>
+            ) : isClosedDay ? (
+              <div className="text-center py-8 space-y-3 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/50 p-6">
+                <div className="text-4xl">🚫</div>
+                <div>
+                  <p className="font-semibold text-red-700 dark:text-red-400">Closed</p>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1">
+                    {closureMessage || "The salon is closed on this date. Please select another day."}
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 space-y-2">

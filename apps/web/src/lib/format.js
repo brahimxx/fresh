@@ -3,20 +3,23 @@
  * Consolidates duplicate formatCurrency functions from multiple hooks
  */
 
+export const APP_CURRENCY = 'DZD';
+
 /**
  * Format a number as currency
  * @param {number} amount - The amount to format
- * @param {string} currency - The currency code (default: 'USD')
+ * @param {string} currency - The currency code (default: APP_CURRENCY)
  * @returns {string} Formatted currency string
  */
-export function formatCurrency(amount, currency = 'USD') {
+export function formatCurrency(amount, currency = APP_CURRENCY) {
   if (amount == null || isNaN(amount)) {
-    return '$0.00';
+    return '0 ' + currency;
   }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-  }).format(amount);
+  
+  // Format as number then append currency for DZD (or use proper Intl format if preferred)
+  // We use standard number format + DZD to match the rest of the app's clean look
+  const formattedNumber = new Intl.NumberFormat('en-US').format(amount);
+  return `${formattedNumber} ${currency}`;
 }
 
 /**

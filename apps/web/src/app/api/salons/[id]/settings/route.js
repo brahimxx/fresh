@@ -52,7 +52,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { cancellationPolicyHours, noShowFee, depositRequired, depositPercentage } = body;
+    const { cancellationPolicyHours, noShowFee, depositRequired, depositPercentage, business_hours } = body;
 
     await query(
       `INSERT INTO salon_settings (salon_id, cancellation_policy_hours, no_show_fee, deposit_required, deposit_percentage)
@@ -74,6 +74,27 @@ export async function PUT(request, { params }) {
         depositPercentage,
       ]
     );
+
+    // Save business_hours if provided
+    if (business_hours && Array.isArray(business_hours)) {
+      for (const bh of business_hours) {
+        await query(
+          `INSERT INTO business_hours (salon_id, day_of_week, open_time, close_time, is_closed) 
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             open_time = VALUES(open_time),
+             close_time = VALUES(close_time),
+             is_closed = VALUES(is_closed)`,
+          [
+            id,
+            bh.day,
+            bh.enabled ? bh.open + ':00' : null,
+            bh.enabled ? bh.close + ':00' : null,
+            bh.enabled ? 0 : 1
+          ]
+        );
+      }
+    }
 
     const settings = await getOne('SELECT * FROM salon_settings WHERE salon_id = ?', [id]);
 

@@ -54,7 +54,7 @@ export function useCampaigns(salonId, filters) {
       var res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch campaigns');
       var json = await res.json();
-      return json.data || [];
+      return json.data?.campaigns || (Array.isArray(json.data) ? json.data : []);
     },
     enabled: !!salonId,
   });

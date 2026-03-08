@@ -5,7 +5,7 @@ import { success, error } from '@/lib/response';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { code, salonId, subtotal = 0, hasServices = true, hasProducts = false } = body;
+    const { code, salonId, subtotal = 0, services = [], products = [] } = body;
 
     if (!code || !salonId) {
       return error('Code and salon ID are required');
@@ -13,7 +13,7 @@ export async function POST(request) {
 
     const discount = await getOne(
       `SELECT * FROM discounts 
-       WHERE code = ? AND salon_id = ? AND is_active = 1
+       WHERE code = ? AND salon_id = ? AND is_active = 1 AND deleted_at IS NULL
        AND (start_date IS NULL OR start_date <= CURDATE())
        AND (end_date IS NULL OR end_date >= CURDATE())
        AND (max_uses IS NULL OR current_uses < max_uses)`,
@@ -24,29 +24,52 @@ export async function POST(request) {
       return error('Invalid or expired discount code', 404);
     }
 
-    // Check if discount applies to the cart contents
-    if (hasServices && !discount.applies_to_services) {
-      return error('This discount does not apply to services');
+    // Fetch specific restrictions
+    const discountServices = await query('SELECT service_id FROM discount_services WHERE discount_id = ?', [discount.id]);
+    const discountProducts = await query('SELECT product_id FROM discount_products WHERE discount_id = ?', [discount.id]);
+
+    const specificServiceIds = discountServices.map(s => Number(s.service_id));
+    const specificProductIds = discountProducts.map(p => Number(p.product_id));
+
+    // Calculate eligible total
+    let eligibleTotal = 0;
+
+    if (discount.applies_to_services) {
+      for (const svc of services) {
+        const id = Number(svc.id || svc.service_id);
+        if (specificServiceIds.length === 0 || specificServiceIds.includes(id)) {
+          eligibleTotal += Number(svc.price || 0) * Number(svc.quantity || 1);
+        }
+      }
     }
 
-    if (hasProducts && !discount.applies_to_products) {
-      return error('This discount does not apply to products');
+    if (discount.applies_to_products) {
+      for (const prd of products) {
+        const id = Number(prd.id || prd.product_id);
+        if (specificProductIds.length === 0 || specificProductIds.includes(id)) {
+          eligibleTotal += Number(prd.price || 0) * Number(prd.quantity || 1);
+        }
+      }
     }
 
-    // Check minimum purchase
+    if (eligibleTotal === 0 && subtotal > 0) {
+      return error('This discount does not apply to any items in your cart');
+    }
+
+    // Check minimum purchase (against overall subtotal)
     if (discount.min_purchase && subtotal < discount.min_purchase) {
-      return error(`Minimum purchase of €${discount.min_purchase} required`);
+      return error(`Minimum purchase of $${discount.min_purchase} required`);
     }
 
-    // Calculate discount amount
+    // Calculate discount amount against eligibleTotal
     let discountAmount;
     if (discount.type === 'percentage') {
-      discountAmount = subtotal * (discount.value / 100);
+      discountAmount = eligibleTotal * (Number(discount.value) / 100);
       if (discount.max_discount && discountAmount > discount.max_discount) {
         discountAmount = discount.max_discount;
       }
     } else {
-      discountAmount = discount.value;
+      discountAmount = Math.min(Number(discount.value), eligibleTotal);
     }
 
     return success({

@@ -14,6 +14,8 @@ import {
   Phone,
   Star,
   Loader2,
+  Tag,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,12 @@ export default function BookingPage({ params }) {
   var [isBooking, setIsBooking] = useState(false);
   var [isVerifyingSlot, setIsVerifyingSlot] = useState(false);
   var [slotVerified, setSlotVerified] = useState(false);
+
+  // Discount state
+  var [discountInput, setDiscountInput] = useState("");
+  var [appliedDiscount, setAppliedDiscount] = useState(null);
+  var [discountError, setDiscountError] = useState("");
+  var [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
 
   // Load salon data
   useEffect(
@@ -169,6 +177,45 @@ export default function BookingPage({ params }) {
     return sum + (isNaN(price) ? 0 : price);
   }, 0) : 0;
 
+  var discountAmount = appliedDiscount ? parseFloat(appliedDiscount.calculatedAmount || 0) : 0;
+  var finalTotal = Math.max(0, totalPrice - discountAmount);
+
+  async function handleApplyDiscount() {
+    if (!discountInput.trim()) return;
+    setIsValidatingDiscount(true);
+    setDiscountError("");
+    try {
+      var res = await fetch("/api/discounts/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: discountInput.trim().toUpperCase(),
+          salonId: salonId,
+          subtotal: totalPrice,
+          services: selectedServices.map(function(s) { return { id: s.id, price: s.price, quantity: 1 }; }),
+          products: [],
+        }),
+      });
+      var json = await res.json();
+      if (res.ok && json.data?.valid) {
+        setAppliedDiscount(json.data.discount);
+        setDiscountInput("");
+      } else {
+        setDiscountError(json.error?.message || "Invalid or expired discount code.");
+      }
+    } catch (e) {
+      setDiscountError("Could not validate discount. Please try again.");
+    } finally {
+      setIsValidatingDiscount(false);
+    }
+  }
+
+  function handleRemoveDiscount() {
+    setAppliedDiscount(null);
+    setDiscountError("");
+    setDiscountInput("");
+  }
+
   function handleNext() {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -234,6 +281,7 @@ export default function BookingPage({ params }) {
           services: servicesWithStaff,
           startTime: startTime,
           notes: bookingNotes,
+          discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
 
@@ -552,6 +600,55 @@ export default function BookingPage({ params }) {
                       </div>
                     )}
 
+                    {/* Discount Code */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <label className="font-medium text-sm flex items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5" />
+                        Discount Code
+                      </label>
+                      {appliedDiscount ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{appliedDiscount.code}</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                              {appliedDiscount.type === 'percentage'
+                                ? appliedDiscount.value + '% off'
+                                : '$' + parseFloat(appliedDiscount.value).toFixed(2) + ' off'}
+                              {' — saving $' + discountAmount.toFixed(2)}
+                            </p>
+                          </div>
+                          <button onClick={handleRemoveDiscount} className="text-emerald-500 hover:text-emerald-700">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            className="flex-1 px-3 py-2 border rounded-md text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Enter code"
+                            value={discountInput}
+                            onChange={function(e) {
+                              setDiscountInput(e.target.value.toUpperCase());
+                              setDiscountError("");
+                            }}
+                            onKeyDown={function(e) { if (e.key === 'Enter') handleApplyDiscount(); }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleApplyDiscount}
+                            disabled={!discountInput.trim() || isValidatingDiscount}
+                          >
+                            {isValidatingDiscount ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply'}
+                          </Button>
+                        </div>
+                      )}
+                      {discountError && (
+                        <p className="text-xs text-destructive">{discountError}</p>
+                      )}
+                    </div>
+
                     {/* Optional notes */}
                     <div className="space-y-2 pt-2 border-t">
                       <label
@@ -606,14 +703,29 @@ export default function BookingPage({ params }) {
                       })}
                     </div>
 
-                    <div className="border-t pt-4">
+                    <div className="border-t pt-4 space-y-1">
                       <div className="flex justify-between text-sm mb-1">
                         <span>Duration</span>
                         <span>{totalDuration} min</span>
                       </div>
-                      <div className="flex justify-between font-semibold">
+                      {discountAmount > 0 && (
+                        <>
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Subtotal</span>
+                            <span>${totalPrice.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm text-emerald-600">
+                            <span className="flex items-center gap-1">
+                              <Tag className="h-3 w-3" />
+                              {appliedDiscount.code}
+                            </span>
+                            <span>-${discountAmount.toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex justify-between font-semibold pt-1 border-t">
                         <span>Total</span>
-                        <span>${totalPrice.toFixed(2)}</span>
+                        <span>${finalTotal.toFixed(2)}</span>
                       </div>
                     </div>
 

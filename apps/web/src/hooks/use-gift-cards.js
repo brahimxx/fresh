@@ -70,7 +70,7 @@ export function useGiftCards(salonId, filters) {
       var res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch gift cards');
       var json = await res.json();
-      return json.data || [];
+      return json.data?.giftCards || json.data?.gift_cards || json.data?.data || (Array.isArray(json.data) ? json.data : []);
     },
     enabled: !!salonId,
   });

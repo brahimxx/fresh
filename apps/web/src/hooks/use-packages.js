@@ -56,7 +56,7 @@ export function usePackages(salonId, filters) {
       var res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch packages');
       var json = await res.json();
-      return json.data || [];
+      return json.data?.packages || (Array.isArray(json.data) ? json.data : []);
     },
     enabled: !!salonId,
   });
