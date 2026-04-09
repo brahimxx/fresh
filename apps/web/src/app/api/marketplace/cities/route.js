@@ -20,7 +20,6 @@ export async function GET(request) {
        FROM salons
        WHERE is_active = 1
          AND deleted_at IS NULL
-         AND status = 'active'
          AND is_marketplace_enabled = 1
          AND (city LIKE ? OR state LIKE ? OR postal_code LIKE ?)
        GROUP BY city, state

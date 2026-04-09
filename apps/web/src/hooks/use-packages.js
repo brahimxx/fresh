@@ -17,9 +17,9 @@ export var packageKeys = {
 
 // Package statuses
 export var PACKAGE_STATUSES = {
-  active: { label: 'Active', color: 'bg-green-100 text-green-800' },
-  inactive: { label: 'Inactive', color: 'bg-gray-100 text-gray-800' },
-  sold_out: { label: 'Sold Out', color: 'bg-red-100 text-red-800' },
+  active: { label: 'Active', color: 'bg-green-50/50 text-green-600 border-green-200' },
+  inactive: { label: 'Inactive', color: 'bg-muted text-muted-foreground border-border' },
+  sold_out: { label: 'Sold Out', color: 'bg-red-50/50 text-red-600 border-red-200' },
 };
 
 

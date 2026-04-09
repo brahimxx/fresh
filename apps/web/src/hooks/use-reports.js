@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '@/lib/format';
+import api from '@/lib/api-client';
 
 // Re-export for backward compatibility
 export { formatCurrency };
@@ -9,11 +10,11 @@ export { formatCurrency };
 // Query keys
 export var reportKeys = {
   all: ['reports'],
-  overview: function(salonId, dateRange) { return ['reports', 'overview', salonId, dateRange]; },
-  revenue: function(salonId, dateRange) { return ['reports', 'revenue', salonId, dateRange]; },
-  bookings: function(salonId, dateRange) { return ['reports', 'bookings', salonId, dateRange]; },
-  clients: function(salonId, dateRange) { return ['reports', 'clients', salonId, dateRange]; },
-  staff: function(salonId, dateRange) { return ['reports', 'staff', salonId, dateRange]; },
+  overview: function(salonId, dateRange) { return ['reports', 'overview', salonId, dateRange?.start?.toISOString(), dateRange?.end?.toISOString()]; },
+  revenue: function(salonId, dateRange) { return ['reports', 'revenue', salonId, dateRange?.start?.toISOString(), dateRange?.end?.toISOString()]; },
+  bookings: function(salonId, dateRange) { return ['reports', 'bookings', salonId, dateRange?.start?.toISOString(), dateRange?.end?.toISOString()]; },
+  clients: function(salonId, dateRange) { return ['reports', 'clients', salonId, dateRange?.start?.toISOString(), dateRange?.end?.toISOString()]; },
+  staff: function(salonId, dateRange) { return ['reports', 'staff', salonId, dateRange?.start?.toISOString(), dateRange?.end?.toISOString()]; },
 };
 
 // Date range helpers
@@ -112,16 +113,13 @@ export function useReportsOverview(salonId, dateRange) {
   return useQuery({
     queryKey: reportKeys.overview(salonId, dateRange),
     queryFn: async function() {
-      var params = new URLSearchParams({
+      var params = {
         salon_id: salonId,
         start_date: dateRange.start.toISOString(),
         end_date: dateRange.end.toISOString(),
-      });
-      var response = await fetch('/api/reports/overview?' + params.toString(), {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch overview report');
-      return response.json();
+      };
+      var response = await api.get('/reports/overview', params);
+      return response.data;
     },
     enabled: !!salonId,
   });
@@ -132,16 +130,13 @@ export function useRevenueReport(salonId, dateRange) {
   return useQuery({
     queryKey: reportKeys.revenue(salonId, dateRange),
     queryFn: async function() {
-      var params = new URLSearchParams({
+      var params = {
         salon_id: salonId,
         start_date: dateRange.start.toISOString(),
         end_date: dateRange.end.toISOString(),
-      });
-      var response = await fetch('/api/reports/revenue?' + params.toString(), {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch revenue report');
-      return response.json();
+      };
+      var response = await api.get('/reports/revenue', params);
+      return response.data;
     },
     enabled: !!salonId,
   });
@@ -152,16 +147,13 @@ export function useBookingsReport(salonId, dateRange) {
   return useQuery({
     queryKey: reportKeys.bookings(salonId, dateRange),
     queryFn: async function() {
-      var params = new URLSearchParams({
+      var params = {
         salon_id: salonId,
         start_date: dateRange.start.toISOString(),
         end_date: dateRange.end.toISOString(),
-      });
-      var response = await fetch('/api/reports/bookings?' + params.toString(), {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch bookings report');
-      return response.json();
+      };
+      var response = await api.get('/reports/bookings', params);
+      return response.data;
     },
     enabled: !!salonId,
   });
@@ -172,16 +164,13 @@ export function useClientsReport(salonId, dateRange) {
   return useQuery({
     queryKey: reportKeys.clients(salonId, dateRange),
     queryFn: async function() {
-      var params = new URLSearchParams({
+      var params = {
         salon_id: salonId,
         start_date: dateRange.start.toISOString(),
         end_date: dateRange.end.toISOString(),
-      });
-      var response = await fetch('/api/reports/clients?' + params.toString(), {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch clients report');
-      return response.json();
+      };
+      var response = await api.get('/reports/clients', params);
+      return response.data;
     },
     enabled: !!salonId,
   });
@@ -192,16 +181,13 @@ export function useStaffReport(salonId, dateRange) {
   return useQuery({
     queryKey: reportKeys.staff(salonId, dateRange),
     queryFn: async function() {
-      var params = new URLSearchParams({
+      var params = {
         salon_id: salonId,
         start_date: dateRange.start.toISOString(),
         end_date: dateRange.end.toISOString(),
-      });
-      var response = await fetch('/api/reports/staff?' + params.toString(), {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch staff report');
-      return response.json();
+      };
+      var response = await api.get('/reports/staff', params);
+      return response.data;
     },
     enabled: !!salonId,
   });

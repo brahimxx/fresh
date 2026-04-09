@@ -27,9 +27,10 @@ export var serviceKeys = {
 export function useServices(salonId, options) {
   if (!options) options = {};
   return useQuery({
-    queryKey: serviceKeys.list(salonId),
+    queryKey: [...serviceKeys.list(salonId), { includeInactive: options.includeInactive }],
     queryFn: function () {
-      return api.get("/salons/" + salonId + "/services");
+      var qs = options.includeInactive ? "?includeInactive=true" : "";
+      return api.get("/salons/" + salonId + "/services" + qs);
     },
     enabled: !!salonId,
     select: function (response) {

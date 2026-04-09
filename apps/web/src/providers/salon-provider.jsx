@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api-client';
 
-const SalonContext = createContext(null);
+export const SalonContext = createContext(null);
 
 export function SalonProvider({ children }) {
   const params = useParams();

@@ -42,14 +42,21 @@ export async function GET(request) {
     );
 
     return success({
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        message: n.message,
-        isRead: !!n.is_read,
-        sentAt: n.sent_at,
-      })),
+      notifications: notifications.map((n) => {
+        let parsedData = null;
+        try {
+          parsedData = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
+        } catch (_) {}
+        return {
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          isRead: !!n.is_read,
+          sentAt: n.sent_at,
+          data: parsedData,
+        };
+      }),
       unreadCount: unread,
       pagination: {
         page,

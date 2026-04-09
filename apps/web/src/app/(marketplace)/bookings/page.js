@@ -23,8 +23,10 @@ import {
     CreditCard,
     FileText,
     Hash,
+    Star,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
+import { generateSalonSlug } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -33,6 +35,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataError } from "@/components/ui/data-error";
 import { Separator } from "@/components/ui/separator";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { useMyBookings, useCancelBooking } from "@/hooks/use-bookings";
 import Link from "next/link";
@@ -53,9 +66,9 @@ function formatDuration(minutes) {
     return h + " hr " + m + " min";
 }
 
-function formatPrice(price) {
+function formatPrice(price, currencyCode) {
     if (price == null || isNaN(price)) return "";
-    return formatCurrency(price);
+    return formatCurrency(price, currencyCode);
 }
 
 function BookingsContent() {
@@ -89,12 +102,6 @@ function BookingsContent() {
         }
     }, [bookings, selectedBookingId]);
 
-    const handleCancelClick = async (id) => {
-        if (window.confirm("Are you sure you want to cancel this booking? This action cannot be undone.")) {
-            await cancelMutation.mutateAsync(id);
-        }
-    };
-
     // Redirect if not authenticated
     if (!authLoading && !isAuthenticated) {
         router.push("/login?redirect=/bookings");
@@ -107,7 +114,15 @@ function BookingsContent() {
             case "confirmed":
                 return <Badge className={"bg-green-500/10 text-green-500 hover:bg-green-500/20 border-green-500/20 " + cls}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Confirmed</Badge>;
             case "pending":
-                return <Badge variant="outline" className={"bg-yellow-500/10 text-yellow-500 border-yellow-500/20 " + cls}><AlertCircle className="h-3.5 w-3.5 mr-1" /> Pending</Badge>;
+                return (
+                    <Badge variant="outline" className={"bg-amber-50/50 text-amber-600 border-amber-200 " + cls}>
+                        <div className="relative flex h-2 w-2 mr-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </div>
+                        Pending
+                    </Badge>
+                );
             case "completed":
                 return <Badge variant="secondary" className={cls}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Completed</Badge>;
             case "cancelled":
@@ -234,12 +249,15 @@ function BookingsContent() {
 
                                                 {/* Booking info */}
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="font-semibold text-sm truncate">{booking.salonName}</h3>
-                                                    <p className="text-xs text-primary font-medium mt-0.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <h3 className="font-semibold text-sm truncate">{booking.salonName}</h3>
+                                                        {getStatusBadge(booking.status, "sm")}
+                                                    </div>
+                                                    <p className="text-xs text-foreground font-medium mt-0.5">
                                                         {isToday ? "Today" : format(bookingDate, "EEE, MMM d, yyyy")} at {format(bookingDate, "h:mm a")}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {booking.totalPrice ? formatPrice(booking.totalPrice) : ""} · {booking.serviceDetails ? booking.serviceDetails.length : "1"} item{(booking.serviceDetails && booking.serviceDetails.length > 1) ? "s" : ""}
+                                                        {booking.totalPrice ? formatPrice(booking.totalPrice, booking.salonCurrency) : ""} · {booking.serviceDetails ? booking.serviceDetails.length : "1"} item{(booking.serviceDetails && booking.serviceDetails.length > 1) ? "s" : ""}
                                                     </p>
                                                 </div>
                                             </button>
@@ -317,7 +335,7 @@ function BookingsContent() {
                                             <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
                                                 <CalendarPlus className="h-4.5 w-4.5 text-blue-500" />
                                             </div>
-                                            <span className="font-medium text-sm group-hover:text-primary transition-colors">Add to calendar</span>
+                                            <span className="font-medium text-sm group-hover:text-foreground transition-colors">Add to calendar</span>
                                         </a>
 
                                         <a
@@ -329,32 +347,68 @@ function BookingsContent() {
                                             <div className="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
                                                 <Navigation className="h-4.5 w-4.5 text-rose-500" />
                                             </div>
-                                            <span className="font-medium text-sm group-hover:text-primary transition-colors">Get directions</span>
+                                            <span className="font-medium text-sm group-hover:text-foreground transition-colors">Get directions</span>
                                         </a>
 
                                         <Link
-                                            href={"/salon/" + selectedBooking.salonId}
+                                            href={"/salon/" + generateSalonSlug({ id: selectedBooking.salonId, name: selectedBooking.salonName, city: selectedBooking.salonCity })}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group"
                                         >
                                             <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
                                                 <Store className="h-4.5 w-4.5 text-purple-500" />
                                             </div>
-                                            <span className="font-medium text-sm group-hover:text-primary transition-colors">Venue details</span>
+                                            <span className="font-medium text-sm group-hover:text-foreground transition-colors">Venue details</span>
                                         </Link>
 
-                                        {activeTab === "upcoming" && (
-                                            <button
-                                                onClick={() => handleCancelClick(selectedBooking.id)}
-                                                disabled={cancelMutation.isPending}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-500/5 transition-colors group"
+                                        {activeTab === "past" && selectedBooking.status === "completed" && (
+                                            <Link
+                                                href={`/bookings/${selectedBooking.id}/review`}
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-amber-500/5 transition-colors group"
                                             >
-                                                <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
-                                                    <XCircle className="h-4.5 w-4.5 text-red-500" />
+                                                <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                                    <Star className="h-4.5 w-4.5 text-amber-500 group-hover:fill-amber-500 transition-all" />
                                                 </div>
-                                                <span className="font-medium text-sm text-red-500 group-hover:text-red-600 transition-colors">
-                                                    {cancelMutation.isPending ? "Cancelling..." : "Cancel appointment"}
+                                                <span className="font-medium text-sm text-amber-600 group-hover:text-amber-700 transition-colors">
+                                                    Leave a Review
                                                 </span>
-                                            </button>
+                                            </Link>
+                                        )}
+
+                                        {activeTab === "upcoming" && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <button
+                                                        disabled={cancelMutation.isPending}
+                                                        className="cursor-pointer w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-500/5 transition-colors group"
+                                                    >
+                                                        <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
+                                                            <XCircle className="h-4.5 w-4.5 text-red-500" />
+                                                        </div>
+                                                        <span className="font-medium text-sm text-red-500 group-hover:text-red-600 transition-colors">
+                                                            {cancelMutation.isPending ? "Cancelling..." : "Cancel appointment"}
+                                                        </span>
+                                                    </button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Cancel Appointment</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Are you sure you want to cancel this booking? Depending on the salon's cancellation policy, cancelling too close to the scheduled start time may incur a fee. 
+                                                            <br /><br />
+                                                            This action cannot be undone.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                                                        <AlertDialogAction 
+                                                            onClick={() => cancelMutation.mutateAsync(selectedBooking.id)}
+                                                            className="bg-red-500 hover:bg-red-600 text-white"
+                                                        >
+                                                            Yes, Cancel
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         )}
                                     </div>
 
@@ -369,22 +423,22 @@ function BookingsContent() {
                                                     return (
                                                         <div key={i} className="flex items-center justify-between">
                                                             <div>
-                                                                <p className="font-medium text-sm text-primary">{svc.name}</p>
+                                                                <p className="font-medium text-sm text-foreground">{svc.name}</p>
                                                                 {svc.duration > 0 && (
                                                                     <p className="text-xs text-muted-foreground">{formatDuration(svc.duration)}</p>
                                                                 )}
                                                             </div>
                                                             {svc.price > 0 && (
-                                                                <span className="text-sm font-medium">{formatPrice(svc.price)}</span>
+                                                                <span className="text-sm font-medium">{formatPrice(svc.price, selectedBooking.salonCurrency)}</span>
                                                             )}
                                                         </div>
                                                     );
                                                 })
                                             ) : selectedBooking.services ? (
                                                 <div className="flex items-center justify-between">
-                                                    <p className="font-medium text-sm text-primary">{selectedBooking.services}</p>
+                                                    <p className="font-medium text-sm text-foreground">{selectedBooking.services}</p>
                                                     {selectedBooking.totalPrice && (
-                                                        <span className="text-sm font-medium">{formatPrice(selectedBooking.totalPrice)}</span>
+                                                        <span className="text-sm font-medium">{formatPrice(selectedBooking.totalPrice, selectedBooking.salonCurrency)}</span>
                                                     )}
                                                 </div>
                                             ) : null}
@@ -396,7 +450,7 @@ function BookingsContent() {
                                                 <Separator className="my-3" />
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-bold text-sm">Total</span>
-                                                    <span className="font-bold text-sm text-primary">{formatPrice(selectedBooking.totalPrice)}</span>
+                                                    <span className="font-bold text-sm text-foreground">{formatPrice(selectedBooking.totalPrice, selectedBooking.salonCurrency)}</span>
                                                 </div>
                                             </>
                                         )}

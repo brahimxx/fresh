@@ -141,11 +141,11 @@ export var PAYMENT_METHODS = [
 
 // Payment status constants
 export var PAYMENT_STATUSES = {
-  pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
-  completed: { label: 'Completed', color: 'bg-green-100 text-green-800' },
-  failed: { label: 'Failed', color: 'bg-red-100 text-red-800' },
-  refunded: { label: 'Refunded', color: 'bg-gray-100 text-gray-800' },
-  partial_refund: { label: 'Partial Refund', color: 'bg-orange-100 text-orange-800' },
+  pending: { label: 'Pending', color: 'bg-amber-50/50 text-amber-600 border-amber-200' },
+  completed: { label: 'Completed', color: 'bg-green-500/10 text-green-500 border-green-500/20' },
+  failed: { label: 'Failed', color: 'bg-red-500/10 text-red-500 border-red-500/20' },
+  refunded: { label: 'Refunded', color: 'bg-gray-500/10 text-gray-500 border-gray-500/20' },
+  partial_refund: { label: 'Partial Refund', color: 'bg-orange-500/10 text-orange-500 border-orange-500/20' },
 };
 
 

@@ -16,12 +16,16 @@ import {
   Loader2,
   Tag,
   X,
+  CreditCard,
+  Banknote,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { generateSalonSlug } from "@/lib/utils";
 
 // Import booking steps
 import { ServiceSelection } from "@/components/booking-widget/service-selection";
@@ -30,6 +34,7 @@ import { BookingAuth } from "@/components/booking-widget/booking-auth";
 import { BookingConfirmation } from "@/components/booking-widget/booking-confirmation";
 import { useAuth } from "@/providers/auth-provider";
 import api from "@/lib/api-client";
+import { formatDuration, formatCurrency } from "@/lib/format";
 
 var STEPS = [
   { id: "services", label: "Services", icon: Scissors },
@@ -56,6 +61,7 @@ export default function BookingPage({ params }) {
   var [selectedDate, setSelectedDate] = useState(null);
   var [selectedTime, setSelectedTime] = useState(null);
   var [bookingNotes, setBookingNotes] = useState("");
+  var [paymentMethod, setPaymentMethod] = useState("cash");
   var [bookingComplete, setBookingComplete] = useState(false);
   var [bookingResult, setBookingResult] = useState(null);
   var [isBooking, setIsBooking] = useState(false);
@@ -67,6 +73,16 @@ export default function BookingPage({ params }) {
   var [appliedDiscount, setAppliedDiscount] = useState(null);
   var [discountError, setDiscountError] = useState("");
   var [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
+
+  // Check for cancelled checkout redirect
+  useEffect(
+    function () {
+      if (searchParams.get("error") === "checkout_cancelled") {
+        setErrorMsg("Your card payment was incomplete. Your booking slot has been released.");
+      }
+    },
+    [searchParams]
+  );
 
   // Load salon data
   useEffect(
@@ -281,22 +297,31 @@ export default function BookingPage({ params }) {
           services: servicesWithStaff,
           startTime: startTime,
           notes: bookingNotes,
+          paymentMethod: paymentMethod,
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
 
       if (res.ok) {
         var result = await res.json();
+        if (paymentMethod === "stripe" && result.data?.checkoutUrl) {
+          window.location.href = result.data.checkoutUrl;
+          return;
+        }
         setBookingResult(result.data);
         setBookingComplete(true);
       } else {
         var errorData = await res.json();
-        // Handle both string and object error formats
         var errorMessage = typeof errorData.error === 'string'
           ? errorData.error
           : (errorData.error?.message || "Unable to complete booking");
+        
+        var errorCode = errorData.error?.code;
 
-        if (errorMessage.includes("not available")) {
+        if (errorCode === "CLIENT_BLACKLISTED") {
+          setErrorMsg(errorMessage);
+          return; // Stop here, do not go back to step 1
+        } else if (errorMessage.includes("not available")) {
           setErrorMsg("This time slot is no longer available. Please select a different time.");
         } else if (errorMessage.includes("conflict")) {
           setErrorMsg("There's a scheduling conflict. Please choose a different time slot.");
@@ -378,11 +403,13 @@ export default function BookingPage({ params }) {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="bg-background border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4">
+      {/* Header and Progress Wrap (Sticky) */}
+      <div className="sticky top-0 z-30 bg-background border-b shadow-sm">
+        {/* Header */}
+        <header className="border-b">
+          <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Link href={'/salon/' + salonId}>
+            <Link href={'/salon/' + (salon ? generateSalonSlug(salon) : salonId)}>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
@@ -421,10 +448,9 @@ export default function BookingPage({ params }) {
             </div>
           </div>
         </div>
-      </header>
+        </header>
 
-      {/* Progress Steps */}
-      <div className="bg-background border-b">
+        {/* Progress Steps */}
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             {STEPS.map(function (step, index) {
@@ -434,11 +460,22 @@ export default function BookingPage({ params }) {
 
               return (
                 <div key={step.id} className="flex items-center">
-                  <div
-                    className={
-                      "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors " +
-                      (isCompleted
-                        ? "bg-primary text-primary-foreground"
+                  <button
+                    type="button"
+                    onClick={function() {
+                      if (isCompleted) {
+                        setCurrentStep(index);
+                      }
+                    }}
+                    disabled={!isCompleted}
+                    className={"flex items-center outline-none group " + (isCompleted ? "cursor-pointer" : "")}
+                  >
+                    <div
+                      className={
+                        "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-all duration-300 " +
+                        (isCompleted ? "group-hover:opacity-80 group-hover:scale-[1.05] " : "") +
+                        (isCompleted
+                          ? "bg-primary text-primary-foreground"
                         : isActive
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground")
@@ -460,6 +497,7 @@ export default function BookingPage({ params }) {
                   >
                     {step.label}
                   </span>
+                  </button>
                   {index < STEPS.length - 1 && (
                     <div
                       className={
@@ -511,6 +549,7 @@ export default function BookingPage({ params }) {
                   salonId={salonId}
                   selected={selectedServices}
                   onSelect={setSelectedServices}
+                  currency={salon?.currency}
                 />
               )}
 
@@ -563,7 +602,7 @@ export default function BookingPage({ params }) {
                           >
                             <div className="flex justify-between">
                               <span className="font-medium">{service.name}</span>
-                              <span>${(parseFloat(service.price) || 0).toFixed(2)}</span>
+                              <span>{formatCurrency(service.price || 0, salon?.currency)}</span>
                             </div>
                             {service.staffName && (
                               <p className="text-sm text-muted-foreground mt-1">
@@ -613,8 +652,8 @@ export default function BookingPage({ params }) {
                             <p className="text-xs text-emerald-600 dark:text-emerald-400">
                               {appliedDiscount.type === 'percentage'
                                 ? appliedDiscount.value + '% off'
-                                : '$' + parseFloat(appliedDiscount.value).toFixed(2) + ' off'}
-                              {' — saving $' + discountAmount.toFixed(2)}
+                                : formatCurrency(appliedDiscount.value, salon?.currency) + ' off'}
+                              {' — saving ' + formatCurrency(discountAmount, salon?.currency)}
                             </p>
                           </div>
                           <button onClick={handleRemoveDiscount} className="text-emerald-500 hover:text-emerald-700">
@@ -649,8 +688,37 @@ export default function BookingPage({ params }) {
                       )}
                     </div>
 
+                    {/* Payment Method */}
+                    <div className="space-y-4 pt-2 border-t">
+                      <label className="font-medium text-sm">
+                        Payment Method
+                      </label>
+                      <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="gap-3">
+                        <div className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === 'stripe' ? 'bg-primary/5 border-primary' : 'hover:bg-muted'}`} onClick={() => setPaymentMethod('stripe')}>
+                          <RadioGroupItem value="stripe" id="pay-stripe" />
+                          <label htmlFor="pay-stripe" className="flex flex-1 items-center gap-2 cursor-pointer">
+                            <CreditCard className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">Pay with Card</span>
+                              <span className="text-xs text-muted-foreground">Secure payment via Stripe</span>
+                            </div>
+                          </label>
+                        </div>
+                        <div className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === 'cash' ? 'bg-primary/5 border-primary' : 'hover:bg-muted'}`} onClick={() => setPaymentMethod('cash')}>
+                          <RadioGroupItem value="cash" id="pay-cash" />
+                          <label htmlFor="pay-cash" className="flex flex-1 items-center gap-2 cursor-pointer">
+                            <Banknote className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">Pay at Salon</span>
+                              <span className="text-xs text-muted-foreground">Cash or card after your appointment</span>
+                            </div>
+                          </label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
                     {/* Optional notes */}
-                    <div className="space-y-2 pt-2 border-t">
+                    <div className="space-y-2 pt-2 border-t mt-4">
                       <label
                         htmlFor="booking-notes"
                         className="font-medium text-sm"
@@ -675,7 +743,7 @@ export default function BookingPage({ params }) {
 
           {/* Summary Sidebar */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-32">
+            <Card className="sticky top-40">
               <CardHeader>
                 <CardTitle className="text-lg">Booking Summary</CardTitle>
               </CardHeader>
@@ -692,11 +760,11 @@ export default function BookingPage({ params }) {
                             <div>
                               <p className="font-medium">{service.name}</p>
                               <p className="text-muted-foreground">
-                                {service.duration} min
+                                {formatDuration(service.duration)}
                               </p>
                             </div>
                             <p className="font-medium">
-                              ${(parseFloat(service.price) || 0).toFixed(2)}
+                              {formatCurrency(service.price || 0, salon?.currency)}
                             </p>
                           </div>
                         );
@@ -706,26 +774,26 @@ export default function BookingPage({ params }) {
                     <div className="border-t pt-4 space-y-1">
                       <div className="flex justify-between text-sm mb-1">
                         <span>Duration</span>
-                        <span>{totalDuration} min</span>
+                        <span>{formatDuration(totalDuration)}</span>
                       </div>
                       {discountAmount > 0 && (
                         <>
                           <div className="flex justify-between text-sm text-muted-foreground">
                             <span>Subtotal</span>
-                            <span>${totalPrice.toFixed(2)}</span>
+                            <span>{formatCurrency(totalPrice, salon?.currency)}</span>
                           </div>
                           <div className="flex justify-between text-sm text-emerald-600">
                             <span className="flex items-center gap-1">
                               <Tag className="h-3 w-3" />
                               {appliedDiscount.code}
                             </span>
-                            <span>-${discountAmount.toFixed(2)}</span>
+                            <span>-{formatCurrency(discountAmount, salon?.currency)}</span>
                           </div>
                         </>
                       )}
                       <div className="flex justify-between font-semibold pt-1 border-t">
                         <span>Total</span>
-                        <span>${finalTotal.toFixed(2)}</span>
+                        <span>{formatCurrency(finalTotal, salon?.currency)}</span>
                       </div>
                     </div>
 

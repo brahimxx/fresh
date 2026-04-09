@@ -18,37 +18,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useClientBookings } from "@/hooks/use-clients";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 var STATUS_CONFIG = {
   pending: {
     label: "Pending",
-    className: "bg-yellow-100 text-yellow-800",
+    className: "bg-amber-50/50 text-amber-600 border border-amber-200",
     icon: Clock,
   },
   confirmed: {
     label: "Confirmed",
-    className: "bg-green-100 text-green-800",
+    className: "bg-slate-50/50 text-slate-700 border border-slate-200",
     icon: Check,
   },
   completed: {
     label: "Completed",
-    className: "bg-blue-100 text-blue-800",
+    className: "bg-green-50/50 text-green-600 border border-green-200",
     icon: Check,
   },
   cancelled: {
     label: "Cancelled",
-    className: "bg-gray-100 text-gray-800",
+    className: "bg-red-50/50 text-red-600 border border-red-200",
     icon: XCircle,
   },
   no_show: {
     label: "No Show",
-    className: "bg-red-100 text-red-800",
+    className: "bg-orange-50/50 text-orange-600 border border-orange-200",
     icon: AlertCircle,
   },
 };
 
 export function ClientBookingHistory({ clientId, salonId }) {
   var router = useRouter();
+  var { salon } = useSalon();
   var { data: bookings, isLoading } = useClientBookings(clientId, salonId);
 
   function handleViewBooking(bookingId) {
@@ -222,10 +225,9 @@ export function ClientBookingHistory({ clientId, salonId }) {
                                 <>
                                   <span>•</span>
                                   <span>
-                                    EUR{" "}
-                                    {Number(
+                                    {formatCurrency(Number(
                                       booking.total_price || booking.totalPrice,
-                                    ).toFixed(2)}
+                                    ), salon?.currency)}
                                   </span>
                                 </>
                               )}

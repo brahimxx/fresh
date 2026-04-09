@@ -113,14 +113,20 @@ export async function POST(request) {
     }
 
     // Check if payment already exists
-    const existingPayment = await getOne('SELECT id FROM payments WHERE booking_id = ?', [bookingId]);
-    if (existingPayment) {
+    const existingPayment = await getOne('SELECT id, status FROM payments WHERE booking_id = ?', [bookingId]);
+    if (existingPayment && existingPayment.status === 'paid') {
       return error('Payment already exists for this booking', 409);
     }
 
     const result = await query(
       `INSERT INTO payments (booking_id, amount, method, status, stripe_payment_id, created_at)
-       VALUES (?, ?, ?, 'pending', ?, NOW())`,
+       VALUES (?, ?, ?, 'pending', ?, NOW())
+       ON DUPLICATE KEY UPDATE 
+          amount = VALUES(amount),
+          method = VALUES(method),
+          status = VALUES(status),
+          stripe_payment_id = VALUES(stripe_payment_id),
+          updated_at = NOW()`,
       [bookingId, amount, method, stripePaymentId || null]
     );
 

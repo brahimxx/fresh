@@ -13,6 +13,7 @@ import {
   formatValidationErrors,
 } from "@/lib/validate";
 import { createSafeBooking, BookingError } from "@/lib/booking";
+import { stripe } from "@/lib/stripe";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
 export async function POST(request, { params }) {
@@ -47,7 +48,7 @@ export async function POST(request, { params }) {
     const autoConfirm = salonSettings ? !!salonSettings.auto_confirm_bookings : false;
 
     const body = await request.json();
-    const { services, startTime, notes } = body;
+    const { services, startTime, notes, paymentMethod } = body;
 
     // Validate services array
     if (!services || !Array.isArray(services) || services.length === 0) {
@@ -76,6 +77,22 @@ export async function POST(request, { params }) {
     // Use authenticated user's data
     const clientId = session.userId;
 
+    // Check if the client is blacklisted at this salon
+    const salonClientRecord = await getOne(
+      "SELECT is_active FROM salon_clients WHERE client_id = ? AND salon_id = ?",
+      [clientId, salonId]
+    );
+
+    if (salonClientRecord && salonClientRecord.is_active === 0) {
+      return error(
+        { 
+          code: "CLIENT_BLACKLISTED", 
+          message: "You are currently restricted from booking at this salon due to previous no-shows or cancellations. Please contact the salon directly." 
+        }, 
+        403
+      );
+    }
+
     // Verify all services exist and staff can perform them
     let totalDuration = 0;
     let totalBuffer = 0;
@@ -98,18 +115,20 @@ export async function POST(request, { params }) {
       }
 
       // Verify staff can perform this service
-      const staffCheck = await getOne(
-        "SELECT service_id FROM service_staff WHERE service_id = ? AND staff_id = ?",
-        [svc.serviceId, svc.staffId],
-      );
-      if (!staffCheck) {
-        return error(
-          {
-            code: "INVALID_STAFF",
-            message: `Staff ${svc.staffId} cannot perform service: ${service.name}`,
-          },
-          400,
+      if (svc.staffId !== "any" && svc.staffId !== "ANYONE_VIRTUAL") {
+        const staffCheck = await getOne(
+          "SELECT service_id FROM service_staff WHERE service_id = ? AND staff_id = ?",
+          [svc.serviceId, svc.staffId],
         );
+        if (!staffCheck) {
+          return error(
+            {
+              code: "INVALID_STAFF",
+              message: `Staff ${svc.staffId} cannot perform service: ${service.name}`,
+            },
+            400,
+          );
+        }
       }
 
       totalDuration += service.duration_minutes;
@@ -138,25 +157,44 @@ export async function POST(request, { params }) {
     const startDatetimeFormatted = `${startDateTime.getFullYear()}-${pad(startDateTime.getMonth() + 1)}-${pad(startDateTime.getDate())} ${pad(startDateTime.getHours())}:${pad(startDateTime.getMinutes())}:${pad(startDateTime.getSeconds())}`;
     const endDatetimeFormatted = `${endDateTime.getFullYear()}-${pad(endDateTime.getMonth() + 1)}-${pad(endDateTime.getDate())} ${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}:${pad(endDateTime.getSeconds())}`;
 
-    // Get unique staff IDs for conflict checking
-    const staffIds = [...new Set(services.map((s) => s.staffId))];
+    // ── Per-service sequential working hours check ───────────────────────
+    //
+    // Build the sequential service schedule and verify each staff member's
+    // working hours only against the time window of their assigned service(s),
+    // not the entire booking span. This enables scenarios where Staff Y starts
+    // at 12:30 but Service A with Staff X runs 12:00–12:30 before Y takes over.
 
-    // Check working hours for all staff
-    // Use the ORIGINAL startDateTime for day/time checks (not the UTC-adjusted version)
+    // Build the sequential schedule: service windows back-to-back
     const dayOfWeek = startDateTime.getDay();
-    const timeStr = startDateTime.toTimeString().slice(0, 8); // HH:MM:SS in local Algeria time
-    const endTimeStr = endDateTime.toTimeString().slice(0, 8);
+    let scheduleCursor = new Date(startDateTime);
+    const serviceWindows = serviceDetails.map((svc, i) => {
+      const duration = svc.duration;
+      const buffer = svc.bufferTime || 0;
+      const isLast = i === serviceDetails.length - 1;
+      const winStart = new Date(scheduleCursor);
+      const winEnd = new Date(scheduleCursor.getTime() + (duration + (isLast ? buffer : 0)) * 60000);
+      // Advance cursor by pure duration (no buffer gap between services)
+      scheduleCursor = new Date(scheduleCursor.getTime() + duration * 60000);
+      return { staffId: svc.staffId, start: winStart, end: winEnd };
+    });
 
+    // Group windows by staff
+    const staffWindowsMap = {};
+    for (const win of serviceWindows) {
+      if (win.staffId === "any" || win.staffId === "ANYONE_VIRTUAL") continue;
+      if (!staffWindowsMap[win.staffId]) staffWindowsMap[win.staffId] = [];
+      staffWindowsMap[win.staffId].push(win);
+    }
 
-    for (let staffId of staffIds) {
-      // Check if staff works this day (without restrictive time conditions)
+    for (const [staffIdStr, windows] of Object.entries(staffWindowsMap)) {
+      const sId = staffIdStr;
+
       let workingHours = await getOne(
         "SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?",
-        [staffId, dayOfWeek],
+        [sId, dayOfWeek],
       );
 
       if (!workingHours) {
-        // Fallback to business hours
         workingHours = await getOne(
           "SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0",
           [salonId, dayOfWeek],
@@ -165,42 +203,46 @@ export async function POST(request, { params }) {
 
       if (!workingHours) {
         console.error(
-          `[WIDGET BOOKING] Staff ${staffId} not working on day ${dayOfWeek}`,
+          `[WIDGET BOOKING] Staff ${sId} not working on day ${dayOfWeek}`,
         );
         return error(
           {
             code: "STAFF_UNAVAILABLE",
-            message: `Staff ${staffId} is not working on this day`,
+            message: `Staff ${sId} is not working on this day`,
           },
           409,
         );
       }
 
-      // Verify appointment time falls within working hours.
-      // Split into two branches so the message describes the exact problem.
-      if (timeStr < workingHours.start_time) {
-        console.error(
-          `[WIDGET BOOKING] Staff ${staffId} doesn't start until ${workingHours.start_time}, requested ${timeStr}`,
-        );
-        return error(
-          {
-            code: "STAFF_UNAVAILABLE",
-            message: `Staff doesn't start working until ${workingHours.start_time.slice(0, 5)}. Please choose a time at or after ${workingHours.start_time.slice(0, 5)}.`,
-          },
-          409,
-        );
-      }
-      if (endTimeStr > workingHours.end_time) {
-        console.error(
-          `[WIDGET BOOKING] Service exceeds shift — shift ends ${workingHours.end_time}, booking would end ${endTimeStr}`,
-        );
-        return error(
-          {
-            code: "SERVICE_EXCEEDS_SHIFT",
-            message: `This service would end at ${endTimeStr.slice(0, 5)}, but the staff's shift ends at ${workingHours.end_time.slice(0, 5)}. Please choose an earlier start time.`,
-          },
-          409,
-        );
+      // Check each service window for this staff member
+      for (const win of windows) {
+        const winTimeStr = win.start.toTimeString().slice(0, 8);
+        const winEndTimeStr = win.end.toTimeString().slice(0, 8);
+
+        if (winTimeStr < workingHours.start_time) {
+          console.error(
+            `[WIDGET BOOKING] Staff ${sId} doesn't start until ${workingHours.start_time}, service needs ${winTimeStr}`,
+          );
+          return error(
+            {
+              code: "STAFF_UNAVAILABLE",
+              message: `Staff doesn't start working until ${workingHours.start_time.slice(0, 5)}. Please choose a time at or after ${workingHours.start_time.slice(0, 5)}.`,
+            },
+            409,
+          );
+        }
+        if (winEndTimeStr > workingHours.end_time) {
+          console.error(
+            `[WIDGET BOOKING] Service exceeds shift — shift ends ${workingHours.end_time}, service would end ${winEndTimeStr}`,
+          );
+          return error(
+            {
+              code: "SERVICE_EXCEEDS_SHIFT",
+              message: `This service would end at ${winEndTimeStr.slice(0, 5)}, but the staff's shift ends at ${workingHours.end_time.slice(0, 5)}. Please choose an earlier start time.`,
+            },
+            409,
+          );
+        }
       }
     }
 
@@ -229,6 +271,57 @@ export async function POST(request, { params }) {
     });
 
     const { bookingId, isNewClient } = result;
+    const finalPrice = result.totalPrice || totalPrice;
+
+    let checkoutUrl = null;
+    
+    if (paymentMethod === 'stripe') {
+      try {
+        const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        
+        // Insert a pending payment record
+        await query(
+          "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'card', 'pending')",
+          [bookingId, finalPrice || 0]
+        );
+        
+        // Create Stripe checkout session
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'eur', // Assuming eur, adjust if salon uses different currency
+                product_data: {
+                  name: `Booking at ${salon.name}`,
+                },
+                unit_amount: Math.round((finalPrice || 0) * 100), // Stripe expects amounts in cents
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${origin}/dashboard/client/bookings?success=true`,
+          cancel_url: `${origin}/api/checkout/cancel?bookingId=${bookingId}&salonId=${salonId}`,
+          expires_at: Math.floor(Date.now() / 1000) + (30 * 60), // Expire link exactly in 30 minutes
+          metadata: {
+            bookingId: bookingId.toString(),
+            salonId: salonId.toString(),
+          }
+        });
+        
+        checkoutUrl = session.url;
+      } catch (stripeErr) {
+        console.error("Stripe session creation failed:", stripeErr);
+        // Continue, the booking is created. They can pay later.
+      }
+    } else if (paymentMethod === 'cash') {
+      // Insert a pending cash payment
+      await query(
+        "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'cash', 'pending')",
+        [bookingId, finalPrice || 0]
+      );
+    }
 
     // Notification for salon owner — runs OUTSIDE the booking transaction.
     // A notification failure must never roll back a successfully created booking.
@@ -259,6 +352,7 @@ export async function POST(request, { params }) {
     return created({
       success: true,
       bookingId: result.bookingId,
+      checkoutUrl,
       message:
         widgetSettings.success_message || "Your booking has been confirmed!",
       booking: {

@@ -8,7 +8,7 @@ export async function GET(request, { params }) {
 
     // Get salon basic info
     const salon = await getOne(
-      'SELECT id, name, address, city, phone, email, website, logo_url FROM salons WHERE id = ? AND is_active = 1',
+      'SELECT id, name, address, city, phone, email, website, logo_url, currency FROM salons WHERE id = ? AND is_active = 1',
       [salonId]
     );
 
@@ -61,6 +61,7 @@ export async function GET(request, { params }) {
         email: salon.email,
         website: salon.website,
         logo: salon.logo_url,
+        currency: salon.currency,
       },
       settings: {
         primaryColor: widgetSettings.primary_color,

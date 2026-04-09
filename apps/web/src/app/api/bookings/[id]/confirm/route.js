@@ -47,13 +47,37 @@ export async function POST(request, { params }) {
     // Send confirmation notification to client (non-blocking)
     const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
     const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+    
+    // Fetch associated services for a richer notification
+    const services = await query(
+      `SELECT s.name, s.duration_minutes 
+       FROM booking_services bs 
+       JOIN services s ON s.id = bs.service_id 
+       WHERE bs.booking_id = ?`,
+      [id]
+    );
+
     if (client) {
+      // Normalise startDatetime nicely
+      const pad = (n) => String(n).padStart(2, "0");
+      const d = new Date(String(booking.start_datetime).replace(" ", "T"));
+      const startDatetimeFormatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      
+      const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
+
       sendNotification({
         userId: client.id,
         email: client.email,
         type: 'email',
         title: 'Booking Confirmed',
-        message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking at <strong>${salon?.name || 'the salon'}</strong> on ${new Date(booking.start_datetime).toLocaleString()} has been confirmed!</p>`,
+        message: `
+          <p>Hi ${client.first_name || 'there'},</p>
+          <p>Your booking at <strong>${salon?.name || 'the salon'}</strong> has been confirmed by the staff!</p>
+          <p><strong>When:</strong> ${startDatetimeFormatted}</p>
+          <p><strong>Services:</strong></p>
+          <ul>${formattedServicesHTML}</ul>
+          <p>We look forward to seeing you!</p>
+        `,
         data: { bookingId: id, status: 'confirmed' }
       });
     }

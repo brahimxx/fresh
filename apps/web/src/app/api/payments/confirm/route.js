@@ -34,10 +34,16 @@ export async function POST(request) {
       });
     }
 
-    // Create payment record
+    // Create payment record (using upsert in case a pending record exists)
     const result = await query(
       `INSERT INTO payments (booking_id, amount, method, status, stripe_payment_id, created_at)
-       VALUES (?, ?, 'card', 'paid', ?, NOW())`,
+       VALUES (?, ?, 'card', 'paid', ?, NOW())
+       ON DUPLICATE KEY UPDATE 
+          amount = VALUES(amount),
+          method = VALUES(method),
+          status = VALUES(status),
+          stripe_payment_id = VALUES(stripe_payment_id),
+          updated_at = NOW()`,
       [bookingId, paymentIntent.amount / 100, paymentIntentId]
     );
 

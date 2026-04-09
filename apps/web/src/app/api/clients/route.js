@@ -215,6 +215,32 @@ export async function GET(request) {
 
     let sql, queryParams;
 
+    // ── Get aggregate stats ──────────────────────────────────────────────────
+    const [statsResult] = await query(`
+      SELECT 
+        COUNT(*) as total_active,
+        SUM(CASE WHEN MONTH(first_visit_date) = MONTH(CURRENT_DATE()) 
+                  AND YEAR(first_visit_date) = YEAR(CURRENT_DATE()) 
+             THEN 1 ELSE 0 END) as new_this_month
+      FROM salon_clients 
+      WHERE salon_id = ? AND is_active = 1
+    `, [salonId]);
+
+    const [revenueResult] = await query(`
+      SELECT COALESCE(SUM(p.amount), 0) as total_revenue
+      FROM payments p
+      JOIN bookings b ON b.id = p.booking_id
+      WHERE b.salon_id = ? AND p.status = 'paid'
+    `, [salonId]);
+
+    const stats = {
+      active: Number(statsResult?.total_active || 0),
+      newThisMonth: Number(statsResult?.new_this_month || 0),
+      avgSpend: statsResult?.total_active > 0 
+        ? Number(revenueResult?.total_revenue || 0) / Number(statsResult?.total_active)
+        : 0
+    };
+
     const SELECT_COLS = `
         u.id              AS id,
         u.first_name,
@@ -224,6 +250,12 @@ export async function GET(request) {
         sc.last_visit_date,
         sc.total_visits,
         sc.first_visit_date,
+        sc.is_active,
+        (SELECT COALESCE(SUM(p.amount), 0)
+         FROM payments p
+         JOIN bookings b ON b.id = p.booking_id
+         WHERE b.client_id = u.id AND b.salon_id = sc.salon_id AND p.status = 'paid'
+        ) AS total_spent,
         COUNT(*) OVER()   AS total`;
 
     if (isPhone || isEmail) {
@@ -243,7 +275,7 @@ export async function GET(request) {
           JOIN salon_clients sc
             ON sc.client_id  = u.id
            AND sc.salon_id   = ?
-           AND sc.is_active  = 1
+           
          WHERE u.deleted_at IS NULL
            AND ${userCondition}
          ORDER BY sc.last_visit_date DESC
@@ -256,7 +288,7 @@ export async function GET(request) {
       // covers the filter and the ORDER BY with no filesort.
       const conditions = [
         "sc.salon_id  = ?",
-        "sc.is_active = 1",
+        
         "u.deleted_at IS NULL",
       ];
       const params = [salonId];
@@ -292,6 +324,8 @@ export async function GET(request) {
         lastVisitDate: r.last_visit_date,
         firstVisitDate: r.first_visit_date,
         totalVisits: r.total_visits,
+        totalSpent: parseFloat(r.total_spent || 0),
+        isActive: r.is_active === 1,
       })),
       pagination: {
         page,
@@ -299,6 +333,7 @@ export async function GET(request) {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      stats
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();

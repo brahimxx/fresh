@@ -35,13 +35,18 @@ export async function GET(request) {
              u.first_name as client_first_name, u.last_name as client_last_name, u.email as client_email, u.phone as client_phone,
              s.name as salon_name,
              COALESCE(st.first_name, su.first_name) as staff_first_name,
-             COALESCE(st.last_name, su.last_name) as staff_last_name
+             COALESCE(st.last_name, su.last_name) as staff_last_name,
+             p.method as payment_method,
+             p.status as payment_status_real,
+             sc.is_active as client_is_active
       FROM bookings b
       JOIN users u ON u.id = b.client_id
       JOIN salons s ON s.id = b.salon_id
       LEFT JOIN staff st ON st.id = b.staff_id
       LEFT JOIN users su ON su.id = st.user_id
-      WHERE 1=1
+      LEFT JOIN payments p ON p.booking_id = b.id
+      LEFT JOIN salon_clients sc ON sc.salon_id = b.salon_id AND sc.client_id = b.client_id
+      WHERE b.deleted_at IS NULL
     `;
     const params = [];
 
@@ -83,7 +88,7 @@ export async function GET(request) {
       params.push(endDate);
     }
 
-    sql += " ORDER BY b.start_datetime DESC LIMIT ? OFFSET ?";
+    sql += " ORDER BY b.created_at DESC LIMIT ? OFFSET ?";
     params.push(limit, offset);
 
     const bookings = await query(sql, params);
@@ -116,6 +121,7 @@ export async function GET(request) {
         email: b.client_email,
         phone: b.client_phone,
       },
+      clientIsActive: b.client_is_active !== null ? b.client_is_active === 1 : true,
       staff: b.staff_id
         ? {
           id: b.staff_id,
@@ -127,6 +133,9 @@ export async function GET(request) {
       endDatetime: String(b.end_datetime).replace(' ', 'T'),
       status: b.status,
       source: b.source,
+      totalPrice: b.total_price,
+      paymentMethod: b.payment_method,
+      paymentStatus: b.payment_status_real || b.payment_status,
       createdAt: b.created_at,
       services: bookingServices
         .filter((bs) => bs.booking_id === b.id)
@@ -136,6 +145,8 @@ export async function GET(request) {
           price: bs.price,
           duration: bs.duration_minutes,
           staffId: bs.staff_id,
+          startDatetime: bs.start_datetime ? String(bs.start_datetime).replace(' ', 'T') : null,
+          endDatetime: bs.end_datetime ? String(bs.end_datetime).replace(' ', 'T') : null,
         })),
     }));
 
@@ -171,6 +182,7 @@ export async function POST(request) {
       clientId,
       staffId,
       serviceIds,
+      staffAssignments,
       startDatetime,
       notes,
       source,
@@ -186,10 +198,10 @@ export async function POST(request) {
       );
     }
 
-    // ── Round 1: four independent fetches in parallel ──────────────────────
-    // services, staff, salon config, and client all carry no inter-dependency
+// ── Round 1: five independent fetches in parallel ──────────────────────
+    // services, staff, salon config, client, and client status all carry no inter-dependency
     // so we fire them all at once and wait once.
-    const [services, staffRecord, salon, clientRecord] = await Promise.all([
+    const [services, staffRecord, salon, clientRecord, salonClientRecord] = await Promise.all([
       query(
         `SELECT id, name, duration_minutes, buffer_time_minutes, price
            FROM services
@@ -202,14 +214,32 @@ export async function POST(request) {
         [staffId, salonId],
       ),
       getOne(
-        "SELECT is_marketplace_enabled FROM salons WHERE id = ? AND deleted_at IS NULL",
+        `SELECT s.id, s.is_marketplace_enabled, s.owner_id, s.name, u.email as owner_email, u.first_name as owner_first_name
+         FROM salons s 
+         JOIN users u ON u.id = s.owner_id
+         WHERE s.id = ? AND s.deleted_at IS NULL`,
         [salonId],
       ),
       getOne(
         "SELECT id, first_name, email FROM users WHERE id = ? AND deleted_at IS NULL",
         [clientId],
       ),
+      getOne(
+        "SELECT is_active FROM salon_clients WHERE client_id = ? AND salon_id = ?",
+        [clientId, salonId]
+      ),
     ]);
+
+    // Check if the client is blacklisted at this salon
+    if (salonClientRecord && salonClientRecord.is_active === 0 && source !== "direct" && source !== "manual") {
+      return error(
+        { 
+          code: "CLIENT_BLACKLISTED", 
+          message: "You are currently restricted from booking at this salon due to previous no-shows or cancellations. Please contact the salon directly." 
+        }, 
+        403
+      );
+    }
 
     // Deduplicate serviceIds to prevent false-positive length mismatch
     const uniqueServiceIds = [...new Set(serviceIds.map(Number))];
@@ -230,7 +260,7 @@ export async function POST(request) {
         400,
       );
     }
-    if (!staffRecord) {
+    if (staffId !== "ANYONE_VIRTUAL" && !staffRecord) {
       return error(
         {
           code: "STAFF_UNAVAILABLE",
@@ -241,20 +271,22 @@ export async function POST(request) {
     }
 
     // ── Round 2: staff–service authorisation (needs uniqueServiceIds from round 1) ─
-    const staffServices = await query(
-      `SELECT service_id FROM service_staff
-        WHERE staff_id = ? AND service_id IN (${uniqueServiceIds.map(() => "?").join(",")})`,
-      [staffId, ...uniqueServiceIds],
-    );
-
-    if (staffServices.length !== uniqueServiceIds.length) {
-      return error(
-        {
-          code: "STAFF_SERVICE_MISMATCH",
-          message: "Staff member is not authorised to perform one or more of the selected services",
-        },
-        400,
+    if (staffId !== "ANYONE_VIRTUAL") {
+      const staffServices = await query(
+        `SELECT service_id FROM service_staff
+          WHERE staff_id = ? AND service_id IN (${uniqueServiceIds.map(() => "?").join(",")})`,
+        [staffId, ...uniqueServiceIds],
       );
+
+      if (staffServices.length !== uniqueServiceIds.length) {
+        return error(
+          {
+            code: "STAFF_SERVICE_MISMATCH",
+            message: "Staff member is not authorised to perform one or more of the selected services",
+          },
+          400,
+        );
+      }
     }
 
     const totalDuration = services.reduce((sum, s) => sum + s.duration_minutes, 0);
@@ -293,13 +325,19 @@ export async function POST(request) {
       primaryStaffId: staffId,
       startDatetime: startDatetimeFormatted,
       endDatetime: endDatetimeFormatted,
-      services: services.map((s) => ({
-        serviceId: s.id,
-        staffId: staffId,
-        price: s.price,
-        duration: s.duration_minutes,
-        bufferTime: s.buffer_time_minutes || 0,
-      })),
+      services: services.map((s) => {
+        // Use per-service staff if available, otherwise fall back to global staffId
+        var svcStaff = (staffAssignments && staffAssignments[String(s.id)])
+          ? staffAssignments[String(s.id)]
+          : staffId;
+        return {
+          serviceId: s.id,
+          staffId: svcStaff,
+          price: s.price,
+          duration: s.duration_minutes,
+          bufferTime: s.buffer_time_minutes || 0,
+        };
+      }),
       notes: notes || null,
       status,
       source,
@@ -323,7 +361,7 @@ export async function POST(request) {
       <p>Thank you for booking with Fresh!</p>
     `;
 
-    // Fire & Forget Notification
+    // Fire & Forget Notification (To Client)
     sendNotification({
       userId: clientId,
       email: clientRecord.email,
@@ -332,6 +370,29 @@ export async function POST(request) {
       message: notificationBody,
       data: { bookingId: result.bookingId, status }
     });
+
+    // Fire & Forget Notification (To Salon Owner)
+    if (status === 'pending') {
+      const ownerNotificationTitle = `New Booking Request (Pending): ${clientRecord.first_name}`;
+      const ownerNotificationBody = `
+        <p>Hi ${salon.owner_first_name || 'there'},</p>
+        <p>You have received a new booking at ${salon.name} that requires your approval.</p>
+        <p><strong>Client:</strong> ${clientRecord.first_name}</p>
+        <p><strong>When:</strong> ${startDatetimeFormatted}</p>
+        <p><strong>Services:</strong></p>
+        <ul>${formattedServicesHTML}</ul>
+        <p>Please log in to your dashboard to confirm or decline this request.</p>
+      `;
+
+      sendNotification({
+        userId: salon.owner_id,
+        email: salon.owner_email,
+        type: 'email',
+        title: ownerNotificationTitle,
+        message: ownerNotificationBody,
+        data: { bookingId: result.bookingId, status }
+      });
+    }
 
     return created({
       id: result.bookingId,

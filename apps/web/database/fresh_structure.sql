@@ -141,6 +141,8 @@ CREATE TABLE `booking_services` (
   `booking_id` bigint unsigned NOT NULL,
   `service_id` bigint unsigned NOT NULL,
   `staff_id` bigint unsigned DEFAULT NULL,
+  `start_datetime` datetime NOT NULL,
+  `end_datetime` datetime NOT NULL,
   `price` decimal(10,2) NOT NULL,
   `duration_minutes` int NOT NULL,
   PRIMARY KEY (`booking_id`,`service_id`),
@@ -187,7 +189,7 @@ CREATE TABLE `bookings` (
   CONSTRAINT `fk_bookings_client` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=68 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -207,7 +209,7 @@ CREATE TABLE `business_hours` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_salon_day` (`salon_id`,`day_of_week`),
   CONSTRAINT `fk_business_hours_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=71 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -330,12 +332,13 @@ CREATE TABLE `discounts` (
   `first_booking_only` tinyint(1) DEFAULT '0',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_discount_code_salon` (`salon_id`,`code`),
   KEY `idx_discounts_salon` (`salon_id`),
   KEY `idx_discounts_code` (`code`),
   CONSTRAINT `discounts_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -444,7 +447,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `idx_notifications_user_id` (`user_id`),
   CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=642 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=712 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -517,7 +520,7 @@ CREATE TABLE `payments` (
   KEY `idx_payments_status_created` (`status`,`created_at`),
   KEY `idx_payments_booking_status` (`booking_id`,`status`),
   CONSTRAINT `fk_payments_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -771,6 +774,26 @@ CREATE TABLE `salon_amenities` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `salon_categories`
+--
+
+DROP TABLE IF EXISTS `salon_categories`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `salon_categories` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `salon_id` bigint unsigned NOT NULL,
+  `category_name` varchar(100) NOT NULL,
+  `is_primary` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_salon_categories_salon_id` (`salon_id`),
+  KEY `idx_salon_categories_name` (`category_name`),
+  CONSTRAINT `fk_salon_categories_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `salon_clients`
 --
 
@@ -795,6 +818,26 @@ CREATE TABLE `salon_clients` (
   CONSTRAINT `fk_salon_clients_client` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_salon_clients_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `salon_closures`
+--
+
+DROP TABLE IF EXISTS `salon_closures`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `salon_closures` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `salon_id` int unsigned NOT NULL,
+  `date` date NOT NULL COMMENT 'The closed date (full-day closure)',
+  `reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'e.g. Public holiday, Renovation',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_salon_closure_date` (`salon_id`,`date`),
+  KEY `idx_salon_closures_salon` (`salon_id`),
+  KEY `idx_salon_closures_date` (`date`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -888,7 +931,6 @@ CREATE TABLE `salons` (
   `cover_image_url` varchar(500) DEFAULT NULL,
   `website` varchar(255) DEFAULT NULL,
   `price_level` tinyint DEFAULT '2',
-  `category` varchar(100) DEFAULT 'Hair Salon',
   `state` varchar(100) DEFAULT NULL,
   `postal_code` varchar(20) DEFAULT NULL,
   `status` varchar(20) DEFAULT 'active',
@@ -900,7 +942,6 @@ CREATE TABLE `salons` (
   KEY `idx_salons_marketplace_city` (`is_marketplace_enabled`,`city`),
   KEY `idx_salons_geo` (`latitude`,`longitude`),
   KEY `idx_salons_marketplace` (`status`,`is_marketplace_enabled`),
-  KEY `idx_salons_category` (`category`),
   KEY `idx_salons_city` (`city`),
   KEY `idx_salons_deleted` (`deleted_at`),
   KEY `fk_salons_deleted_by` (`deleted_by`),
@@ -1245,7 +1286,7 @@ CREATE TABLE `staff_working_hours` (
   KEY `idx_staff_working_hours_staff_id` (`staff_id`),
   KEY `idx_staff_hours_lookup` (`staff_id`,`day_of_week`,`start_time`,`end_time`),
   CONSTRAINT `fk_staff_working_hours_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=764 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=782 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1334,7 +1375,7 @@ CREATE TABLE `users` (
   KEY `idx_users_first_name` (`first_name`),
   KEY `idx_users_last_name` (`last_name`),
   KEY `idx_users_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=1245 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1249 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1415,4 +1456,4 @@ CREATE TABLE `widget_settings` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-08 11:13:17
+-- Dump completed on 2026-04-09 13:04:43

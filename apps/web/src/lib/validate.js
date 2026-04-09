@@ -87,8 +87,9 @@ export const changePasswordSchema = z.object({
 export const createBookingSchema = z.object({
   salonId: idSchema,
   clientId: idSchema,
-  staffId: idSchema,
+  staffId: z.union([idSchema, z.literal("ANYONE_VIRTUAL")]),
   serviceIds: z.array(idSchema).min(1, "At least one service is required"),
+  staffAssignments: z.record(z.string(), z.union([z.coerce.number().int().positive(), z.literal("ANYONE_VIRTUAL")])).optional(),
   startDatetime: datetimeSchema,
   // endDatetime is intentionally absent — the backend derives it from
   // service durations and buffer times fetched from the DB.

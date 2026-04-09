@@ -66,6 +66,7 @@ export async function GET(request) {
           country: salon.country,
           latitude: salon.latitude,
           longitude: salon.longitude,
+          currency: salon.currency,
           coverImage: salon.cover_image,
           avgRating: parseFloat(salon.avg_rating).toFixed(1),
           reviewCount: salon.review_count,
@@ -168,6 +169,7 @@ export async function GET(request) {
         country: salon.country,
         latitude: salon.latitude,
         longitude: salon.longitude,
+        currency: salon.currency,
         coverImage: salon.cover_image,
         avgRating: parseFloat(salon.avg_rating).toFixed(1),
         reviewCount: salon.review_count,
@@ -201,6 +203,7 @@ export async function POST(request) {
       country,
       latitude,
       longitude,
+      categories,
       isMarketplaceEnabled = true,
     } = body;
 
@@ -225,6 +228,16 @@ export async function POST(request) {
         isMarketplaceEnabled,
       ],
     );
+
+    // Insert categories into the new relationship table
+    if (categories && categories.length > 0) {
+      for (let i = 0; i < categories.length; i++) {
+        await query(
+          `INSERT INTO salon_categories (salon_id, category_name, is_primary) VALUES (?, ?, ?)`,
+          [result.insertId, categories[i], i === 0 ? 1 : 0]
+        );
+      }
+    }
 
     // Promote user to owner if they are currently a client
     await query(

@@ -3,7 +3,8 @@ import { hashPassword, verifyPassword, createToken } from '@/lib/auth';
 import { success, error, created } from '@/lib/response';
 import { cookies } from 'next/headers';
 import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
-
+import { sendEmail } from '@/lib/email';
+import { getVerificationEmailTemplate } from '@/lib/constants/email-templates';
 // POST /api/auth/register - Register a new user
 export async function POST(request) {
   try {
@@ -74,9 +75,27 @@ export async function POST(request) {
       [email, phone || null, country, passwordHash, firstName, lastName, role]
     );
 
-    // Create token
+    const userId = result.insertId;
+
+    // Create Email Verification Token
+    const verificationToken = await createToken(
+      { type: 'email_verification', userId, email },
+      { expiresIn: '24h' }
+    );
+
+    // Send Verification Email
+    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    
+    await sendEmail({
+      to: email,
+      subject: 'Welcome to Fresh - Verify your email address',
+      html: getVerificationEmailTemplate(firstName, verifyUrl),
+      text: `Welcome to Fresh! Please verify your email by clicking the following link: ${verifyUrl}`
+    }).catch(e => console.error("Email send failed, continuing:", e));
+
+    // Create standard auth token
     const token = await createToken({
-      userId: result.insertId,
+      userId,
       email,
       role,
     });
@@ -98,6 +117,7 @@ export async function POST(request) {
         lastName,
         role,
         country,
+        emailVerified: false,
       },
       token,
     });

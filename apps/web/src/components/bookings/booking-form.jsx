@@ -5,9 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Search, Plus, User, Check } from "lucide-react";
+import { CalendarIcon, Search, Plus, User, Check, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDuration } from "@/lib/format";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ import { useSalon } from "@/providers/salon-provider";
 import { useServices } from "@/hooks/use-services";
 import { useStaff, useAvailability } from "@/hooks/use-staff";
 import { useClientSearch, useCreateClient } from "@/hooks/use-clients";
-import { useCreateBooking } from "@/hooks/use-bookings";
+import { useCreateBooking, useRescheduleBooking } from "@/hooks/use-bookings";
 
 var bookingSchema = z.object({
   clientId: z.string().optional(),
@@ -49,7 +49,7 @@ var bookingSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().optional(),
   serviceIds: z.array(z.string()).min(1, "Please select at least one service"),
-  staffId: z.string().min(1, "Please select a staff member"),
+  staffId: z.string().optional(),
   date: z.date({ required_error: "Please select a date" }),
   time: z.string().min(1, "Please select a time"),
   notes: z.string().optional(),
@@ -59,10 +59,12 @@ export function BookingFormDialog({
   open,
   onOpenChange,
   initialDate,
+  initialBooking,
   salonId: propSalonId,
 }) {
-  var { salonId: contextSalonId } = useSalon();
+  var { salonId: contextSalonId, salon } = useSalon();
   var salonId = propSalonId || contextSalonId;
+  var salonCurrency = salon?.currency;
   var [clientSearch, setClientSearch] = useState("");
   var [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   var [selectedClient, setSelectedClient] = useState(null);
@@ -71,6 +73,8 @@ export function BookingFormDialog({
   var [clientError, setClientError] = useState("");
   var [formError, setFormError] = useState("");
   var [isValidating, setIsValidating] = useState(false);
+  var [staffAssignments, setStaffAssignments] = useState({});
+  var [staffError, setStaffError] = useState("");
 
   var { data: services, isLoading: servicesLoading } = useServices(salonId);
   var { data: staff, isLoading: staffLoading } = useStaff(salonId);
@@ -81,7 +85,9 @@ export function BookingFormDialog({
     salonId,
   );
 
+  var isReschedule = !!initialBooking;
   var createBooking = useCreateBooking();
+  var rescheduleBooking = useRescheduleBooking();
   var createClient = useCreateClient();
 
   var form = useForm({
@@ -99,67 +105,134 @@ export function BookingFormDialog({
     },
   });
 
-  // Reset form when dialog opens with a new date/time
+  // Reset form when dialog opens
   useEffect(() => {
-    if (open && initialDate) {
-      const dateObj = new Date(initialDate);
-      const hours = dateObj.getHours();
-      const minutes = dateObj.getMinutes();
+    if (open) {
+      // Use initialBooking start time if available, otherwise fallback to initialDate or now
+      var baseDateStr = initialBooking 
+        ? (initialBooking.start_datetime || initialBooking.startDateTime || initialBooking.start || initialBooking.startTime)
+        : initialDate;
+        
+      var dateObj = baseDateStr ? new Date(typeof baseDateStr === 'string' ? baseDateStr.replace(' ', 'T') : baseDateStr) : new Date();
+      
+      if (isNaN(dateObj.getTime())) {
+        dateObj = new Date();
+      }
+
+      var hours = dateObj.getHours();
+      var minutes = dateObj.getMinutes();
 
       // Round to nearest 15-minute interval
-      const roundedMinutes = Math.round(minutes / 15) * 15;
-      const finalHours = roundedMinutes === 60 ? hours + 1 : hours;
-      const finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+      var roundedMinutes = Math.round(minutes / 15) * 15;
+      var finalHours = roundedMinutes === 60 ? hours + 1 : hours;
+      var finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
 
-      const hoursStr = finalHours.toString().padStart(2, "0");
-      const minutesStr = finalMinutes.toString().padStart(2, "0");
-      const timeString = `${hoursStr}:${minutesStr}`;
+      var hoursStr = finalHours.toString().padStart(2, "0");
+      var minutesStr = finalMinutes.toString().padStart(2, "0");
+      var timeString = `${hoursStr}:${minutesStr}`;
 
-      // Reset basic fields
-      form.resetField("clientId");
-      form.resetField("clientName");
-      form.resetField("clientEmail");
-      form.resetField("clientPhone");
-      form.setValue("serviceIds", []);
-      form.resetField("staffId");
-      form.resetField("notes");
+      if (initialBooking) {
+        // Pre-fill from initialBooking
+        var clientId = String(initialBooking.client_id || initialBooking.clientId || initialBooking.client?.id || "");
+        var lastName = initialBooking.client?.lastName || initialBooking.client_last_name || "";
+        var firstName = initialBooking.client?.firstName || initialBooking.client_first_name || "";
+        var clientName = initialBooking.client_name || initialBooking.clientName || "";
+        if (!clientName && (firstName || lastName)) {
+          clientName = `${firstName} ${lastName}`.trim();
+        }
 
-      // Set date and time explicitly
-      form.setValue("date", dateObj);
-      form.setValue("time", timeString);
+        var clientEmail = initialBooking.client?.email || initialBooking.client_email || initialBooking.clientEmail || "";
+        var clientPhone = initialBooking.client?.phone || initialBooking.client_phone || initialBooking.clientPhone || "";
 
-      // Clear client selection
-      setSelectedClient(null);
+        var serviceIds = [];
+        if (Array.isArray(initialBooking.services) && initialBooking.services.length > 0) {
+          serviceIds = initialBooking.services.map(function(s) { return String(s.service_id || s.id); });
+        } else if (initialBooking.service_id || initialBooking.serviceId) {
+          serviceIds = [String(initialBooking.service_id || initialBooking.serviceId)];
+        }
+        
+        var primaryStaffId = String(initialBooking.staff_id || initialBooking.staffId || initialBooking.staff?.id || "");
+
+        // Build per-service staff assignments from initialBooking
+        var assignments = {};
+        if (Array.isArray(initialBooking.services) && initialBooking.services.length > 0) {
+          initialBooking.services.forEach(function(svc) {
+            var sid = String(svc.service_id || svc.id);
+            assignments[sid] = String(svc.staffId || svc.staff_id || primaryStaffId || "ANYONE_VIRTUAL");
+          });
+        } else {
+          serviceIds.forEach(function(sid) {
+            assignments[sid] = primaryStaffId || "ANYONE_VIRTUAL";
+          });
+        }
+        setStaffAssignments(assignments);
+
+        form.reset({
+          clientId: clientId,
+          clientName: clientName,
+          clientEmail: clientEmail,
+          clientPhone: clientPhone,
+          serviceIds: serviceIds,
+          staffId: primaryStaffId,
+          notes: initialBooking.notes || "",
+          date: dateObj,
+          time: timeString,
+        });
+
+        if (clientId) {
+          setSelectedClient({
+            id: clientId,
+            firstName: firstName || clientName.split(" ")[0] || "Client",
+            lastName: lastName || clientName.split(" ").slice(1).join(" ") || "",
+            phone: clientPhone,
+            email: clientEmail
+          });
+        } else {
+          setSelectedClient(null);
+        }
+      } else {
+        // Reset ALL fields
+        form.reset({
+          clientId: "",
+          clientName: "",
+          clientEmail: "",
+          clientPhone: "",
+          serviceIds: [],
+          staffId: "",
+          notes: "",
+          date: dateObj,
+          time: timeString,
+        });
+        setSelectedClient(null);
+        setStaffAssignments({});
+      }
+
+      // Reset UI state
       setShowNewClient(false);
       setClientError("");
       setTimeError("");
       setFormError("");
+      setStaffError("");
     }
-  }, [open, initialDate, form]);
+  }, [open, initialDate, initialBooking, form]);
 
   var watchDate = form.watch("date");
   var watchServiceIds = form.watch("serviceIds") || [];
 
-  // Filter staff: must be able to perform ALL selected services
-  var filteredStaff =
-    Array.isArray(staff) && watchServiceIds.length > 0
-      ? staff.filter(function (member) {
-          var memberServiceIds = [];
-          if (Array.isArray(member.service_ids)) {
-            memberServiceIds = member.service_ids.map(Number);
-          } else if (Array.isArray(member.services)) {
-            memberServiceIds = member.services.map(function (s) { return s.id; });
-          }
-          return watchServiceIds.every(function (id) {
-            return memberServiceIds.includes(parseInt(id, 10));
-          });
-        })
-      : Array.isArray(staff)
-        ? staff
-        : [];
-
-  // Don't fallback to showing all staff - if no staff can do the service, show empty
-  var showAllStaff = false;
+  // Helper: get staff qualified for a specific service
+  function getQualifiedStaffForService(serviceId) {
+    if (!Array.isArray(staff) || !serviceId) return [];
+    var sid = parseInt(serviceId, 10);
+    return staff.filter(function (member) {
+      var memberServiceIds = [];
+      if (Array.isArray(member.service_ids)) {
+        memberServiceIds = member.service_ids.map(Number);
+      } else if (Array.isArray(member.services)) {
+        memberServiceIds = member.services.map(function (s) { return s.id; });
+      }
+      return memberServiceIds.includes(sid);
+    });
+  }
 
   var { data: availabilityData } = useAvailability(salonId, {
     date: watchDate ? format(watchDate, "yyyy-MM-dd") : null,
@@ -169,11 +242,6 @@ export function BookingFormDialog({
   // Extract closure status from availability data
   var isClosedDay = availabilityData?.closed || false;
   var closureMessage = availabilityData?.message || "";
-
-  // Reset staff when services change
-  useEffect(() => {
-    form.setValue("staffId", "");
-  }, [JSON.stringify(watchServiceIds)]);
 
   function handleClientSelect(client) {
     setSelectedClient(client);
@@ -197,9 +265,62 @@ export function BookingFormDialog({
     setTimeError("");
     setClientError("");
     setFormError("");
+    setStaffError("");
     setIsValidating(true);
 
     try {
+      // Build start datetime as local time string — no UTC conversion (Algeria UTC+1).
+      var timeParts = data.time.split(":");
+      var startDate = new Date(data.date);
+      startDate.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+
+      // Validate every service has a staff assignment
+      var missingStaff = data.serviceIds.filter(function(sid) {
+        return !staffAssignments[sid];
+      });
+      if (missingStaff.length > 0) {
+        setStaffError("Please assign a staff member to every service.");
+        setIsValidating(false);
+        return;
+      }
+
+      // ── RESCHEDULE MODE ──
+      if (isReschedule) {
+        var bookingId = initialBooking.id;
+        try {
+          await rescheduleBooking.mutateAsync({
+            id: bookingId,
+            data: {
+              newStartTime: format(startDate, "yyyy-MM-dd'T'HH:mm:ss"),
+              serviceIds: data.serviceIds,
+              staffAssignments: staffAssignments,
+              notes: data.notes || undefined,
+            },
+          });
+          onOpenChange(false);
+        } catch (rescheduleErr) {
+          console.error("Reschedule error:", rescheduleErr);
+          var msg = (rescheduleErr.message || "").toLowerCase();
+          if (msg.includes("time slot") || msg.includes("not available")) {
+            setTimeError("This time slot conflicts with another booking. Try a different time or staff member.");
+          } else if (msg.includes("time off")) {
+            setStaffError("A staff member has time off during this slot. Choose a different staff or time.");
+          } else if (msg.includes("not working")) {
+            setStaffError("A staff member is not working during this time. Choose a different staff or time.");
+          } else if (msg.includes("cannot perform")) {
+            setStaffError(rescheduleErr.message);
+          } else if (msg.includes("no staff available") || msg.includes("no staff member")) {
+            setStaffError(rescheduleErr.message);
+          } else {
+            setFormError(rescheduleErr.message || "Failed to reschedule booking.");
+          }
+        } finally {
+          setIsValidating(false);
+        }
+        return;
+      }
+
+      // ── NEW BOOKING MODE ──
       var clientId = data.clientId;
 
       // Guard: must have selected an existing client OR be in new-client mode with a name
@@ -241,17 +362,13 @@ export function BookingFormDialog({
         }
       }
 
-      // Build start datetime as local time string — no UTC conversion (Algeria UTC+1).
       // End time is computed server-side from DB service durations; never sent by client.
-      var timeParts = data.time.split(":");
-      var startDate = new Date(data.date);
-      startDate.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
-
       await createBooking.mutateAsync({
         salonId: salonId,
         clientId: clientId,
-        staffId: data.staffId,
+        staffId: Object.values(staffAssignments)[0] || "ANYONE_VIRTUAL",
         serviceIds: data.serviceIds,
+        staffAssignments: staffAssignments,
         startDatetime: format(startDate, "yyyy-MM-dd'T'HH:mm:ss"),
         source: "direct",
         notes: data.notes || undefined,
@@ -303,9 +420,23 @@ export function BookingFormDialog({
           error.message || "One of the selected services has an invalid price.",
         );
       } else if (error.message) {
-        setFormError(error.message);
+        // Match reschedule endpoint errors by message (no error codes from that endpoint)
+        var msg = error.message.toLowerCase();
+        if (msg.includes("time slot") || msg.includes("not available")) {
+          setTimeError("This time slot conflicts with another booking. Try a different time or staff member.");
+        } else if (msg.includes("time off")) {
+          setStaffError("A staff member has time off during this slot. Choose a different staff or time.");
+        } else if (msg.includes("not working")) {
+          setStaffError("A staff member is not working during this time. Choose a different staff or time.");
+        } else if (msg.includes("cannot perform")) {
+          setStaffError(error.message);
+        } else if (msg.includes("no staff available")) {
+          setStaffError(error.message);
+        } else {
+          setFormError(error.message);
+        }
       } else {
-        setFormError("Failed to create booking. Please try again.");
+        setFormError("Failed to save booking. Please try again.");
       }
     } finally {
       setIsValidating(false);
@@ -326,9 +457,11 @@ export function BookingFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Booking</DialogTitle>
+          <DialogTitle>{isReschedule ? "Reschedule Booking" : "New Booking"}</DialogTitle>
           <DialogDescription>
-            Create a new appointment for your client.
+            {isReschedule
+              ? `Change the date and time for booking #${initialBooking?.id}.`
+              : "Create a new appointment for your client."}
           </DialogDescription>
         </DialogHeader>
 
@@ -349,6 +482,17 @@ export function BookingFormDialog({
           {/* Client Selection */}
           <div className="space-y-2">
             <Label>Client</Label>
+            {isReschedule ? (
+              /* ── Reschedule: read-only client ── */
+              <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="font-medium text-sm">
+                  {form.watch("clientName") || "Client"}
+                </span>
+              </div>
+            ) : (
+              /* ── New Booking: full client picker ── */
+              <>
             {selectedClient ? (
               <div className="flex items-center justify-between p-3 border rounded-lg bg-accent/30">
                 <div className="flex items-center gap-2">
@@ -458,7 +602,7 @@ export function BookingFormDialog({
                                   )}
                                 </div>
                                 {client.email && (
-                                  <span className="ml-auto text-muted-foreground text-xs truncate max-w-[120px]">
+                                  <span className="ml-auto text-muted-foreground text-xs truncate max-w-30">
                                     {client.email}
                                   </span>
                                 )}
@@ -489,6 +633,8 @@ export function BookingFormDialog({
                 </Button>
               </div>
             )}
+              </>
+            )}
           </div>
 
           {clientError && (
@@ -516,7 +662,19 @@ export function BookingFormDialog({
                               ? watchServiceIds.filter(function (x) { return x !== sid; })
                               : [...watchServiceIds, sid];
                             form.setValue("serviceIds", next, { shouldValidate: true });
-                            form.setValue("staffId", "");
+                            // Manage per-service staff assignments
+                            if (isSelected) {
+                              setStaffAssignments(function(prev) {
+                                var copy = Object.assign({}, prev);
+                                delete copy[sid];
+                                return copy;
+                              });
+                            } else {
+                              setStaffAssignments(function(prev) {
+                                return Object.assign({}, prev, { [sid]: "ANYONE_VIRTUAL" });
+                              });
+                            }
+                            setStaffError("");
                           }}
                           className={cn(
                             "flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors",
@@ -533,9 +691,9 @@ export function BookingFormDialog({
                           </span>
                           <span className="flex-1 font-medium">{service.name}</span>
                           <span className="shrink-0 text-xs opacity-75">
-                            {service.duration_minutes || service.duration}min
+                            {formatDuration(service.duration_minutes || service.duration)}
                             {parseFloat(service.price) > 0
-                              ? ` · ${formatCurrency(service.price)}`
+                              ? ` · ${formatCurrency(service.price, salonCurrency)}`
                               : ""}
                           </span>
                         </button>
@@ -550,7 +708,7 @@ export function BookingFormDialog({
                   return (
                     <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
                       <span>{sel.length} service{sel.length > 1 ? "s" : ""} selected</span>
-                      <span className="font-medium">{totalMin} min · {formatCurrency(totalPrice)}</span>
+                      <span className="font-medium">{formatDuration(totalMin)} · {formatCurrency(totalPrice, salonCurrency)}</span>
                     </div>
                   );
                 })()}
@@ -567,62 +725,68 @@ export function BookingFormDialog({
             )}
           </div>
 
-          {/* Staff Selection */}
-          <div className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <Label>Staff Member *</Label>
-              {watchServiceIds.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  Showing staff qualified for selected service{watchServiceIds.length > 1 ? "s" : ""}
-                </span>
+          {/* Per-Service Staff Assignments */}
+          {watchServiceIds.length > 0 && (
+            <div className="space-y-2">
+              <Label>Staff Assignments *</Label>
+              <div className="rounded-md border divide-y">
+                {watchServiceIds.map(function (sid) {
+                  var service = Array.isArray(services)
+                    ? services.find(function (s) { return String(s.id) === sid; })
+                    : null;
+                  var qualified = getQualifiedStaffForService(sid);
+                  var staffListForService = [
+                    { id: "ANYONE_VIRTUAL", firstName: "Anyone", lastName: "Available" },
+                    ...qualified,
+                  ];
+                  var currentAssignment = staffAssignments[sid] || "";
+
+                  return (
+                    <div key={sid} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {service ? service.name : `Service #${sid}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {service ? formatDuration(service.duration_minutes || service.duration) : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 w-44">
+                        <Select
+                          value={currentAssignment}
+                          onValueChange={function (val) {
+                            setStaffAssignments(function (prev) {
+                              return Object.assign({}, prev, { [sid]: val });
+                            });
+                            setStaffError("");
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <UserCog className="h-3 w-3 shrink-0" />
+                              <SelectValue placeholder="Assign staff" />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffListForService.map(function (member) {
+                              return (
+                                <SelectItem key={member.id} value={String(member.id)}>
+                                  {member.firstName} {member.lastName}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {staffError && (
+                <p className="text-sm text-destructive">{staffError}</p>
               )}
             </div>
-            {staffLoading ? (
-              <Skeleton className="h-10 w-full" />
-            ) : (
-              <Select
-                value={form.watch("staffId")}
-                onValueChange={function (val) {
-                  form.setValue("staffId", val, { shouldValidate: true });
-                }}
-                disabled={watchServiceIds.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      watchServiceIds.length === 0
-                        ? "Select services first"
-                        : filteredStaff.length === 0
-                          ? "No staff can perform all selected services"
-                          : "Select staff member"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(filteredStaff) && filteredStaff.length > 0 ? (
-                    filteredStaff.map(function (member) {
-                      return (
-                        <SelectItem key={member.id} value={String(member.id)}>
-                          {member.firstName} {member.lastName}
-                        </SelectItem>
-                      );
-                    })
-                  ) : (
-                    <div className="p-3 text-muted-foreground text-sm">
-                      {watchServiceIds.length === 0
-                        ? "Select services first"
-                        : "No staff member can perform all selected services"}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-            )}
-            {form.formState.errors.staffId && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.staffId.message}
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Date & Time */}
           <div className="space-y-4">
@@ -722,11 +886,11 @@ export function BookingFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={createBooking.isPending || isValidating}
+              disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
             >
-              {createBooking.isPending || isValidating
-                ? "Creating..."
-                : "Create Booking"}
+              {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
+                ? (isReschedule ? "Rescheduling..." : "Creating...")
+                : (isReschedule ? "Reschedule" : "Create Booking")}
             </Button>
           </DialogFooter>
         </form>

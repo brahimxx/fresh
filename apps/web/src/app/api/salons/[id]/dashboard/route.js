@@ -70,16 +70,18 @@ export async function GET(request, { params }) {
     // New clients this month
     const [newClients] = await query(
       `SELECT COUNT(*) as total FROM salon_clients 
-       WHERE salon_id = ? AND DATE(created_at) >= ? AND is_active = 1`,
+       WHERE salon_id = ? AND DATE(first_visit_date) >= ? AND is_active = 1`,
       [id, startOfMonth]
     );
 
     // Upcoming bookings (next 7 days)
     const upcomingBookings = await query(
       `SELECT b.*, u.first_name, u.last_name, 
-        GROUP_CONCAT(s.name) as services
+        GROUP_CONCAT(s.name) as services,
+        sc.is_active
        FROM bookings b
        JOIN users u ON u.id = b.client_id
+       LEFT JOIN salon_clients sc ON sc.client_id = u.id AND sc.salon_id = b.salon_id
        LEFT JOIN booking_services bs ON bs.booking_id = b.id
        LEFT JOIN services s ON s.id = bs.service_id
        WHERE b.salon_id = ? AND b.start_datetime >= NOW() 
@@ -147,6 +149,7 @@ export async function GET(request, { params }) {
         endTime: b.end_datetime,
         services: b.services,
         status: b.status,
+        isActive: b.is_active === 1,
       })),
       recentReviews: recentReviews.map((r) => ({
         id: r.id,

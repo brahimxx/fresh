@@ -31,7 +31,7 @@ export async function GET(request, { params }) {
        FROM salon_clients sc
        JOIN users u ON u.id = sc.client_id
        WHERE sc.salon_id = ? AND sc.client_id = ?
-         AND sc.is_active = 1
+         
          AND u.deleted_at IS NULL`,
       [id, clientId]
     );
@@ -84,6 +84,9 @@ export async function GET(request, { params }) {
         firstVisitDate: client.first_visit_date,
         lastVisitDate: client.last_visit_date,
         totalVisits: client.total_visits,
+        isActive: client.is_active === 1,
+        isActive: client.is_active === 1,
+        isActive: client.is_active === 1,
         totalSpent: spentResult.total_spent || 0,
       },
       bookings: bookings.map((b) => ({
@@ -111,5 +114,39 @@ export async function GET(request, { params }) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Get client details error:', err);
     return error('Failed to get client details', 500);
+  }
+}
+
+// PATCH /api/salons/[id]/clients/[clientId] - Update client status at salon
+export async function PATCH(request, { params }) {
+  try {
+    const session = await requireAuth();
+    const { id, clientId } = await params;
+
+    const hasAccess = await checkSalonAccess(id, session.userId, session.role);
+    if (!hasAccess) {
+      return forbidden('Not authorized to update client');
+    }
+
+    const { isActive } = await request.json();
+
+    if (isActive === undefined) {
+      return error('isActive status is required', 400);
+    }
+
+    const val = isActive ? 1 : 0;
+    const notesStr = val ? '\nManually Un-Blacklisted by staff.' : '\nManually Blacklisted by staff.';
+
+    // Apply the active state toggle
+    await query(
+      "UPDATE salon_clients SET is_active = ?, notes = CONCAT(COALESCE(notes, ''), ?) WHERE salon_id = ? AND client_id = ?",
+      [val, notesStr, id, clientId]
+    );
+
+    return success({ success: true, message: 'Client status updated successfully', isActive: val === 1 });
+  } catch (err) {
+    if (err.message === 'Unauthorized') return unauthorized();
+    console.error('Update client status error:', err);
+    return error('Failed to update client', 500);
   }
 }

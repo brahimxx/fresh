@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api-client";
 import { toast } from "sonner";
+import { clientKeys } from "@/hooks/use-clients";
 
 // Query keys
 export const bookingKeys = {
@@ -144,6 +145,25 @@ export function useConfirmBooking() {
   });
 }
 
+// Complete booking mutation (Instant Cash Checkout)
+export function useCompleteBooking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id) =>
+      api.post("/bookings/" + id + "/checkout", { method: "cash" }),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: clientKeys.all });
+      toast.success("Booking completed and revenue recorded");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to complete booking");
+    },
+  });
+}
+
 // Reschedule booking mutation
 export function useRescheduleBooking() {
   const queryClient = useQueryClient();
@@ -152,17 +172,15 @@ export function useRescheduleBooking() {
     mutationFn: (params) => {
       var id = params.id;
       var data = params.data;
-      return api.post("/bookings/" + id + "/reschedule", data);
+      return api.put("/bookings/" + id + "/reschedule", data);
     },
+    throwOnError: false,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
       queryClient.invalidateQueries({
         queryKey: bookingKeys.detail(variables.id),
       });
       toast.success("Booking rescheduled");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to reschedule booking");
     },
   });
 }

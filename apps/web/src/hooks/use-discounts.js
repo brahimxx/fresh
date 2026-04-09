@@ -19,10 +19,10 @@ export var DISCOUNT_TYPES = [
 
 // Discount statuses
 export var DISCOUNT_STATUSES = {
-  active: { label: 'Active', color: 'bg-green-100 text-green-800' },
-  inactive: { label: 'Inactive', color: 'bg-gray-100 text-gray-800' },
-  expired: { label: 'Expired', color: 'bg-red-100 text-red-800' },
-  scheduled: { label: 'Scheduled', color: 'bg-blue-100 text-blue-800' },
+  active: { label: 'Active', color: 'bg-green-50/50 text-green-600 border-green-200' },
+  inactive: { label: 'Inactive', color: 'bg-muted text-muted-foreground border-border' },
+  expired: { label: 'Expired', color: 'bg-destructive/10 text-destructive border-destructive/20' },
+  scheduled: { label: 'Scheduled', color: 'bg-slate-50/50 text-slate-700 border-slate-200' },
 };
 
 // Get discount status based on dates

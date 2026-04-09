@@ -18,8 +18,11 @@ export var staffKeys = {
 export function useStaff(salonId, options) {
   var resolvedOptions = options ?? {};
   return useQuery({
-    queryKey: staffKeys.list(salonId),
-    queryFn: function() { return api.get('/salons/' + salonId + '/staff'); },
+    queryKey: [...staffKeys.list(salonId), { includeInactive: resolvedOptions.includeInactive }],
+    queryFn: function() { 
+      var qs = resolvedOptions.includeInactive ? "?includeInactive=true" : "";
+      return api.get('/salons/' + salonId + '/staff' + qs); 
+    },
     enabled: !!salonId,
     select: function(response) { return response.data?.staff || []; },
     ...resolvedOptions,

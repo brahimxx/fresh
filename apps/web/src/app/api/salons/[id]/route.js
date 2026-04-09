@@ -8,6 +8,8 @@ import {
   forbidden,
 } from "@/lib/response";
 
+export const dynamic = "force-dynamic";
+
 // Helper to check if user owns the salon
 async function checkSalonOwnership(salonId, userId, role) {
   if (role === "admin") return true;
@@ -84,6 +86,12 @@ export async function GET(request, { params }) {
       [id]
     );
     
+    // Get salon categories
+    const salonCategories = await query(
+      'SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC',
+      [id]
+    );
+
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const business_hours = dbHours.length > 0 ? dbHours.map(h => ({
       day: h.day_of_week,
@@ -106,9 +114,14 @@ export async function GET(request, { params }) {
       latitude: salon.latitude,
       longitude: salon.longitude,
       isMarketplaceEnabled: salon.is_marketplace_enabled,
+      currency: salon.currency,
       avgRating: parseFloat(salon.avg_rating).toFixed(1),
       reviewCount: salon.review_count,
       createdAt: salon.created_at,
+      salonCategories: salonCategories.map(c => ({
+        name: c.name,
+        isPrimary: c.is_primary === 1
+      })),
       business_hours,
       settings: settings
         ? {
@@ -168,6 +181,8 @@ export async function PUT(request, { params }) {
       latitude,
       longitude,
       isMarketplaceEnabled,
+      currency,
+      salonCategories,
     } = body;
 
     await query(
@@ -181,7 +196,8 @@ export async function PUT(request, { params }) {
         country = COALESCE(?, country),
         latitude = COALESCE(?, latitude),
         longitude = COALESCE(?, longitude),
-        is_marketplace_enabled = COALESCE(?, is_marketplace_enabled)
+        is_marketplace_enabled = COALESCE(?, is_marketplace_enabled),
+        currency = COALESCE(?, currency)
        WHERE id = ?`,
       [
         name,
@@ -194,11 +210,35 @@ export async function PUT(request, { params }) {
         latitude,
         longitude,
         isMarketplaceEnabled,
+        currency,
         id,
       ],
     );
 
+    // If salonCategories is provided, update them
+    if (Array.isArray(salonCategories)) {
+      // Delete existing categories
+      await query('DELETE FROM salon_categories WHERE salon_id = ?', [id]);
+      
+      // Insert new categories (up to 4)
+      const categoriesToInsert = salonCategories.slice(0, 4);
+      for (let i = 0; i < categoriesToInsert.length; i++) {
+        const cat = categoriesToInsert[i];
+        // The first item (index 0) or the one marked isPrimary gets is_primary = 1
+        const isPrimary = (i === 0 || cat.isPrimary) ? 1 : 0;
+        await query(
+          'INSERT INTO salon_categories (salon_id, category_name, is_primary) VALUES (?, ?, ?)',
+          [id, cat.name || cat, isPrimary]
+        );
+      }
+    }
+
     const salon = await getOne("SELECT * FROM salons WHERE id = ?", [id]);
+
+    const updatedCategories = await query(
+      'SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC',
+      [id]
+    );
 
     return success({
       id: salon.id,
@@ -212,6 +252,11 @@ export async function PUT(request, { params }) {
       latitude: salon.latitude,
       longitude: salon.longitude,
       isMarketplaceEnabled: salon.is_marketplace_enabled,
+      currency: salon.currency,
+      salonCategories: updatedCategories.map(c => ({
+        name: c.name,
+        isPrimary: c.is_primary === 1
+      }))
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();

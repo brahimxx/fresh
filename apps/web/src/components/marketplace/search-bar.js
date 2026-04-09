@@ -33,6 +33,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useAuth } from '@/providers/auth-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
+import { generateSalonSlug } from '@/lib/utils';
 import { useJsApiLoader } from '@react-google-maps/api';
 
 const MAPS_LIBRARIES = ['places'];
@@ -468,10 +469,10 @@ function SearchBarContent({
     router.push('/salons?' + params.toString());
   };
 
-  const handleSuggestionClick = (salonId) => {
+  const handleSuggestionClick = (salon) => {
     setShowSuggestions(false);
     setShowLocationSuggestions(false);
-    router.push('/salon/' + salonId);
+    router.push('/salon/' + generateSalonSlug(salon));
   };
 
   const handleServiceSuggestionClick = (serviceName) => {
@@ -838,7 +839,7 @@ function SearchBarContent({
                     <button
                       key={salon.id}
                       type="button"
-                      onClick={() => handleSuggestionClick(salon.id)}
+                      onClick={() => handleSuggestionClick(salon)}
                       className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-4 hover:bg-muted"
                     >
                       <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-muted">

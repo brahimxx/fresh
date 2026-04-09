@@ -8,6 +8,7 @@ import {
     useConfirmBooking,
     useCancelBooking,
     useUpdateBooking,
+    useCompleteBooking,
 } from "@/hooks/use-bookings";
 import { useStaff, getStaffColor } from "@/hooks/use-staff";
 import { useSalon } from "@/providers/salon-provider";
@@ -15,30 +16,37 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarSkeleton } from "@/components/ui/loading-skeletons";
 import { DataError } from "@/components/ui/data-error";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Settings } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 import { EventTooltip } from "./event-tooltip";
 import { EventQuickActions } from "./event-quick-actions";
 
 // Constants
-var HOUR_HEIGHT = 60; // pixels per hour
 var SLOT_MINUTES = 15;
 var START_HOUR = 0;
 var END_HOUR = 24;
 var TOTAL_HOURS = END_HOUR - START_HOUR;
 
-function getTimePosition(dateStr) {
+function getTimePosition(dateStr, hourHeight) {
     var d = new Date(String(dateStr).replace(" ", "T"));
     var hours = d.getHours();
     var minutes = d.getMinutes();
-    return ((hours - START_HOUR) + minutes / 60) * HOUR_HEIGHT;
+    return ((hours - START_HOUR) + minutes / 60) * hourHeight;
 }
 
-function getEventHeight(startStr, endStr) {
+function getEventHeight(startStr, endStr, hourHeight) {
     var start = new Date(String(startStr).replace(" ", "T"));
     var end = new Date(String(endStr).replace(" ", "T"));
     var diffMs = end - start;
     var diffHours = diffMs / (1000 * 60 * 60);
-    return Math.max(diffHours * HOUR_HEIGHT, 20); // minimum 20px
+    return Math.max(diffHours * hourHeight, 20); // minimum 20px
 }
 
 export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onSwitchView }) {
@@ -47,11 +55,14 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
     var hasScrolledRef = useRef(false);
 
     var [currentDate, setCurrentDate] = useState(new Date());
+    var [hourHeight, setHourHeight] = useState(80);
+    var HOUR_HEIGHT = hourHeight;
 
     var confirmBooking = useConfirmBooking();
     var cancelBooking = useCancelBooking();
     var updateBooking = useUpdateBooking();
     var rescheduleBooking = useRescheduleBooking();
+    var completeBooking = useCompleteBooking();
 
     var dateStr = format(currentDate, "yyyy-MM-dd");
 
@@ -94,13 +105,33 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
         }
         if (bookings && Array.isArray(bookings)) {
             bookings.forEach(function (booking) {
-                var staffId = booking.staffId || booking.staff?.id;
-                if (staffId && groups[staffId]) {
-                    groups[staffId].push(booking);
-                } else if (staffId) {
-                    // Staff might not be in the active list but has a booking
-                    groups[staffId] = groups[staffId] || [];
-                    groups[staffId].push(booking);
+                if (booking.services && booking.services.length > 0) {
+                    booking.services.forEach(function (s, i) {
+                        var staffId = s.staffId || booking.staffId || booking.staff?.id;
+                        var subBooking = Object.assign({}, booking, {
+                            subId: booking.id + "-" + i,
+                            startDatetime: s.startDatetime || booking.startDatetime || booking.start,
+                            endDatetime: s.endDatetime || booking.endDatetime || booking.end,
+                            start: s.startDatetime || booking.startDatetime || booking.start,
+                            end: s.endDatetime || booking.endDatetime || booking.end,
+                            services: [s], // only this service
+                            originalBooking: booking
+                        });
+                        if (staffId && groups[staffId]) {
+                            groups[staffId].push(subBooking);
+                        } else if (staffId) {
+                            groups[staffId] = groups[staffId] || [];
+                            groups[staffId].push(subBooking);
+                        }
+                    });
+                } else {
+                    var staffId = booking.staffId || booking.staff?.id;
+                    if (staffId && groups[staffId]) {
+                        groups[staffId].push(booking);
+                    } else if (staffId) {
+                        groups[staffId] = groups[staffId] || [];
+                        groups[staffId].push(booking);
+                    }
                 }
             });
         }
@@ -172,7 +203,7 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
         confirmBooking.mutate(booking.id);
     }
     function handleCompleteBooking(booking) {
-        updateBooking.mutate({ id: booking.id, data: { status: "completed" } });
+        completeBooking.mutate(booking.id);
     }
     function handleCancelBookingAction(booking) {
         if (confirm("Are you sure you want to cancel this booking?")) {
@@ -260,18 +291,52 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
                     </Button>
                 </div>
 
-                {onSwitchView && (
-                    <Button variant="outline" size="sm" onClick={onSwitchView} className="gap-2">
-                        <CalendarDays className="h-4 w-4" />
-                        Week / Month
-                    </Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {onSwitchView && (
+                        <Button variant="outline" size="sm" onClick={onSwitchView} className="gap-2">
+                            <CalendarDays className="h-4 w-4" />
+                            Week / Month
+                        </Button>
+                    )}
+                    
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button variant="outline" size="sm" className="px-2.5">
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+                        <SheetHeader className="px-6 pt-6 pb-6 border-b">
+                          <SheetTitle className="text-2xl">Calendar Settings</SheetTitle>
+                        </SheetHeader>
+                        <div className="px-6 py-6 space-y-8">
+                          <div className="space-y-3">
+                            <Label>Zoom Level</Label>
+                            <input
+                              type="range"
+                              min="80"
+                              max="140"
+                              step="20"
+                              value={hourHeight}
+                              onChange={function(e) { setHourHeight(parseInt(e.target.value)); }}
+                              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                              <span>Small</span>
+                              <span>Med-Sm</span>
+                              <span>Medium</span>
+                              <span>Large</span>
+                            </div>
+                          </div>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                </div>
             </div>
 
             {/* Staff Headers + Grid */}
             <div className="flex-1 overflow-hidden flex flex-col">
-                {/* Staff Header Row - fixed */}
-                <div className="flex border-b bg-background sticky top-0 z-10 shrink-0">
+                <div className="flex border-b bg-muted/40 sticky top-0 z-10 shrink-0">
                     {/* Time gutter header */}
                     <div className="w-16 shrink-0 border-r" />
 
@@ -351,7 +416,7 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
                                 return (
                                     <div
                                         key={staffId}
-                                        className="flex-1 min-w-[180px] border-r last:border-r-0 relative"
+                                        className="flex-1 min-w-[180px] border-r last:border-r-0 relative bg-background"
                                         onClick={function (e) {
                                             // Calculate clicked time
                                             var rect = e.currentTarget.getBoundingClientRect();
@@ -401,8 +466,8 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
                                             var booking = item.event;
                                             var rawStart = booking.start || booking.startDatetime || "";
                                             var rawEnd = booking.end || booking.endDatetime || "";
-                                            var top = getTimePosition(rawStart);
-                                            var height = getEventHeight(rawStart, rawEnd);
+                                            var top = getTimePosition(rawStart, hourHeight);
+                                            var height = getEventHeight(rawStart, rawEnd, hourHeight);
                                             var widthPercent = 100 / item.totalColumns;
                                             var leftPercent = item.column * widthPercent;
 
@@ -417,8 +482,29 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
 
                                             return (
                                                 <div
-                                                    key={booking.id}
-                                                    className="absolute z-10 px-0.5"
+                                                    key={booking.subId || booking.id}
+                                                    className="absolute z-10 px-0.5 pb-0.5 transition-all duration-200"
+                                                    data-booking-wrapper-id={booking.originalBooking?.id || booking.id}
+                                                    onMouseEnter={function() {
+                                                      var bId = booking.originalBooking?.id || booking.id;
+                                                      if (!bId) return;
+                                                      document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function(el) {
+                                                        el.classList.add('!z-50');
+                                                      });
+                                                      document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function(el) {
+                                                        el.classList.add('ring-[4px]', 'ring-inset', 'ring-foreground/60', 'brightness-110', 'shadow-xl', 'scale-[1.01]');
+                                                      });
+                                                    }}
+                                                    onMouseLeave={function() {
+                                                      var bId = booking.originalBooking?.id || booking.id;
+                                                      if (!bId) return;
+                                                      document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function(el) {
+                                                        el.classList.remove('!z-50');
+                                                      });
+                                                      document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function(el) {
+                                                        el.classList.remove('ring-[4px]', 'ring-inset', 'ring-foreground/60', 'brightness-110', 'shadow-xl', 'scale-[1.01]');
+                                                      });
+                                                    }}
                                                     style={{
                                                         top: top + "px",
                                                         height: height + "px",
@@ -427,17 +513,18 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
                                                     }}
                                                     onClick={function (e) {
                                                         e.stopPropagation();
-                                                        if (onEventClick) onEventClick(booking);
+                                                        if (onEventClick) onEventClick(booking.originalBooking || booking);
                                                     }}
                                                 >
-                                                    <EventTooltip booking={booking}>
+                                                    <EventTooltip booking={booking.originalBooking || booking}>
                                                         <div
-                                                            className="h-full rounded-md p-1.5 text-white cursor-pointer transition-all hover:brightness-90 hover:shadow-lg group relative overflow-hidden"
+                                                            className="h-full rounded-sm p-1.5 text-white cursor-pointer transition-all hover:brightness-90 hover:shadow-lg group relative overflow-hidden"
                                                             style={{ backgroundColor: color }}
                                                             data-status={booking.status}
+                                                            data-booking-inner-id={booking.originalBooking?.id || booking.id}
                                                         >
                                                             <EventQuickActions
-                                                                booking={booking}
+                                                                booking={booking.originalBooking || booking}
                                                                 onEdit={handleEditBooking}
                                                                 onConfirm={handleConfirmBooking}
                                                                 onComplete={handleCompleteBooking}

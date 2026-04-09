@@ -41,6 +41,40 @@ export async function POST(req) {
         break;
       }
 
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        if (session.metadata?.bookingId) {
+          const bookingId = session.metadata.bookingId;
+          const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+          
+          await query(
+            "UPDATE payments SET status = 'paid', stripe_payment_id = ? WHERE booking_id = ?",
+            [paymentIntentId || session.id, bookingId]
+          );
+          console.log(`[Stripe Webhook] Checkout session completed for booking ${bookingId}`);
+        }
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        const session = event.data.object;
+        if (session.metadata?.bookingId) {
+          const bookingId = session.metadata.bookingId;
+          
+          // Free up the calendar slot if they just closed the tab and never paid
+          await query(
+            "UPDATE bookings SET status = 'cancelled', cancellation_reason = 'Stripe checkout expired' WHERE id = ?",
+            [bookingId]
+          );
+          await query(
+            "UPDATE payments SET status = 'cancelled' WHERE booking_id = ?",
+            [bookingId]
+          );
+          console.log(`[Stripe Webhook] Cancelled abandoned booking ${bookingId} due to expiration`);
+        }
+        break;
+      }
+
       // Add other relevant cases (like payment_intent.succeeded) if needed for MVP
       default:
         console.log(`[Stripe Webhook] Unhandled event type ${event.type}`);

@@ -14,6 +14,7 @@ import {
   useMyAddresses,
   useAddAddress,
   useDeleteAddress,
+  useChangePassword,
 } from '@/hooks/use-my-profile';
 
 import { useJsApiLoader } from '@react-google-maps/api';
@@ -28,11 +29,34 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   User, Mail, Phone, MapPin, Calendar, Star, Gift, Package,
-  ChevronLeft, ChevronRight, Pencil, Save, X, AlertCircle, Home, Briefcase, Heart, Building, Plus, Trash
+  ChevronLeft, ChevronRight, Pencil, Save, X, AlertCircle, Home, Briefcase, Heart, Building, Plus, Trash,
+  Shield, Lock, Camera
 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+
+// ─── Shared Empty State ────────────────────────────────────────────────────
+function EmptyState({ icon: Icon, title, description, actionLabel, actionOnClick }) {
+  return (
+    <Card className="border-dashed bg-muted/30">
+      <CardContent className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="bg-primary/10 p-3 rounded-full mb-4">
+          <Icon className="h-6 w-6 text-primary" />
+        </div>
+        <h3 className="text-lg font-semibold mb-1">{title}</h3>
+        <p className="text-sm text-muted-foreground mb-4 max-w-sm">{description}</p>
+        {actionLabel && (
+          <Button onClick={actionOnClick} variant="outline" className="cursor-pointer">
+            {actionLabel}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Status Badge Helper ───────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -137,31 +161,45 @@ function PersonalInfoTab({ profile, isLoading }) {
     { key: 'country', label: 'Country', icon: MapPin, type: 'text' },
   ];
 
+  const handleAvatarUpload = () => {
+    toast.info("Avatar upload integration coming soon. Ensure S3 or Supabase bucket is configured.");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with Avatar */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center gap-6">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={profile?.avatarUrl} />
-              <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                {profile?.firstName?.charAt(0)}{profile?.lastName?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-bold">{profile?.firstName} {profile?.lastName}</h2>
-              <p className="text-muted-foreground">{profile?.email}</p>
-              <p className="text-sm text-muted-foreground mt-1">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border ring-2 ring-primary/10">
+                <AvatarImage src={profile?.avatarUrl} />
+                <AvatarFallback className="bg-primary/10 text-primary text-3xl font-bold">
+                  {profile?.firstName?.charAt(0)}{profile?.lastName?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              <button 
+                onClick={handleAvatarUpload}
+                className="absolute inset-0 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer"
+                title="Change Photo"
+              >
+                <Camera className="h-6 w-6" />
+                <span className="text-[10px] mt-1 font-semibold">Change</span>
+              </button>
+            </div>
+            <div className="flex-1 min-w-0 mt-1">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">{profile?.firstName} {profile?.lastName}</h2>
+              <p className="text-muted-foreground text-sm font-medium mt-1">{profile?.email}</p>
+              <p className="text-xs text-muted-foreground mt-2 bg-muted w-fit sm:mx-0 mx-auto px-2.5 py-1 rounded-full">
                 Member since {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'}
               </p>
             </div>
             <Button
               variant={isEditing ? 'outline' : 'default'}
               onClick={isEditing ? () => setIsEditing(false) : startEditing}
-              className="shrink-0"
+              className="shrink-0 cursor-pointer sm:w-auto w-full mt-4 sm:mt-2"
             >
-              {isEditing ? <><X className="h-4 w-4 mr-2" />Cancel</> : <><Pencil className="h-4 w-4 mr-2" />Edit</>}
+              {isEditing ? <><X className="h-4 w-4 mr-2" />Cancel Edit</> : <><Pencil className="h-4 w-4 mr-2" />Edit Profile</>}
             </Button>
           </div>
         </CardContent>
@@ -215,7 +253,7 @@ function PersonalInfoTab({ profile, isLoading }) {
 
       {isEditing && (
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={updateProfile.isPending}>
+          <Button onClick={handleSave} disabled={updateProfile.isPending} className="cursor-pointer">
             <Save className="h-4 w-4 mr-2" />
             {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
@@ -266,7 +304,13 @@ function BookingsTab() {
             ))}
           </div>
         ) : (
-          <Card><CardContent className="p-8 text-center text-muted-foreground">No upcoming appointments</CardContent></Card>
+          <EmptyState 
+            icon={Calendar} 
+            title="No upcoming appointments" 
+            description="You don't have any future bookings right now. Time for a fresh look?" 
+            actionLabel="Discover Salons" 
+            actionOnClick={() => window.location.href = '/'}
+          />
         )}
       </div>
 
@@ -306,6 +350,7 @@ function BookingsTab() {
                   variant="outline" size="sm"
                   onClick={() => setPastPage((p) => Math.max(1, p - 1))}
                   disabled={pastPage === 1}
+                  className="cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -316,6 +361,7 @@ function BookingsTab() {
                   variant="outline" size="sm"
                   onClick={() => setPastPage((p) => Math.min(pagination.totalPages, p + 1))}
                   disabled={pastPage >= pagination.totalPages}
+                  className="cursor-pointer disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -323,7 +369,11 @@ function BookingsTab() {
             )}
           </>
         ) : (
-          <Card><CardContent className="p-8 text-center text-muted-foreground">No past appointments yet</CardContent></Card>
+          <EmptyState 
+            icon={Calendar} 
+            title="No past appointments" 
+            description="Your appointment history will appear here once you've completed a service." 
+          />
         )}
       </div>
     </div>
@@ -373,7 +423,11 @@ function PackagesGiftCardsTab({ userId }) {
             ))}
           </div>
         ) : (
-          <Card><CardContent className="p-8 text-center text-muted-foreground">No packages purchased yet</CardContent></Card>
+          <EmptyState 
+            icon={Package} 
+            title="No packages purchased" 
+            description="Invest in yourself! Packages are a great way to save on multiple sessions." 
+          />
         )}
       </div>
 
@@ -413,7 +467,11 @@ function PackagesGiftCardsTab({ userId }) {
             ))}
           </div>
         ) : (
-          <Card><CardContent className="p-8 text-center text-muted-foreground">No gift cards purchased yet</CardContent></Card>
+          <EmptyState 
+            icon={Gift} 
+            title="No gift cards" 
+            description="Treat yourself or a friend to a gift card from your favorite salon." 
+          />
         )}
       </div>
     </div>
@@ -465,18 +523,22 @@ function ReviewsTab() {
           </div>
           {pagination.totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-6">
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="cursor-pointer disabled:cursor-not-allowed">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm text-muted-foreground">Page {page} of {pagination.totalPages}</span>
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}>
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages} className="cursor-pointer disabled:cursor-not-allowed">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}
         </>
       ) : (
-        <Card><CardContent className="p-8 text-center text-muted-foreground">You haven't written any reviews yet</CardContent></Card>
+        <EmptyState 
+          icon={Star} 
+          title="No reviews yet" 
+          description="Your feedback helps salons improve and other clients find the perfect service." 
+        />
       )}
     </div>
   );
@@ -516,7 +578,7 @@ function AddressesTab() {
           <MapPin className="h-5 w-5 text-primary" />My Addresses
         </h3>
         {!isAdding && (
-          <Button onClick={() => setIsAdding(true)} size="sm">
+          <Button onClick={() => setIsAdding(true)} size="sm" className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />Add New
           </Button>
         )}
@@ -548,7 +610,7 @@ function AddressesTab() {
                       key={name}
                       type="button"
                       onClick={() => setFormData({ ...formData, icon_name: name })}
-                      className={`h-10 flex-1 rounded-md border flex items-center justify-center transition-colors ${formData.icon_name === name ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-background/50 text-muted-foreground hover:bg-muted'}`}
+                      className={`h-10 flex-1 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${formData.icon_name === name ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-background/50 text-muted-foreground hover:bg-muted'}`}
                     >
                       <Icon className="h-4 w-4" />
                     </button>
@@ -575,8 +637,8 @@ function AddressesTab() {
               <label htmlFor="is_default" className="text-sm cursor-pointer">Set as default address</label>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={!formData.label || !formData.full_address || addAddress.isPending}>
+              <Button variant="outline" onClick={() => setIsAdding(false)} className="cursor-pointer">Cancel</Button>
+              <Button onClick={handleSave} disabled={!formData.label || !formData.full_address || addAddress.isPending} className="cursor-pointer disabled:cursor-not-allowed">
                 {addAddress.isPending ? 'Saving...' : 'Save Address'}
               </Button>
             </div>
@@ -603,7 +665,7 @@ function AddressesTab() {
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{addr.fullAddress}</p>
                     <div className="flex gap-3 mt-3">
-                      <button onClick={() => deleteAddress.mutate(addr.id)} className="text-xs text-destructive hover:underline">Remove</button>
+                      <button onClick={() => deleteAddress.mutate(addr.id)} className="text-xs text-destructive hover:underline cursor-pointer">Remove</button>
                     </div>
                   </div>
                 </CardContent>
@@ -612,11 +674,156 @@ function AddressesTab() {
           })}
         </div>
       ) : (
-        !isAdding && <Card><CardContent className="p-8 text-center text-muted-foreground">You haven't added any addresses yet</CardContent></Card>
+        !isAdding && (
+          <EmptyState 
+            icon={MapPin} 
+            title="No addresses added" 
+            description="Add your home or work address for faster booking and mobile services." 
+            actionLabel="Add new address" 
+            actionOnClick={() => setIsAdding(true)} 
+          />
+        )
       )}
     </div>
   );
 }
+
+const SecurityTab = () => {
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordError, setPasswordError] = useState('');
+  const changePassword = useChangePassword();
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    if (passwords.newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters');
+      return;
+    }
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    try {
+      await changePassword.mutateAsync({
+        currentPassword: passwords.currentPassword,
+        newPassword: passwords.newPassword,
+      });
+      toast.success('Password changed successfully');
+      setIsPasswordModalOpen(false);
+      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setPasswordError(err.message || 'Failed to change password');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <CardTitle>Security Settings</CardTitle>
+          </div>
+          <CardDescription>
+            Manage your password and security preferences.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4 border-b pb-6">
+            <div>
+              <h4 className="font-semibold text-sm">Change Password</h4>
+              <p className="text-xs text-muted-foreground">It's a good idea to use a strong password that you're not using elsewhere.</p>
+            </div>
+            
+            <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="cursor-pointer">
+                  <Lock className="mr-2 h-4 w-4" />
+                  Change Password
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Change Password</DialogTitle>
+                  <DialogDescription>
+                    Enter your current password and a new one to update your security credentials.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handlePasswordSubmit} className="space-y-4 pt-4">
+                  {passwordError && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {passwordError}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Current Password</label>
+                    <Input 
+                      type="password" 
+                      required 
+                      value={passwords.currentPassword}
+                      onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">New Password</label>
+                    <Input 
+                      type="password" 
+                      required 
+                      value={passwords.newPassword}
+                      onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Confirm New Password</label>
+                    <Input 
+                      type="password" 
+                      required 
+                      value={passwords.confirmPassword}
+                      onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+                    />
+                  </div>
+                  <div className="pt-2 flex justify-end gap-3">
+                    <Button type="button" variant="outline" onClick={() => setIsPasswordModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={changePassword.isPending}>
+                      {changePassword.isPending ? 'Updating...' : 'Update Password'}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-sm">Two-Factor Authentication</h4>
+              <p className="text-xs text-muted-foreground">Add an extra layer of security to your account.</p>
+            </div>
+            <div className="flex items-center justify-between bg-muted/40 p-4 rounded-lg border">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Authenticator App</p>
+                <p className="text-xs text-muted-foreground">Not configured</p>
+              </div>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="cursor-pointer"
+                onClick={() => toast.info("2FA integration coming soon")}
+              >
+                Enable
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -652,24 +859,28 @@ export default function ProfilePage() {
       <h1 className="text-3xl font-bold mb-8">My Account</h1>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-8">
-          <TabsTrigger value="profile" className="gap-2">
+        <TabsList className="grid w-full grid-cols-6 mb-8">
+          <TabsTrigger value="profile" className="gap-2 cursor-pointer">
             <User className="h-4 w-4 hidden sm:block" />
             <span>Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="bookings" className="gap-2">
+          <TabsTrigger value="security" className="gap-2 cursor-pointer">
+            <Shield className="h-4 w-4 hidden sm:block" />
+            <span>Security</span>
+          </TabsTrigger>
+          <TabsTrigger value="bookings" className="gap-2 cursor-pointer">
             <Calendar className="h-4 w-4 hidden sm:block" />
             <span>Bookings</span>
           </TabsTrigger>
-          <TabsTrigger value="packages" className="gap-2">
+          <TabsTrigger value="packages" className="gap-2 cursor-pointer">
             <Package className="h-4 w-4 hidden sm:block" />
             <span>Packages</span>
           </TabsTrigger>
-          <TabsTrigger value="reviews" className="gap-2">
+          <TabsTrigger value="reviews" className="gap-2 cursor-pointer">
             <Star className="h-4 w-4 hidden sm:block" />
             <span>Reviews</span>
           </TabsTrigger>
-          <TabsTrigger value="addresses" className="gap-2">
+          <TabsTrigger value="addresses" className="gap-2 cursor-pointer">
             <MapPin className="h-4 w-4 hidden sm:block" />
             <span>Addresses</span>
           </TabsTrigger>
@@ -677,6 +888,10 @@ export default function ProfilePage() {
 
         <TabsContent value="profile">
           <PersonalInfoTab profile={profile} isLoading={isLoading} />
+        </TabsContent>
+
+        <TabsContent value="security">
+          <SecurityTab />
         </TabsContent>
 
         <TabsContent value="bookings">

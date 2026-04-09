@@ -42,6 +42,7 @@ import { format } from 'date-fns';
 
 import { useCreateStaff, STAFF_ROLES, STAFF_COLORS } from '@/hooks/use-staff';
 import { useServices } from '@/hooks/use-services';
+import { formatDuration } from '@/lib/format';
 
 const wizardSchema = z.object({
   // Step 1: Basic Info (Required)
@@ -694,7 +695,7 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
                                       {service.name}
                                       {service.duration && (
                                         <span className="text-xs text-muted-foreground ml-2">
-                                          ({service.duration} min)
+                                          ({formatDuration(service.duration)})
                                         </span>
                                       )}
                                     </FormLabel>

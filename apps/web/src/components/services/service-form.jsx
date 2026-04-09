@@ -40,6 +40,7 @@ import {
   useService,
 } from "@/hooks/use-services";
 import { useStaff } from "@/hooks/use-staff";
+import { useSalon } from "@/providers/salon-provider";
 
 var serviceSchema = z.object({
   name: z.string().min(1, "Service name is required"),
@@ -74,6 +75,7 @@ export function ServiceFormDialog({
   var createService = useCreateService();
   var updateService = useUpdateService();
   var isEditing = !!service;
+    var { salon } = useSalon();
 
   // Staff assignment
   var [selectedStaffIds, setSelectedStaffIds] = useState([]);
@@ -208,6 +210,20 @@ export function ServiceFormDialog({
 
   var isSubmitting = createService.isPending || updateService.isPending;
 
+    var primaryCategory = salon?.salonCategories?.find(function(c) { return c.isPrimary; })?.name || salon?.category;
+    var TEMPLATES = {
+      "Hair Salon": ["Women's Haircut", "Men's Haircut", "Balayage", "Blowout"],
+      "Barbershop": ["Men's Fade", "Beard Trim", "Skin Fade", "Hot Towel Shave"],
+      "Nail Salon": ["Acrylics", "Gel Manicure", "Pedicure", "Dip Powder"],
+      "Esthetician": ["Facial", "Eyebrow Wax", "Brazilian Wax", "Lash Extensions"],
+      "Massage": ["Swedish Massage", "Deep Tissue", "Hot Stone Therapy", "Couples Massage"]
+    };
+    var quickSuggestions = TEMPLATES[primaryCategory] || ["Haircut", "Manicure", "Facial"];
+
+    function applySuggestion(name) {
+      form.setValue("name", name, { shouldValidate: true, shouldDirty: true });
+    }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -229,12 +245,28 @@ export function ServiceFormDialog({
                       <FormItem>
                         <FormLabel>Service Name *</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="e.g., Women's Haircut"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
+                            <Input
+                              placeholder="e.g., Women's Haircut"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                          {!isEditing && (
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {quickSuggestions.map(function(sug) {
+                                return (
+                                  <button
+                                    type="button"
+                                    key={sug}
+                                    onClick={function() { return applySuggestion(sug); }}
+                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold focus:outline-none border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer"
+                                  >
+                                    {sug}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                       </FormItem>
                     );
                   }}

@@ -183,29 +183,196 @@ export async function createSafeBooking({
   const startFmt = startDatetime.slice(0, 19).replace("T", " ");
   const endFmt = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:${pad(endDate.getSeconds())}`;
 
-  // Collect every unique staff member involved (primary + per-service overrides)
-  const staffIds = [
-    ...new Set([
-      Number(primaryStaffId),
-      ...services
-        .map((s) => s.staffId)
-        .filter(Boolean)
-        .map(Number),
-    ]),
-  ];
+  // ── Step 1.5: "Anyone Available" (Smart Assignment / Load Balancer) ────────
+  //
+  // For services specifying "ANYONE_VIRTUAL" or "any", dynamically select the
+  // available capable staff member with the lowest workload for the day.
+  // Each flexible service is resolved independently using its own sequential
+  // time window — not the full booking duration.
+  //
+  let effectivePrimaryStaffId = primaryStaffId;
+
+  // Identify which services need smart assignment.
+  // Check s.staffId DIRECTLY — do NOT use the `|| primaryStaffId` fallback
+  // which would silently assign the primary staff to unresolved services.
+  const isVirtualStaff = (id) => {
+    const s = String(id || "");
+    return s === "ANYONE_VIRTUAL" || s === "any";
+  };
+
+  const flexibleServices = services.filter(
+    (s) => isVirtualStaff(s.staffId) || (!s.staffId && isVirtualStaff(primaryStaffId))
+  );
+
+  if (flexibleServices.length > 0) {
+    const dayOfWeek = startDate.getDay();
+
+    // Track in-flight assignments within THIS booking request.
+    // Key = staffId, Value = array of { start: Date, end: Date } windows.
+    // This prevents assigning the same staff to overlapping services when
+    // the DB doesn't yet know about previous assignments in this request.
+    const inFlightAssignments = new Map();
+
+    // Also record NON-flexible (explicitly assigned) services so the load
+    // balancer knows those staff are already claimed for their windows.
+    const fullSchedule = buildServiceSchedule(services, startDate);
+    for (const entry of fullSchedule) {
+      if (!isVirtualStaff(entry.service.staffId) && entry.service.staffId) {
+        const sid = Number(entry.service.staffId);
+        if (!inFlightAssignments.has(sid)) inFlightAssignments.set(sid, []);
+        inFlightAssignments.get(sid).push({ start: entry.start, end: entry.end });
+      }
+    }
+
+    for (const s of flexibleServices) {
+      // Compute this service's sequential time window based on its position
+      const svcSchedule = buildServiceSchedule(services, startDate);
+      const thisWindow = svcSchedule.find(w => w.service === s);
+      const svcStartStr = toTimeString(thisWindow.start);
+      const svcEndStr = toTimeString(thisWindow.end);
+      const svcStartFmt = formatDatetimeLocal(thisWindow.start);
+      const svcEndFmt = formatDatetimeLocal(thisWindow.end);
+
+      // 1. Fetch staff who can perform THIS specific service
+      const [capableStaffRows] = await pool.execute(
+        `SELECT staff_id FROM service_staff 
+         JOIN staff ON staff.id = service_staff.staff_id
+         WHERE service_id = ?
+         AND staff.salon_id = ? AND staff.is_active = 1`,
+        [s.serviceId, salonId]
+      );
+      
+      const capableStaffIds = capableStaffRows.map(r => r.staff_id);
+      
+      if (capableStaffIds.length === 0) {
+        throw new BookingError("NO_STAFF_AVAILABLE", `No active staff can perform service #${s.serviceId}.`, 409);
+      }
+      
+      // 2. Filter for availability (working hours, time-off, DB bookings,
+      //    AND in-flight assignments from this same booking request)
+      const availableStaffIds = [];
+      for (const staffId of capableStaffIds) {
+        const [whRows] = await pool.execute(
+          `SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? LIMIT 1`,
+          [staffId, dayOfWeek]
+        );
+        if (!whRows[0] || svcStartStr < whRows[0].start_time || svcEndStr > whRows[0].end_time) {
+          continue;
+        }
+        
+        const [timeOffRows] = await pool.execute(
+          `SELECT 1 FROM staff_time_off 
+           WHERE staff_id = ? AND start_datetime < ? AND end_datetime > ? LIMIT 1`,
+          [staffId, svcEndFmt, svcStartFmt]
+        );
+        if (timeOffRows.length > 0) continue;
+        
+        const [bookingRows] = await pool.execute(
+          `SELECT 1 FROM bookings b
+           JOIN booking_services bs ON bs.booking_id = b.id
+           WHERE COALESCE(bs.staff_id, b.staff_id) = ?
+           AND b.status IN ('pending', 'confirmed') AND b.deleted_at IS NULL
+           AND bs.start_datetime < ? AND bs.end_datetime > ? LIMIT 1`,
+          [staffId, svcEndFmt, svcStartFmt]
+        );
+        if (bookingRows.length > 0) continue;
+
+        // Check in-flight assignments from this same booking request.
+        // If this staff was already assigned to a service whose window
+        // overlaps with the current service's window, skip them.
+        const existingWindows = inFlightAssignments.get(staffId) || [];
+        const hasInFlightConflict = existingWindows.some(
+          (win) => thisWindow.start < win.end && thisWindow.end > win.start
+        );
+        if (hasInFlightConflict) continue;
+        
+        availableStaffIds.push(staffId);
+      }
+      
+      if (availableStaffIds.length === 0) {
+        throw new BookingError("BOOKING_CONFLICT", `No staff members are available for service #${s.serviceId} at this time.`, 409);
+      }
+      
+      // 3. Load Balancer: pick staff with the least minutes worked today
+      const [loadRows] = await pool.execute(
+        `SELECT b.staff_id, SUM(TIMESTAMPDIFF(MINUTE, b.start_datetime, b.end_datetime)) as worked_minutes
+         FROM bookings b
+         WHERE b.staff_id IN (${availableStaffIds.map(() => '?').join(',')})
+         AND DATE(b.start_datetime) = DATE(?)
+         AND b.status IN ('pending', 'confirmed') AND b.deleted_at IS NULL
+         GROUP BY b.staff_id`,
+        [...availableStaffIds, startDate]
+      );
+      
+      let selectedStaffId = availableStaffIds[0];
+      let minMinutes = Infinity;
+      for (const staffId of availableStaffIds) {
+        const loadEntry = loadRows.find(r => r.staff_id === staffId);
+        const mins = loadEntry ? Number(loadEntry.worked_minutes) : 0;
+        if (mins < minMinutes) {
+          minMinutes = mins;
+          selectedStaffId = staffId;
+        }
+      }
+      
+      // Override virtual assignment for THIS service only
+      s.staffId = selectedStaffId;
+
+      // Record this assignment in the in-flight tracker so subsequent
+      // services in this same booking know this staff is claimed.
+      if (!inFlightAssignments.has(selectedStaffId)) inFlightAssignments.set(selectedStaffId, []);
+      inFlightAssignments.get(selectedStaffId).push({ start: thisWindow.start, end: thisWindow.end });
+    }
+  }
+
+  // Resolve the overarching booking primary staff
+  if (isVirtualStaff(effectivePrimaryStaffId)) {
+    effectivePrimaryStaffId = services[0].staffId;
+  }
+
+  // Safety net: ensure no service still has a virtual staffId after resolution.
+  // This catches edge cases where a service wasn't in flexibleServices but
+  // still has an unresolved "any"/"ANYONE_VIRTUAL" staffId.
+  for (const svc of services) {
+    if (isVirtualStaff(svc.staffId)) {
+      throw new BookingError(
+        "STAFF_ASSIGNMENT_FAILED",
+        `Service #${svc.serviceId} could not be assigned to a staff member. Please select a specific staff.`,
+        409,
+      );
+    }
+  }
+
+  // ── Build the final sequential service schedule ────────────────────────────
+  //
+  // Now that all staff are resolved, compute each service's exact time window
+  // and group them by staff member. Each staff is only validated against *their*
+  // service sub-windows, not the entire booking duration.
+  //
+  // Example: Service A (30 min, Staff X) + Service B (3h, Staff Y)
+  //   startDate = 12:00
+  //   Staff X window: 12:00–12:30
+  //   Staff Y window: 12:30–15:30
+
+  const serviceSchedule = buildServiceSchedule(services, startDate);
+
+  // Compute per-staff time windows: the union of all service windows for each staff
+  // If Staff X handles services at 12:00–12:30 and 13:00–13:30, their effective
+  // window spans 12:00–13:30 for working hours, but conflicts are checked per-segment.
+  const staffWindows = buildStaffWindows(serviceSchedule, effectivePrimaryStaffId);
+
+  // Collect every unique staff member involved
+  const staffIds = [...staffWindows.keys()];
 
   // ── Step 2: Working hours check (fast-fail, outside transaction) ──────────
   //
-  // Working hours are static salon configuration — they never change during
-  // the window of a booking request, so locking them is unnecessary overhead.
-  // Running this check here lets us return a clear error before opening a
-  // transaction and acquiring locks.
+  // Each staff is checked only against the services they handle, not the full
+  // booking span. Staff Y starting at 12:30 won't be rejected for a booking
+  // that starts at 12:00 if their first service only begins at 12:30.
 
-  const dayOfWeek = startDate.getDay(); // 0 = Sunday … 6 = Saturday
-  const startTime = toTimeString(startDate); // "HH:MM:SS" from parsed local datetime
-  const endTime = toTimeString(endDate);
+  const dayOfWeek = startDate.getDay();
 
-  for (const staffId of staffIds) {
+  for (const [staffId, windows] of staffWindows) {
     const [whRows] = await pool.execute(
       `SELECT start_time, end_time
          FROM staff_working_hours
@@ -225,23 +392,27 @@ export async function createSafeBooking({
       );
     }
 
-    // "HH:MM:SS" string comparison is lexicographically correct.
-    // Split into two branches so the message describes the exact problem.
-    if (startTime < wh.start_time) {
-      throw new BookingError(
-        "OUTSIDE_WORKING_HOURS",
-        `Staff #${staffId} doesn't start working until ${formatTime(wh.start_time)}. ` +
-        `Please choose a time at or after ${formatTime(wh.start_time)}.`,
-        409,
-      );
-    }
-    if (endTime > wh.end_time) {
-      throw new BookingError(
-        "SERVICE_EXCEEDS_SHIFT",
-        `This service would end at ${formatTime(endTime)}, but staff #${staffId}'s shift ends at ${formatTime(wh.end_time)}. ` +
-        `Please choose an earlier start time.`,
-        409,
-      );
+    // Check each service window for this staff member
+    for (const win of windows) {
+      const winStartTime = toTimeString(win.start);
+      const winEndTime = toTimeString(win.end);
+
+      if (winStartTime < wh.start_time) {
+        throw new BookingError(
+          "OUTSIDE_WORKING_HOURS",
+          `Staff #${staffId} doesn't start working until ${formatTime(wh.start_time)}. ` +
+          `Please choose a time at or after ${formatTime(wh.start_time)}.`,
+          409,
+        );
+      }
+      if (winEndTime > wh.end_time) {
+        throw new BookingError(
+          "SERVICE_EXCEEDS_SHIFT",
+          `This service would end at ${formatTime(winEndTime)}, but staff #${staffId}'s shift ends at ${formatTime(wh.end_time)}. ` +
+          `Please choose an earlier start time.`,
+          409,
+        );
+      }
     }
   }
 
@@ -251,7 +422,7 @@ export async function createSafeBooking({
   // This replaces the previous serial loop (1 query per service → 1 query total).
 
   const svcPairs = services.map((svc) => ({
-    staffId: Number(svc.staffId || primaryStaffId),
+    staffId: Number(svc.staffId || effectivePrimaryStaffId),
     serviceId: Number(svc.serviceId),
   }));
   // Deduplicate (same pair can appear if client sends duplicates)
@@ -285,80 +456,90 @@ export async function createSafeBooking({
   try {
     await conn.beginTransaction();
 
+    // ── Pre-Transaction Staff Lock: Concurrency Bug Fix ───────────────────
+    // 
+    // This utterly prevents race-conditions where two simultaneous requests
+    // for the same staff member bypass the booking overlap checks because
+    // neither row has been inserted yet!
+    if (staffIds.length > 0) {
+      await conn.execute(
+        `SELECT id FROM staff WHERE id IN (${staffIds.map(() => '?').join(',')}) FOR UPDATE`,
+        staffIds
+      );
+    }
+
     // ── Step 3: Booking conflict — SELECT … FOR UPDATE ────────────────────
-    //
-    // FOR UPDATE places an exclusive row lock on every row that matches the
-    // WHERE clause.  Any concurrent transaction attempting to lock the same
-    // rows (i.e. a second request for the same staff+time) will BLOCK until
-    // our transaction commits or rolls back.  This is the mechanism that
-    // makes double-booking under concurrency impossible.
     //
     // Overlap formula (the canonical two-interval overlap test):
     //   existing.start_datetime < new_end
     //   AND existing.end_datetime > new_start
     //
     // We check BOTH bookings.staff_id (primary staff assignment) AND
-    // booking_services.staff_id (per-service staff assignment) so that widget
-    // bookings (which store staff on booking_services) and dashboard bookings
-    // (which store staff on bookings) are both caught.
+    // booking_services.staff_id (per-service staff assignment) based entirely
+    // on the individual booking_services sequential start/end_datetime columns.
     //
     // Only active bookings block time: status IN ('pending','confirmed')
     // AND deleted_at IS NULL.
 
-    for (const staffId of staffIds) {
-      const [conflicts] = await conn.execute(
-        `SELECT b.id
-           FROM bookings b
-          WHERE b.status IN ('pending', 'confirmed')
-            AND b.deleted_at IS NULL
-            AND b.start_datetime < ?
-            AND b.end_datetime   > ?
-            AND (
-                  b.staff_id = ?
-                  OR EXISTS (
-                    SELECT 1
-                      FROM booking_services bs
-                     WHERE bs.booking_id = b.id
-                       AND bs.staff_id   = ?
-                  )
-                )
-          FOR UPDATE`,
-        [endFmt, startFmt, staffId, staffId],
-      );
+    // ── Step 3: Per-service conflict check — SELECT … FOR UPDATE ───────────
+    //
+    // Each staff member is checked only against the time windows of the
+    // services they are assigned to, not the full booking span.
 
-      if (conflicts.length > 0) {
-        throw new BookingError(
-          "BOOKING_CONFLICT",
-          `Staff #${staffId} already has a booking that overlaps ${formatTime(startTime)}–${formatTime(endTime)}`,
-          409,
+    for (const [staffId, windows] of staffWindows) {
+      for (const win of windows) {
+        const winStartFmt = formatDatetimeLocal(win.start);
+        const winEndFmt = formatDatetimeLocal(win.end);
+
+        const [conflicts] = await conn.execute(
+          `SELECT b.id
+             FROM bookings b
+             JOIN booking_services bs ON bs.booking_id = b.id
+            WHERE b.status IN ('pending', 'confirmed')
+              AND b.deleted_at IS NULL
+              AND bs.start_datetime < ?
+              AND bs.end_datetime   > ?
+              AND COALESCE(bs.staff_id, b.staff_id) = ?
+            FOR UPDATE`,
+          [winEndFmt, winStartFmt, staffId],
         );
+
+        if (conflicts.length > 0) {
+          throw new BookingError(
+            "BOOKING_CONFLICT",
+            `Staff #${staffId} already has a booking that overlaps ${formatTime(toTimeString(win.start))}–${formatTime(toTimeString(win.end))}`,
+            409,
+          );
+        }
       }
     }
 
     // ── Step 4: Staff time off (inside transaction) ───────────────────────
     //
-    // Time off can be granted by an admin concurrently with a client booking,
-    // so it MUST be checked inside the transaction (not before it).
-    //
-    // Overlap formula: time_off.start < booking.end AND time_off.end > booking.start
+    // Each staff checked only against their own service windows.
 
-    for (const staffId of staffIds) {
-      const [leaveRows] = await conn.execute(
-        `SELECT id
-           FROM staff_time_off
-          WHERE staff_id       = ?
-            AND start_datetime < ?
-            AND end_datetime   > ?
-          LIMIT 1`,
-        [staffId, endFmt, startFmt],
-      );
+    for (const [staffId, windows] of staffWindows) {
+      for (const win of windows) {
+        const winStartFmt = formatDatetimeLocal(win.start);
+        const winEndFmt = formatDatetimeLocal(win.end);
 
-      if (leaveRows.length > 0) {
-        throw new BookingError(
-          "STAFF_ON_LEAVE",
-          `Staff #${staffId} is on approved time off during this period`,
-          409,
+        const [leaveRows] = await conn.execute(
+          `SELECT id
+             FROM staff_time_off
+            WHERE staff_id       = ?
+              AND start_datetime < ?
+              AND end_datetime   > ?
+            LIMIT 1`,
+          [staffId, winEndFmt, winStartFmt],
         );
+
+        if (leaveRows.length > 0) {
+          throw new BookingError(
+            "STAFF_ON_LEAVE",
+            `Staff #${staffId} is on approved time off during this period`,
+            409,
+          );
+        }
       }
     }
 
@@ -442,24 +623,26 @@ export async function createSafeBooking({
          (salon_id, client_id, staff_id, start_datetime, end_datetime,
           status, source, notes, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [salonId, clientId, primaryStaffId, startFmt, endFmt, status, source, notes],
+      [salonId, clientId, effectivePrimaryStaffId, startFmt, endFmt, status, source, notes],
     );
 
     const bookingId = bookingResult.insertId;
 
     // Insert all booking_services in one multi-row statement instead of a
     // serial loop — N round-trips → 1 round-trip regardless of service count.
-    const bsRows = services.map((svc) => [
+    const bsRows = serviceSchedule.map(({ service: svc, start, end }) => [
       bookingId,
       svc.serviceId,
-      svc.staffId || primaryStaffId,
+      svc.staffId || effectivePrimaryStaffId,
       svc.price,
       svc.duration,
+      formatDatetimeLocal(start),
+      formatDatetimeLocal(end),
     ]);
-    const bsPlaceholders = bsRows.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const bsPlaceholders = bsRows.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
     await conn.execute(
       `INSERT INTO booking_services
-         (booking_id, service_id, staff_id, price, duration_minutes)
+         (booking_id, service_id, staff_id, price, duration_minutes, start_datetime, end_datetime)
        VALUES ${bsPlaceholders}`,
       bsRows.flat(),
     );
@@ -503,11 +686,10 @@ export async function createSafeBooking({
     const [scResult] = await conn.execute(
       `INSERT INTO salon_clients
          (salon_id, client_id, first_visit_date, last_visit_date, total_visits, is_active)
-       VALUES (?, ?, NOW(), NOW(), 1, 1)
+       VALUES (?, ?, NOW(), NOW(), 0, 1)
        ON DUPLICATE KEY UPDATE
          is_active       = 1,
-         last_visit_date = NOW(),
-         total_visits    = total_visits + 1`,
+         last_visit_date = NOW()`,
       [salonId, clientId],
     );
 
@@ -549,6 +731,85 @@ export async function createSafeBooking({
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Build the sequential service schedule.
+ *
+ * Services run back-to-back. Buffer time is applied only after the last
+ * service (not between services), so there's no dead time between handoffs.
+ *
+ * @param   {Array}  services   [{ serviceId, staffId, duration, bufferTime }]
+ * @param   {Date}   startDate  The booking start time
+ * @returns {Array}             [{ service, staffId, start: Date, end: Date }]
+ */
+function buildServiceSchedule(services, startDate) {
+  const schedule = [];
+  let cursor = new Date(startDate);
+
+  for (let i = 0; i < services.length; i++) {
+    const svc = services[i];
+    const duration = Number(svc.duration || 0);
+    const buffer = Number(svc.bufferTime || 0);
+    const svcStart = new Date(cursor);
+    // Buffer only after the last service
+    const isLast = i === services.length - 1;
+    const svcEnd = new Date(cursor.getTime() + (duration + (isLast ? buffer : 0)) * 60000);
+
+    schedule.push({
+      service: svc,
+      staffId: Number(svc.staffId),
+      start: svcStart,
+      end: svcEnd,
+    });
+
+    // Next service starts where this one's pure duration ends (no buffer gap)
+    cursor = new Date(cursor.getTime() + duration * 60000);
+  }
+
+  return schedule;
+}
+
+/**
+ * Group the service schedule into per-staff time windows.
+ *
+ * If the same staff handles multiple services, each service becomes a
+ * separate window entry so that conflict checks are precise.
+ *
+ * @param   {Array}  schedule             Output of buildServiceSchedule()
+ * @param   {number} effectivePrimaryId   Fallback staff for the booking row
+ * @returns {Map<number, Array<{start: Date, end: Date}>>}
+ */
+function buildStaffWindows(schedule, effectivePrimaryId) {
+  const windows = new Map();
+
+  for (const entry of schedule) {
+    const sid = entry.staffId || effectivePrimaryId;
+    if (!windows.has(sid)) windows.set(sid, []);
+    windows.get(sid).push({ start: entry.start, end: entry.end });
+  }
+
+  // Ensure the primary staff is included even if they don't appear in services
+  if (!windows.has(Number(effectivePrimaryId))) {
+    // Use the full booking span as a fallback
+    const firstStart = schedule[0]?.start;
+    const lastEnd = schedule[schedule.length - 1]?.end;
+    if (firstStart && lastEnd) {
+      windows.set(Number(effectivePrimaryId), [{ start: firstStart, end: lastEnd }]);
+    }
+  }
+
+  return windows;
+}
+
+/**
+ * Format a Date as "YYYY-MM-DD HH:MM:SS" in local time (no UTC conversion).
+ * @param {Date} d
+ * @returns {string}
+ */
+function formatDatetimeLocal(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
 /**
  * Parse "YYYY-MM-DD HH:MM:SS" (or ISO-8601) as a LOCAL calendar Date.

@@ -157,18 +157,43 @@ export async function PUT(request, { params }) {
     const updates = [];
     const updateParams = [];
 
+    // Cancellation variables
+    let lateCancellation = false;
+    let cancellationFee = 0;
+    let cancelSettings = null;
+
     if (status) {
       updates.push('status = ?');
       updateParams.push(status);
 
-      if (status === 'cancelled') {
-        updates.push('cancelled_at = NOW()');
-        updates.push('cancelled_by = ?');
-        updateParams.push(session.userId);
+      if (status === 'cancelled' || status === 'no_show') {
+        if (status === 'cancelled') {
+            updates.push('cancelled_at = NOW()');
+            updates.push('cancelled_by = ?');
+            updateParams.push(session.userId);
 
-        if (cancellationReason) {
-          updates.push('cancellation_reason = ?');
-          updateParams.push(cancellationReason);
+            if (cancellationReason) {
+              updates.push('cancellation_reason = ?');
+              updateParams.push(cancellationReason);
+            }
+        }
+
+        // Check policy for penalties (late cancellation or no-show)
+        cancelSettings = await getOne('SELECT * FROM salon_settings WHERE salon_id = ?', [booking.salon_id]);
+        
+        if (status === 'no_show') {
+            // A no-show always applies the full no-show fee automatically
+            lateCancellation = true; // Re-use the penalty flag
+            cancellationFee = cancelSettings ? parseFloat(cancelSettings.no_show_fee || 0) : 0;
+        } else if (cancelSettings && cancelSettings.cancellation_policy_hours > 0) {
+          const bookingStart = new Date(booking.start_datetime);
+          const now = new Date();
+          const hoursUntilBooking = (bookingStart - now) / (1000 * 60 * 60);
+
+          if (hoursUntilBooking > 0 && hoursUntilBooking < cancelSettings.cancellation_policy_hours) {
+            lateCancellation = true;
+            cancellationFee = parseFloat(cancelSettings.no_show_fee || 0); // Defaulting late cancellation to no_show_fee penalty
+          }
         }
       }
     }
@@ -208,20 +233,152 @@ export async function PUT(request, { params }) {
     updateParams.push(id, booking.salon_id);
     await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`, updateParams);
 
+    // If cancelled or no-show, handle payment refunds and cancellation fees dynamically
+    if (status === 'cancelled' || status === 'no_show') {
+        const payment = await getOne('SELECT id, amount, status FROM payments WHERE booking_id = ?', [id]);
+        const feeReasonStr = status === 'no_show' ? 'No-Show Fee' : 'Late Cancellation Fee';
+
+        if (payment) {
+            if (payment.status === 'paid') {
+               if (lateCancellation && cancellationFee > 0) {
+                   const refundAmt = Math.max(0, parseFloat(payment.amount) - cancellationFee);
+                   await query(`UPDATE payments SET status = 'refunded', refunded_amount = ?, notes = CONCAT(COALESCE(notes, ''), ' | ${feeReasonStr} Applied: $', ?) WHERE id = ?`, [refundAmt, cancellationFee, payment.id]);
+               } else {
+                   await query(`UPDATE payments SET status = 'refunded', refunded_amount = amount WHERE id = ?`, [payment.id]);
+               }
+            } else {
+               if (lateCancellation && cancellationFee > 0) {
+                   // Modify standing pending invoice to only match the fee amount
+                   await query(`UPDATE payments SET amount = ?, notes = CONCAT(COALESCE(notes, ''), ' | ${feeReasonStr}'), status = 'pending' WHERE id = ?`, [cancellationFee, payment.id]);
+               } else {
+                   await query(`UPDATE payments SET status = 'refunded' WHERE id = ?`, [payment.id]);
+               }
+            }
+        } else if (lateCancellation && cancellationFee > 0) {
+            // Issue an outstanding fee for late cancellation / no-show
+            await query(`INSERT INTO payments (booking_id, amount, method, status, notes) VALUES (?, ?, 'card', 'pending', ?)`, [id, cancellationFee, feeReasonStr]);
+        }
+
+        if (status === 'no_show') {
+            // Apply Blacklisting for No-Show scenarios
+            await query(`
+                UPDATE salon_clients 
+                SET is_active = 0, 
+                    notes = CONCAT(COALESCE(notes, ''), '\\nBlacklisted due to No-Show.') 
+                WHERE client_id = ? AND salon_id = ?
+            `, [booking.client_id, booking.salon_id]);
+        }
+    }
+
     const updatedBooking = await getOne('SELECT * FROM bookings WHERE id = ?', [id]);
 
+    // Setup notification payload if client notification is needed
+    const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
+    
     // Send Cancellation Notification if status changed to cancelled
     if (status === 'cancelled') {
-        const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
         if (client) {
+            const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+            const pad = (n) => String(n).padStart(2, "0");
+            const d = new Date(String(booking.start_datetime).replace(" ", "T"));
+            const formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            
+            let feeMessage = '';
+            if (lateCancellation && cancellationFee > 0 && cancelSettings) {
+                feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${cancelSettings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of $${cancellationFee.toFixed(2)} has been applied to your account according to salon policy.</em></p>`;
+            }
+
             sendNotification({
                 userId: client.id,
                 email: client.email,
                 type: 'email',
                 title: 'Booking Cancelled',
-                message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking for ${new Date(booking.start_datetime).toLocaleString()} has been cancelled.</p>`,
+                message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking with <strong>${salon?.name || 'the salon'}</strong> for ${formattedDate} has been successfully cancelled.</p>${feeMessage}`,
                 data: { bookingId: id, status: 'cancelled' }
             });
+        }
+    }
+    // Send No-Show Notification if status changed to no-show
+    else if (status === 'no_show') {
+        if (client) {
+            const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+            const pad = (n) => String(n).padStart(2, "0");
+            const d = new Date(String(booking.start_datetime).replace(" ", "T"));
+            const formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            
+            let feeMessage = '';
+            if (cancellationFee > 0) {
+                feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of $${cancellationFee.toFixed(2)} has been applied to your account.</em></p>`;
+            }
+
+            sendNotification({
+                userId: client.id,
+                email: client.email,
+                type: 'email',
+                title: 'Missed Appointment',
+                message: `
+                  <p>Hi ${client.first_name || 'there'},</p>
+                  <p>We missed you at <strong>${salon?.name || 'the salon'}</strong> for your appointment on ${formattedDate}.</p>
+                  <p>If you need to reschedule, please refer to our online booking system or contact us directly.</p>
+                  ${feeMessage}
+                `,
+                data: { bookingId: id, status: 'no_show', event: 'no_show_alert' }
+            });
+        }
+    } 
+    // Send Confirmation Notification if status changed from pending to confirmed
+    else if (status === 'confirmed' && booking.status === 'pending') {
+        const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+        const services = await query(
+          `SELECT s.name, s.duration_minutes 
+           FROM booking_services bs 
+           JOIN services s ON s.id = bs.service_id 
+           WHERE bs.booking_id = ?`,
+          [id]
+        );
+        if (client) {
+          const pad = (n) => String(n).padStart(2, "0");
+          const d = new Date(String(booking.start_datetime).replace(" ", "T"));
+          const startDatetimeFormatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
+
+          sendNotification({
+            userId: client.id,
+            email: client.email,
+            type: 'email',
+            title: 'Booking Confirmed',
+            message: `
+              <p>Hi ${client.first_name || 'there'},</p>
+              <p>Your booking at <strong>${salon?.name || 'the salon'}</strong> has been confirmed by the staff!</p>
+              <p><strong>When:</strong> ${startDatetimeFormatted}</p>
+              <p><strong>Services:</strong></p>
+              <ul>${formattedServicesHTML}</ul>
+              <p>We look forward to seeing you!</p>
+            `,
+            data: { bookingId: id, status: 'confirmed' }
+          });
+        }
+    }
+    // Send Review Flow Notification if status changed directly to completed
+    else if (status === 'completed' && booking.status !== 'completed') {
+        const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+        if (client) {
+          // Explicit hardcoded review url placeholder until actual domain is configured
+          const reviewUrl = `http://localhost:3000/dashboard/client/bookings/${id}/review`;
+          sendNotification({
+            userId: client.id,
+            email: client.email,
+            type: 'email',
+            title: 'Thank you for your visit!',
+            message: `
+              <p>Hi ${client.first_name || 'there'},</p>
+              <p>Your visit to <strong>${salon?.name || 'the salon'}</strong> is now complete!</p>
+              <p>We'd love to hear about your experience. Please take a moment to leave a review.</p>
+              <p><a href="${reviewUrl}">Leave a Review</a></p>
+              <p>We hope to see you again soon!</p>
+            `,
+            data: { bookingId: id, status: 'completed', event: 'review_prompt' }
+          });
         }
     }
 
@@ -256,19 +413,19 @@ export async function DELETE(request, { params }) {
 
     // Check cancellation policy
     let lateCancellation = false;
+    let cancellationFee = 0;
     const settings = await getOne('SELECT * FROM salon_settings WHERE salon_id = ?', [booking.salon_id]);
     if (settings && settings.cancellation_policy_hours > 0 && session.role === 'client') {
       const bookingStart = new Date(booking.start_datetime);
       const now = new Date();
       const hoursUntilBooking = (bookingStart - now) / (1000 * 60 * 60);
 
-      if (hoursUntilBooking < settings.cancellation_policy_hours) {
+      // Apply late fee if cancelled less than X hours before, but not if the appointment already passed (usually would be no-show)
+      if (hoursUntilBooking > 0 && hoursUntilBooking < settings.cancellation_policy_hours) {
         lateCancellation = true;
-        // Note: Cancellation fee charging can be added here when payment flow supports it.
-        // For now we flag it so the frontend can warn the user.
+        cancellationFee = parseFloat(settings.no_show_fee || 0); // Re-use no-show fee amount as late cancellation penalty
       }
     }
-
 
     const { searchParams } = new URL(request.url);
     const reason = searchParams.get('reason');
@@ -283,20 +440,53 @@ export async function DELETE(request, { params }) {
 
     await query(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`, updateParams);
 
+    // If cancelled, handle payment refunds and calculate any cancellation fees dynamically
+    const payment = await getOne('SELECT id, amount, status FROM payments WHERE booking_id = ?', [id]);
+    if (payment) {
+        if (payment.status === 'paid') {
+           if (lateCancellation && cancellationFee > 0) {
+               const refundAmt = Math.max(0, parseFloat(payment.amount) - cancellationFee);
+               await query(`UPDATE payments SET status = 'refunded', refunded_amount = ?, notes = CONCAT(COALESCE(notes, ''), ' | Late Cancellation Fee Applied: $', ?) WHERE id = ?`, [refundAmt, cancellationFee, payment.id]);
+           } else {
+               await query(`UPDATE payments SET status = 'refunded', refunded_amount = amount WHERE id = ?`, [payment.id]);
+           }
+        } else {
+           if (lateCancellation && cancellationFee > 0) {
+               // Modify standing pending invoice to only match the fee amount
+               await query(`UPDATE payments SET amount = ?, notes = CONCAT(COALESCE(notes, ''), ' | Late Cancellation Fee'), status = 'pending' WHERE id = ?`, [cancellationFee, payment.id]);
+           } else {
+               await query(`UPDATE payments SET status = 'refunded' WHERE id = ?`, [payment.id]);
+           }
+        }
+    } else if (lateCancellation && cancellationFee > 0) {
+        // Issue an outstanding fee for late cancellation
+        await query(`INSERT INTO payments (booking_id, amount, method, status, notes) VALUES (?, ?, 'card', 'pending', 'Late Cancellation Fee')`, [id, cancellationFee]);
+    }
+
     // Send Cancellation Notification
     const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
     if (client) {
+        const salon = await getOne('SELECT name FROM salons WHERE id = ?', [booking.salon_id]);
+        const pad = (n) => String(n).padStart(2, "0");
+        const d = new Date(String(booking.start_datetime).replace(" ", "T"));
+        const formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        
+        let feeMessage = '';
+        if (lateCancellation && cancellationFee > 0) {
+            feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${settings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of $${cancellationFee.toFixed(2)} has been applied to your account according to salon policy.</em></p>`;
+        }
+
         sendNotification({
             userId: client.id,
             email: client.email,
             type: 'email',
             title: 'Booking Cancelled',
-            message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking for ${new Date(booking.start_datetime).toLocaleString()} has been cancelled.</p>`,
+            message: `<p>Hi ${client.first_name || 'there'},</p><p>Your booking with <strong>${salon?.name || 'the salon'}</strong> for ${formattedDate} has been successfully cancelled.</p>${feeMessage}`,
             data: { bookingId: id, status: 'cancelled' }
         });
     }
 
-    return success({ message: 'Booking cancelled successfully', lateCancellation });
+    return success({ message: 'Booking cancelled successfully', lateCancellation, cancellationFee });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Cancel booking error:', err);

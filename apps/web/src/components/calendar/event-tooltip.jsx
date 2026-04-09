@@ -1,49 +1,94 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+
+let globalActiveBookingId = null;
+let globalHideTimeout = null;
+let globalShowTimeout = null;
+let globalPosition = { x: 0, y: 0 };
+const tooltipSubscribers = new Set();
+
+function notifySubscribers() {
+  tooltipSubscribers.forEach(cb => cb());
+}
 import { format, isValid } from "date-fns";
-import { Clock, User, Scissors, FileText, CircleDot } from "lucide-react";
-import { formatCurrency } from "@/lib/format";
+import { Clock, User, Scissors, FileText, CircleDot, AlertTriangle } from "lucide-react";
+import { useSalon } from "@/providers/salon-provider";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency, formatDuration } from "@/lib/format";
 
 var statusConfig = {
   pending: {
     label: "Pending",
-    dotColor: "bg-yellow-400",
-    bgColor: "bg-yellow-400/10",
-    textColor: "text-yellow-500",
+    dotColor: "bg-amber-500",
+    bgColor: "bg-amber-50/50 border border-amber-200",
+    textColor: "text-amber-600",
   },
   confirmed: {
     label: "Confirmed",
-    dotColor: "bg-green-400",
-    bgColor: "bg-green-400/10",
-    textColor: "text-green-500",
+    dotColor: "bg-slate-500",
+    bgColor: "bg-slate-50/50 border border-slate-200",
+    textColor: "text-slate-700",
   },
   completed: {
     label: "Completed",
-    dotColor: "bg-blue-400",
-    bgColor: "bg-blue-400/10",
-    textColor: "text-blue-500",
+    dotColor: "bg-green-500",
+    bgColor: "bg-green-50/50 border border-green-200",
+    textColor: "text-green-600",
   },
   cancelled: {
     label: "Cancelled",
-    dotColor: "bg-red-400",
-    bgColor: "bg-red-400/10",
-    textColor: "text-red-500",
+    dotColor: "bg-red-500",
+    bgColor: "bg-red-50/50 border border-red-200",
+    textColor: "text-red-600",
   },
   no_show: {
     label: "No Show",
-    dotColor: "bg-gray-400",
-    bgColor: "bg-gray-400/10",
-    textColor: "text-gray-500",
+    dotColor: "bg-orange-500",
+    bgColor: "bg-orange-50/50 border border-orange-200",
+    textColor: "text-orange-600",
   },
 };
 
-export function EventTooltip({ booking, children }) {
+export function EventTooltip({ booking, children }) { var { salon } = useSalon() || {};
+  var bookingId = booking?.originalBooking?.id || booking?.id;
   var [isVisible, setIsVisible] = useState(false);
   var [position, setPosition] = useState({ x: 0, y: 0 });
-  var timeoutRef = useRef(null);
+  var [isRenderer, setIsRenderer] = useState(false);
   var containerRef = useRef(null);
+
+  useEffect(() => {
+    function handleUpdate() {
+      if (globalActiveBookingId === bookingId) {
+        setIsVisible(true);
+        setPosition(globalPosition);
+      } else {
+        setIsVisible(false);
+        setIsRenderer(false);
+      }
+    }
+    tooltipSubscribers.add(handleUpdate);
+    handleUpdate();
+    return () => tooltipSubscribers.delete(handleUpdate);
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (isVisible && globalActiveBookingId === bookingId) {
+      if (!window.__activeTooltipRenderer) {
+        window.__activeTooltipRenderer = bookingId;
+        setIsRenderer(true);
+      }
+    } else {
+      if (isRenderer) {
+        window.__activeTooltipRenderer = null;
+        setIsRenderer(false);
+      }
+    }
+    return () => {
+      if (isRenderer) window.__activeTooltipRenderer = null;
+    };
+  }, [isVisible, bookingId, isRenderer]);
 
   if (!booking) return children;
 
@@ -66,10 +111,26 @@ export function EventTooltip({ booking, children }) {
       : null;
 
   function handleMouseEnter(e) {
-    clearTimeout(timeoutRef.current);
-    // Capture rect synchronously — currentTarget is null inside setTimeout
+    clearTimeout(globalHideTimeout);
+    clearTimeout(globalShowTimeout);
+    
     var rect = e.currentTarget.getBoundingClientRect();
-    timeoutRef.current = setTimeout(function () {
+    var groupElements = document.querySelectorAll('[data-booking-inner-id="' + bookingId + '"]');
+    if (groupElements.length > 0) {
+      var minTop = 99999, maxBottom = -99999, minLeft = 99999, maxRight = -99999;
+      groupElements.forEach(function(el) {
+        var r = el.getBoundingClientRect();
+        if (r.top < minTop) minTop = r.top;
+        if (r.bottom > maxBottom) maxBottom = r.bottom;
+        if (r.left < minLeft) minLeft = r.left;
+        if (r.right > maxRight) maxRight = r.right;
+      });
+      rect = { top: minTop, bottom: maxBottom, left: minLeft, right: maxRight };
+    }
+
+    var delay = globalActiveBookingId === bookingId ? 0 : 300;
+    
+    function triggerShow() {
       var viewportW = window.innerWidth;
       var viewportH = window.innerHeight;
       var cardW = 300;
@@ -78,39 +139,47 @@ export function EventTooltip({ booking, children }) {
       var x = rect.right + 8;
       var y = rect.top;
 
-      // If tooltip would overflow right side, show on left
       if (x + cardW > viewportW - 16) {
         x = rect.left - cardW - 8;
       }
-      // If tooltip would overflow bottom, push up
       if (y + cardH > viewportH - 16) {
         y = viewportH - cardH - 16;
       }
-      // If tooltip would overflow top
       if (y < 16) {
         y = 16;
       }
 
-      setPosition({ x: x, y: y });
-      setIsVisible(true);
-    }, 300);
+      globalPosition = { x: x, y: y };
+      globalActiveBookingId = bookingId;
+      notifySubscribers();
+    }
+
+    if (delay === 0) triggerShow();
+    else globalShowTimeout = setTimeout(triggerShow, delay);
   }
 
   function handleMouseLeave() {
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(function () {
-      setIsVisible(false);
+    clearTimeout(globalShowTimeout);
+    clearTimeout(globalHideTimeout);
+    globalHideTimeout = setTimeout(function () {
+      if (globalActiveBookingId === bookingId) {
+        globalActiveBookingId = null;
+        notifySubscribers();
+      }
     }, 150);
   }
 
   function handleCardMouseEnter() {
-    clearTimeout(timeoutRef.current);
+    clearTimeout(globalHideTimeout);
   }
 
   function handleCardMouseLeave() {
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(function () {
-      setIsVisible(false);
+    clearTimeout(globalHideTimeout);
+    globalHideTimeout = setTimeout(function () {
+      if (globalActiveBookingId === bookingId) {
+        globalActiveBookingId = null;
+        notifySubscribers();
+      }
     }, 150);
   }
 
@@ -125,7 +194,7 @@ export function EventTooltip({ booking, children }) {
         {children}
       </div>
 
-      {isVisible && typeof document !== "undefined" && createPortal(
+      {isVisible && isRenderer && typeof document !== "undefined" && createPortal(
         <div
           className="fixed z-[9999] pointer-events-auto"
           style={{ left: position.x + "px", top: position.y + "px" }}
@@ -143,26 +212,42 @@ export function EventTooltip({ booking, children }) {
             />
 
             <div className="p-4">
+              {booking.clientIsActive === false && (
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold px-3 py-2 rounded-md mb-3 flex items-center justify-center shadow-sm">
+                  <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
+                  RESTRICTED CLIENT
+                </div>
+              )}
               {/* Client Name + Status */}
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-sm text-foreground truncate flex-1 mr-2">
-                  {booking.client
-                    ? booking.client.firstName + " " + booking.client.lastName
-                    : booking.title || "Walk-in"}
+              <div className="flex items-center justify-between mb-3 w-full">
+                <h3 className="font-semibold text-sm text-foreground truncate flex-1 flex items-center pr-2">
+                  <span className="truncate mr-1.5">
+                    {booking.client
+                      ? booking.client.firstName + " " + booking.client.lastName
+                      : booking.title || "Walk-in"}
+                  </span>
+                  {booking.clientIsActive === false && (
+                    <Badge variant="destructive" className="h-4 min-h-4 px-1 py-0 text-[8px] font-bold uppercase shrink-0 leading-none">
+                      Restricted
+                    </Badge>
+                  )}
                 </h3>
                 <span
                   className={
-                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium " +
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 whitespace-nowrap " +
                     status.bgColor +
                     " " +
                     status.textColor
                   }
                 >
-                  <span
-                    className={
-                      "w-1.5 h-1.5 rounded-full " + status.dotColor
-                    }
-                  />
+                  {booking.status === 'pending' ? (
+                    <span className="relative flex h-1.5 w-1.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                    </span>
+                  ) : (
+                    <span className={"w-1.5 h-1.5 rounded-full " + status.dotColor} />
+                  )}
                   {status.label}
                 </span>
               </div>
@@ -180,7 +265,7 @@ export function EventTooltip({ booking, children }) {
                   </div>
                   {duration != null && (
                     <div className="text-[11px] text-muted-foreground">
-                      {duration} minutes
+                      {formatDuration(duration)}
                     </div>
                   )}
                 </div>
@@ -206,7 +291,7 @@ export function EventTooltip({ booking, children }) {
                             {service.name}
                           </span>
                           <span className="text-muted-foreground font-medium shrink-0">
-                            {formatCurrency(service.price)}
+                            {formatCurrency(service.price, salon?.currency)}
                           </span>
                         </div>
                       );
@@ -217,7 +302,7 @@ export function EventTooltip({ booking, children }) {
                           Total
                         </span>
                         <span className="font-semibold text-foreground">
-                          {formatCurrency(totalPrice)}
+                          {formatCurrency(totalPrice, salon?.currency)}
                         </span>
                       </div>
                     )}

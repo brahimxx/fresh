@@ -13,14 +13,7 @@ import { SearchBar } from '@/components/marketplace/search-bar';
 import { SalonCard } from '@/components/marketplace/salon-card';
 import { useMarketplaceSalons } from '@/hooks/use-marketplace';
 
-var FEATURED_CATEGORIES = [
-  { name: 'Hair Salons', icon: Scissors, slug: 'hair', count: '2,500+', gradient: 'from-rose-500/20 to-pink-500/20' },
-  { name: 'Nail Salons', icon: Sparkles, slug: 'nails', count: '1,800+', gradient: 'from-violet-500/20 to-purple-500/20' },
-  { name: 'Spas & Wellness', icon: Heart, slug: 'spa', count: '950+', gradient: 'from-emerald-500/20 to-teal-500/20' },
-  { name: 'Barbershops', icon: Scissors, slug: 'barber', count: '1,200+', gradient: 'from-amber-500/20 to-orange-500/20' },
-];
-
-
+import { BUSINESS_CATEGORIES } from '@/lib/constants/categories';
 
 var TRUST_STATS = [
   { value: '10,000+', label: 'Happy Clients' },
@@ -161,26 +154,25 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {FEATURED_CATEGORIES.map(function (cat, i) {
+          <div className="flex overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0 gap-4 md:gap-6 hide-scrollbar snap-x snap-mandatory">
+            {BUSINESS_CATEGORIES.map(function (cat, i) {
               var Icon = cat.icon;
               return (
-                <Link key={cat.slug} href={'/salons?category=' + cat.slug}>
+                <Link key={cat.slug} href={'/' + cat.slug} className="min-w-[160px] md:min-w-[200px] snap-center">
                   <Card
-                    className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-border/50 overflow-hidden relative"
+                    className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-border/50 overflow-hidden relative"
                     style={{
                       opacity: mounted ? 1 : 0,
                       transform: mounted ? 'translateY(0)' : 'translateY(20px)',
                       transition: 'all 0.5s ease-out',
-                      transitionDelay: (200 + i * 100) + 'ms',
+                      transitionDelay: Math.min(i * 50, 500) + 'ms',
                     }}
                   >
-                    <CardContent className="p-6 md:p-8 text-center relative z-10">
-                      <div className={'w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br ' + cat.gradient + ' flex items-center justify-center group-hover:scale-110 transition-transform duration-300'}>
-                        <Icon className="h-7 w-7 text-primary" />
+                    <CardContent className="p-5 md:p-6 text-center relative z-10 flex flex-col items-center justify-center h-full">
+                      <div className={'w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br ' + cat.gradient + ' flex items-center justify-center group-hover:scale-110 transition-transform duration-300'}>
+                        <Icon className="h-6 w-6 text-primary" />
                       </div>
-                      <h3 className="font-semibold text-lg">{cat.name}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">{cat.count} venues</p>
+                      <h3 className="font-semibold text-base md:text-lg">{cat.label}</h3>
                     </CardContent>
                   </Card>
                 </Link>

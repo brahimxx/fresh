@@ -13,13 +13,22 @@ export const APP_CURRENCY = 'DZD';
  */
 export function formatCurrency(amount, currency = APP_CURRENCY) {
   if (amount == null || isNaN(amount)) {
-    return '0 ' + currency;
+    amount = 0;
   }
   
-  // Format as number then append currency for DZD (or use proper Intl format if preferred)
-  // We use standard number format + DZD to match the rest of the app's clean look
+  const curr = currency.toUpperCase();
+  
+  // Handle some common global currencies natively
+  if (['USD', 'EUR', 'GBP'].includes(curr)) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: curr,
+    }).format(amount);
+  }
+
+  // Format as number then append currency for DZD and others
   const formattedNumber = new Intl.NumberFormat('en-US').format(amount);
-  return `${formattedNumber} ${currency}`;
+  return `${formattedNumber} ${curr}`;
 }
 
 /**
@@ -45,4 +54,29 @@ export function formatNumber(value) {
     return '0';
   }
   return new Intl.NumberFormat('en-US').format(value);
+}
+
+/**
+ * Format a duration in minutes to a human readable string (e.g. 150 -> "2 hr, 30 min")
+ * @param {number|string} minutes - The duration in minutes
+ * @returns {string} Formatted duration string
+ */
+export function formatDuration(minutes) {
+  if (!minutes || isNaN(Number(minutes))) {
+    return '0 min';
+  }
+  
+  const m = Number(minutes);
+  if (m < 60) {
+    return `${m} min`;
+  }
+  
+  const hr = Math.floor(m / 60);
+  const min = m % 60;
+  
+  if (min === 0) {
+    return `${hr} hr`;
+  }
+  
+  return `${hr} hr, ${min} min`;
 }

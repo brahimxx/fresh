@@ -16,6 +16,9 @@ import {
   Check
 } from 'lucide-react';
 
+import { formatCurrency, formatDuration } from '@/lib/format';
+import { generateSalonSlug } from '@/lib/utils';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +31,8 @@ var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'S
 
 export default function SalonProfilePage({ params }) {
   var resolvedParams = use(params);
-  var salonId = resolvedParams.id;
+  // Extract ID from the SEO slug (e.g. "best-hair-salon-paris-163" -> "163")
+  var salonId = resolvedParams.slug.split('-').pop();
 
   var [salon, setSalon] = useState(null);
   var [services, setServices] = useState([]);
@@ -415,13 +419,13 @@ export default function SalonProfilePage({ params }) {
                                   <div className="flex items-center gap-4 mt-3">
                                     <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-md">
                                       <Clock className="h-3.5 w-3.5" />
-                                      {service.duration} min
+                                      {formatDuration(service.duration)}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="text-right flex flex-col items-end gap-3 shrink-0">
                                   <p className="text-xl font-black text-foreground">
-                                    ${parseFloat(service.price).toFixed(2)}
+                                    {formatCurrency(service.price, salon.currency)}
                                   </p>
                                   <Link href={'/book/' + salonId + '?service=' + service.id}>
                                     <Button size="sm" variant="outline" className="rounded-full px-6 font-bold border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-lg hover:shadow-primary/20 group-hover:scale-105 transition-all duration-300">
@@ -735,6 +739,58 @@ export default function SalonProfilePage({ params }) {
             </Card>
           </div>
         </div>
+
+        {/* Similar Businesses Suggestions */}
+        {salon.similar_salons && salon.similar_salons.length > 0 && (
+          <div className="pt-16 pb-24 border-t border-muted -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <h3 className="text-3xl font-black tracking-tight">Other {salon.categories && salon.categories.length > 0 ? (salon.categories.find(c => c.is_primary)?.category_name || salon.categories[0].category_name) : 'Salons'} in {salon.city}</h3>
+                <p className="text-lg text-muted-foreground font-medium">Explore more options in your area</p>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {salon.similar_salons.map((similar, idx) => (
+                  <Link key={idx} href={`/salon/${generateSalonSlug(similar)}`} className="block group h-full">
+                    <Card className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-[2rem] overflow-hidden h-full flex flex-col">
+                      <div className="aspect-[4/3] relative overflow-hidden bg-muted shrink-0">
+                        {similar.cover_image_url ? (
+                          <img
+                            src={similar.cover_image_url}
+                            alt={similar.name}
+                            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700 ease-out"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                            No image
+                          </div>
+                        )}
+                        <div className="absolute top-4 right-4 bg-background/90 backdrop-blur tracking-wider font-bold text-xs uppercase px-3 py-1.5 rounded-full z-10 flex items-center shadow-sm">
+                          <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400 mr-1" />
+                          {similar.avg_rating}
+                        </div>
+                      </div>
+                      <CardContent className="p-6 space-y-4 bg-card flex-1 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-bold text-xl line-clamp-1 group-hover:text-primary transition-colors">{similar.name}</h4>
+                          <p className="text-muted-foreground font-medium flex items-center mt-1">
+                            <MapPin className="w-4 h-4 mr-1 opacity-70 shrink-0" />
+                            <span className="line-clamp-1 text-sm">{similar.address}, {similar.city}</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between text-sm font-semibold pt-2">
+                          <span className="text-muted-foreground">{similar.review_count} Reviews</span>
+                          <span className="text-primary group-hover:translate-x-1 flex items-center transition-transform">
+                            View Profile <ChevronRight className="w-4 h-4 ml-0.5" />
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

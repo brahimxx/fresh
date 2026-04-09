@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, OverlayView, OverlayViewF } from '@react-google-maps/api';
+import { generateSalonSlug } from '@/lib/utils';
 
 /* ───────────────────────────────────────────────────────────────────────────
    CONSTANTS
@@ -140,7 +141,7 @@ function SalonInfoWindow({ salon, ratingText, onClose }) {
           </div>
         )}
         <a
-          href={`/salon/${salon.id}`}
+          href={`/salon/${generateSalonSlug(salon)}`}
           style={{
             display: 'block', textAlign: 'center', marginTop: 10,
             padding: '7px 0', background: 'linear-gradient(135deg, #f43f5e, #e11d48)',

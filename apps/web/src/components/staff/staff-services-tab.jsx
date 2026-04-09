@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { useServices } from "@/hooks/use-services";
 import { useStaffServices, useUpdateStaffServices } from "@/hooks/use-staff";
+import { formatDuration } from "@/lib/format";
 
 export function StaffServicesTab({ staffId, salonId }) {
   var { data: allServices, isLoading: servicesLoading } = useServices(salonId);
@@ -72,7 +73,7 @@ export function StaffServicesTab({ staffId, salonId }) {
                           <div className="flex-1">
                             <p className="font-medium">{service.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {service.duration_minutes} min · ${service.price}
+                              {formatDuration(service.duration_minutes)} · ${service.price}
                             </p>
                           </div>
                           {isSelected && <Check className="h-5 w-5 text-primary" />}

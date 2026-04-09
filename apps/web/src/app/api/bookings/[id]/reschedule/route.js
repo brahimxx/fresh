@@ -2,7 +2,7 @@ import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
 
-// PUT /api/bookings/[id]/reschedule - Reschedule a booking
+// PUT /api/bookings/[id]/reschedule - Reschedule/edit a booking
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
@@ -41,7 +41,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { newStartTime, newStaffId } = body;
+    const { newStartTime, newStaffId, serviceIds, staffAssignments, notes } = body;
 
     if (!newStartTime) {
       return error('New start time is required');
@@ -54,7 +54,8 @@ export async function PUT(request, { params }) {
       return error('New time must be in the future');
     }
 
-    if (newStaffId) {
+    // Validate newStaffId if provided (and not ANYONE_VIRTUAL)
+    if (newStaffId && newStaffId !== 'ANYONE_VIRTUAL') {
       const validStaff = await getOne(
         'SELECT id FROM staff WHERE id = ? AND salon_id = ? AND is_active = 1',
         [newStaffId, booking.salon_id]
@@ -63,6 +64,9 @@ export async function PUT(request, { params }) {
         return error('The selected staff member does not exist or does not belong to this salon', 400);
       }
     }
+
+    // Determine if this is a full service edit or time-only shift
+    const isServiceEdit = Array.isArray(serviceIds) && serviceIds.length > 0;
 
     // Prepare formatters
     const pad = (n) => String(n).padStart(2, "0");
@@ -86,101 +90,237 @@ export async function PUT(request, { params }) {
         throw new Error(`Cannot reschedule a ${lockedBooking.status} booking`);
       }
 
-      // Get booking duration and buffer
-      const [durations] = await connection.query(
-        `SELECT SUM(bs.duration_minutes) as total_duration, SUM(s.buffer_time_minutes) as total_buffer
-         FROM booking_services bs
-         JOIN services s ON s.id = bs.service_id
-         WHERE bs.booking_id = ?`,
-        [id]
-      );
-      const duration = durations[0];
-      const totalDuration = parseInt(duration.total_duration || 60);
-      const totalBuffer = parseInt(duration.total_buffer || 0);
-      const newEnd = new Date(newStart.getTime() + (totalDuration + totalBuffer) * 60000);
+      let shiftedServices;
+      let globalStaffId;
 
-      const staffId = newStaffId || lockedBooking.staff_id;
-      const startDatetimeFormatted = formatLocal(newStart);
-      const endDatetimeFormatted = formatLocal(newEnd);
+      if (isServiceEdit) {
+        // ══════════════════════════════════════════════════════════════════
+        // MODE A: Full service/staff edit — rebuild booking_services
+        // ══════════════════════════════════════════════════════════════════
 
-      // 1. Time Off Check
-      const [timeOffs] = await connection.query(
-        `SELECT id FROM staff_time_off
-         WHERE staff_id = ?
-         AND start_datetime < ? AND end_datetime > ?
-         FOR UPDATE`,
-        [staffId, endDatetimeFormatted, startDatetimeFormatted]
-      );
+        // Validate serviceIds are integers
+        const parsedServiceIds = serviceIds.map(Number);
+        if (parsedServiceIds.some(isNaN)) {
+          throw new Error('Invalid service IDs');
+        }
 
-      if (timeOffs.length > 0) {
-        throw new Error('Staff member has time off during this slot');
+        // Fetch service metadata (duration, buffer, price)
+        const [dbServices] = await connection.query(
+          `SELECT id, name, duration_minutes, buffer_time_minutes, price
+           FROM services
+           WHERE id IN (${parsedServiceIds.map(() => '?').join(',')})
+             AND salon_id = ? AND is_active = 1 AND deleted_at IS NULL`,
+          [...parsedServiceIds, lockedBooking.salon_id]
+        );
+
+        if (dbServices.length !== new Set(parsedServiceIds).size) {
+          throw new Error('One or more services not found or inactive');
+        }
+
+        // Resolve staff ID — per-service from staffAssignments, then newStaffId, then original
+        const hasPerServiceStaff = staffAssignments && typeof staffAssignments === 'object';
+
+        // Build sequential schedule from newStart
+        let cursor = new Date(newStart);
+        shiftedServices = [];
+
+        for (const sid of parsedServiceIds) {
+          const svc = dbServices.find(s => s.id === sid);
+          const duration = svc.duration_minutes || 30;
+          const buffer = svc.buffer_time_minutes || 0;
+          const svcEnd = new Date(cursor.getTime() + (duration + buffer) * 60000);
+
+          // Determine staff for this service
+          let svcStaffId = hasPerServiceStaff
+            ? (staffAssignments[String(sid)] || newStaffId || lockedBooking.staff_id)
+            : (newStaffId || lockedBooking.staff_id);
+
+          // Resolve ANYONE_VIRTUAL per-service
+          if (svcStaffId === 'ANYONE_VIRTUAL') {
+            const [qualifiedForSvc] = await connection.query(
+              `SELECT ss.staff_id FROM service_staff ss
+               JOIN staff st ON st.id = ss.staff_id AND st.is_active = 1
+               WHERE ss.service_id = ? AND st.salon_id = ?`,
+              [sid, lockedBooking.salon_id]
+            );
+            if (qualifiedForSvc.length === 0) {
+              throw new Error(`No staff available for service: ${svc.name}`);
+            }
+            svcStaffId = qualifiedForSvc[0].staff_id;
+          }
+
+          // Validate this staff can perform this service
+          const [canPerform] = await connection.query(
+            `SELECT 1 FROM service_staff WHERE staff_id = ? AND service_id = ?`,
+            [svcStaffId, sid]
+          );
+          if (canPerform.length === 0) {
+            throw new Error(`Staff member cannot perform service: ${svc.name}`);
+          }
+
+          shiftedServices.push({
+            serviceId: svc.id,
+            staffId: svcStaffId,
+            price: svc.price,
+            durationMinutes: duration,
+            start: new Date(cursor),
+            end: svcEnd,
+          });
+
+          cursor = svcEnd;
+        }
+
+        // The parent booking's staff_id = first service's staff
+        globalStaffId = shiftedServices[0].staffId;
+
+        // Delete old booking_services within the lock
+        await connection.query('DELETE FROM booking_services WHERE booking_id = ?', [id]);
+
+      } else {
+        // ══════════════════════════════════════════════════════════════════
+        // MODE B: Time-only shift — preserve existing service assignments
+        // ══════════════════════════════════════════════════════════════════
+
+        const oldStart = new Date(lockedBooking.start_datetime);
+        const diffMs = newStart.getTime() - oldStart.getTime();
+
+        // Lock and load existing booking_services
+        const [servicesRows] = await connection.query(
+          `SELECT id, service_id, staff_id, start_datetime, end_datetime, price, duration_minutes
+           FROM booking_services WHERE booking_id = ? FOR UPDATE`,
+          [id]
+        );
+
+        if (servicesRows.length === 0) {
+          throw new Error('Booking has no nested services');
+        }
+
+        globalStaffId = newStaffId || lockedBooking.staff_id;
+
+        shiftedServices = servicesRows.map(s => ({
+          id: s.id,               // existing row ID for UPDATE
+          serviceId: s.service_id,
+          staffId: newStaffId || s.staff_id || lockedBooking.staff_id,
+          price: s.price,
+          durationMinutes: s.duration_minutes,
+          start: new Date(new Date(s.start_datetime).getTime() + diffMs),
+          end: new Date(new Date(s.end_datetime).getTime() + diffMs),
+        }));
       }
 
-      // 2. Working Hours Check
+      // ════════════════════════════════════════════════════════════════════
+      // COMMON: Validate all shifted/rebuilt service windows
+      // ════════════════════════════════════════════════════════════════════
+
+      const minStart = new Date(Math.min(...shiftedServices.map(s => s.start.getTime())));
+      const maxEnd = new Date(Math.max(...shiftedServices.map(s => s.end.getTime())));
+
+      // Group by staff for validation
+      const staffWindows = new Map();
+      for (const s of shiftedServices) {
+        if (!staffWindows.has(s.staffId)) staffWindows.set(s.staffId, []);
+        staffWindows.get(s.staffId).push(s);
+      }
+
       const dayOfWeek = newStart.getDay();
-      const timeString = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}:00`;
-      const endTimeString = `${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:00`;
 
-      const [staffHours] = await connection.query(
-        `SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?`,
-        [staffId, dayOfWeek]
-      );
-
-      let isWorking = false;
-      if (staffHours.length > 0) {
-        isWorking = timeString >= staffHours[0].start_time && endTimeString <= staffHours[0].end_time;
-      } else {
-        // Fallback to salon business hours
-        const [businessHours] = await connection.query(
-          `SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0`,
-          [lockedBooking.salon_id, dayOfWeek]
+      for (const [staffId, windows] of staffWindows) {
+        const [staffHours] = await connection.query(
+          `SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ?`,
+          [staffId, dayOfWeek]
         );
-        if (businessHours.length > 0) {
-          isWorking = timeString >= businessHours[0].start_time && endTimeString <= businessHours[0].end_time;
+
+        let validHours = staffHours;
+        if (staffHours.length === 0) {
+          const [bhRows] = await connection.query(
+            `SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0`,
+            [lockedBooking.salon_id, dayOfWeek]
+          );
+          validHours = bhRows;
+        }
+
+        for (const win of windows) {
+          const winStartFmt = formatLocal(win.start);
+          const winEndFmt = formatLocal(win.end);
+
+          // Time off check
+          const [timeOffs] = await connection.query(
+            `SELECT id FROM staff_time_off WHERE staff_id = ? AND start_datetime < ? AND end_datetime > ? FOR UPDATE`,
+            [staffId, winEndFmt, winStartFmt]
+          );
+          if (timeOffs.length > 0) throw new Error('A staff member has time off during this slot');
+
+          // Working hours check
+          const timeString = `${pad(win.start.getHours())}:${pad(win.start.getMinutes())}:00`;
+          const endTimeString = `${pad(win.end.getHours())}:${pad(win.end.getMinutes())}:00`;
+
+          let isWorking = false;
+          if (validHours.length > 0) {
+            isWorking = timeString >= validHours[0].start_time && endTimeString <= validHours[0].end_time;
+          }
+          if (!isWorking) throw new Error('A staff member is not working during this time slot');
+
+          // Conflict check
+          const [conflicts] = await connection.query(
+            `SELECT b.id FROM bookings b
+             JOIN booking_services bs ON bs.booking_id = b.id
+             WHERE b.id != ?
+             AND b.status IN ('pending', 'confirmed') AND b.deleted_at IS NULL
+             AND bs.start_datetime < ? AND bs.end_datetime > ?
+             AND COALESCE(bs.staff_id, b.staff_id) = ? FOR UPDATE`,
+            [id, winEndFmt, winStartFmt, staffId]
+          );
+          if (conflicts.length > 0) throw new Error('The selected time slot is not available');
         }
       }
 
-      if (!isWorking) {
-        throw new Error('Staff member is not working during this time slot');
-      }
+      // ════════════════════════════════════════════════════════════════════
+      // COMMON: Write the changes
+      // ════════════════════════════════════════════════════════════════════
 
-      // 3. Check existing booking overlap (Conflict Check)
-      const [conflicts] = await connection.query(
-        `SELECT b.id FROM bookings b
-         WHERE b.id != ?
-         AND b.status IN ('pending', 'confirmed')
-         AND b.deleted_at IS NULL
-         AND b.start_datetime < ? AND b.end_datetime > ?
-         AND (
-           b.staff_id = ?
-           OR EXISTS (
-             SELECT 1 FROM booking_services bs
-             WHERE bs.booking_id = b.id AND bs.staff_id = ?
-           )
-         ) FOR UPDATE`,
-        [id, endDatetimeFormatted, startDatetimeFormatted, staffId, staffId]
-      );
+      const startDatetimeFormatted = formatLocal(minStart);
+      const endDatetimeFormatted = formatLocal(maxEnd);
 
-      if (conflicts.length > 0) {
-        throw new Error('The selected time slot is not available');
-      }
-
-      // Save old timing for records/audit if needed, then update
+      // Update the parent bookings row
       await connection.query(
-        `UPDATE bookings SET 
-          start_datetime = ?, 
+        `UPDATE bookings SET
+          start_datetime = ?,
           end_datetime = ?,
           staff_id = ?,
+          notes = COALESCE(?, notes),
           status = 'pending'
          WHERE id = ?`,
-        [startDatetimeFormatted, endDatetimeFormatted, staffId, id]
+        [startDatetimeFormatted, endDatetimeFormatted, globalStaffId, notes || null, id]
       );
 
-      // Create notification atomically
+      if (isServiceEdit) {
+        // Insert new booking_services rows
+        for (const svc of shiftedServices) {
+          await connection.query(
+            `INSERT INTO booking_services (booking_id, service_id, staff_id, price, duration_minutes, start_datetime, end_datetime)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, svc.serviceId, svc.staffId, svc.price, svc.durationMinutes, formatLocal(svc.start), formatLocal(svc.end)]
+          );
+        }
+      } else {
+        // Update existing booking_services rows in place
+        for (const svc of shiftedServices) {
+          await connection.query(
+            `UPDATE booking_services SET
+              start_datetime = ?,
+              end_datetime = ?,
+              staff_id = ?
+             WHERE id = ?`,
+            [formatLocal(svc.start), formatLocal(svc.end), svc.staffId, svc.id]
+          );
+        }
+      }
+
+      // Notification
       const notifyUserId = isClient ? booking.owner_id : booking.client_id;
       await connection.query(
-        `INSERT INTO notifications (user_id, type, title, message, data, created_at)
-         VALUES (?, 'booking_rescheduled', 'Booking Rescheduled', ?, ?, NOW())`,
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'push', 'Booking Rescheduled', ?, ?)`,
         [
           notifyUserId,
           `Booking has been rescheduled to ${newStart.toLocaleString()}`,
@@ -191,7 +331,7 @@ export async function PUT(request, { params }) {
       return {
         startDatetimeFormatted,
         endDatetimeFormatted,
-        staffId
+        staffId: globalStaffId,
       };
     });
 
@@ -209,10 +349,20 @@ export async function PUT(request, { params }) {
     if (err.message === 'Unauthorized') return unauthorized();
 
     // Handle expected transaction errors cleanly
+    const expectedErrors = [
+      'The selected time slot is not available',
+      'A staff member has time off during this slot',
+      'A staff member is not working during this time slot',
+      'Booking has no nested services',
+      'Booking not found during transaction',
+      'One or more services not found or inactive',
+      'Staff member cannot perform all selected services',
+      'No staff member available for all selected services',
+      'Invalid service IDs',
+    ];
     if (
-      err.message === 'The selected time slot is not available' ||
-      err.message.startsWith('Cannot reschedule') ||
-      err.message === 'Booking not found during transaction'
+      expectedErrors.includes(err.message) ||
+      err.message.startsWith('Cannot reschedule')
     ) {
       return error(err.message, 400);
     }

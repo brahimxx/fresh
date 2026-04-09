@@ -14,10 +14,13 @@ import {
   AlertCircle,
   RotateCcw,
   CreditCard,
+  Banknote,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -43,32 +46,34 @@ import {
   useCancelBooking,
   useNoShowBooking,
   useDeleteBooking,
+  useCompleteBooking,
 } from "@/hooks/use-bookings";
+import { formatDuration } from "@/lib/format";
 
 var STATUS_CONFIG = {
   pending: {
     label: "Pending",
-    color: "bg-yellow-100 text-yellow-800",
+    color: "bg-amber-50/50 text-amber-600 border-amber-200",
     icon: Clock,
   },
   confirmed: {
     label: "Confirmed",
-    color: "bg-green-100 text-green-800",
+    color: "bg-slate-50/50 text-slate-700 border-slate-200",
     icon: Check,
   },
   completed: {
     label: "Completed",
-    color: "bg-blue-100 text-blue-800",
+    color: "bg-green-50/50 text-green-600 border-green-200",
     icon: Check,
   },
   cancelled: {
     label: "Cancelled",
-    color: "bg-gray-100 text-gray-800",
+    color: "bg-red-50/50 text-red-600 border-red-200",
     icon: XCircle,
   },
   no_show: {
     label: "No Show",
-    color: "bg-red-100 text-red-800",
+    color: "bg-orange-50/50 text-orange-600 border-orange-200",
     icon: AlertCircle,
   },
 };
@@ -79,10 +84,12 @@ export function BookingDetailSheet({
   onOpenChange,
   onReschedule,
 }) {
+  var { salon } = useSalon();
   var confirmBooking = useConfirmBooking();
   var cancelBooking = useCancelBooking();
   var noShowBooking = useNoShowBooking();
   var deleteBooking = useDeleteBooking();
+  var completeBooking = useCompleteBooking();
 
   if (!booking) return null;
 
@@ -101,6 +108,14 @@ export function BookingDetailSheet({
 
   function handleConfirm() {
     confirmBooking.mutate(booking.id, {
+      onSuccess: function () {
+        onOpenChange(false);
+      },
+    });
+  }
+
+  function handleComplete() {
+    completeBooking.mutate(booking.id, {
       onSuccess: function () {
         onOpenChange(false);
       },
@@ -143,9 +158,17 @@ export function BookingDetailSheet({
               </SheetDescription>
             </div>
             <Badge
-              className={`${statusConfig.color} px-3 py-1 text-xs font-medium`}
+              variant="outline"
+              className={`${statusConfig.color} px-3 py-1 flex items-center w-fit text-xs font-medium`}
             >
-              <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
+              {booking.status === 'pending' ? (
+                <span className="relative flex h-2 w-2 mr-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+              ) : (
+                <StatusIcon className="h-3.5 w-3.5 mr-1" />
+              )}
               {statusConfig.label}
             </Badge>
           </div>
@@ -162,11 +185,18 @@ export function BookingDetailSheet({
                 <User className="h-6 w-6 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-base truncate">
-                  {booking.client
-                    ? `${booking.client.firstName || ""} ${booking.client.lastName || ""}`.trim()
-                    : booking.client_name || booking.clientName || "Walk-in"}
-                </p>
+                <div className="font-semibold text-base flex items-center gap-2">
+                  <span className="truncate">
+                    {booking.client
+                      ? `${booking.client.firstName || ""} ${booking.client.lastName || ""}`.trim()
+                      : booking.client_name || booking.clientName || "Walk-in"}
+                  </span>
+                  {booking.clientIsActive === false && (
+                    <Badge variant="destructive" className="h-4 min-h-4 px-1.5 py-0 text-[9px] font-bold uppercase shrink-0 leading-none">
+                      Restricted
+                    </Badge>
+                  )}
+                </div>
                 {(booking.client?.email ||
                   booking.client_email ||
                   booking.clientEmail) && (
@@ -236,11 +266,11 @@ export function BookingDetailSheet({
                         {service.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {service.duration} min
+                        {formatDuration(service.duration)}
                       </p>
                     </div>
                     <p className="font-semibold text-sm shrink-0">
-                      €{Number(service.price).toFixed(2)}
+                      {formatCurrency(Number(service.price), salon?.currency)}
                     </p>
                   </div>
                 ))
@@ -252,7 +282,7 @@ export function BookingDetailSheet({
                       {booking.service_name || booking.serviceName || "Service"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {booking.duration || 30} min
+                      {formatDuration(booking.duration || 30)}
                     </p>
                   </div>
                 </div>
@@ -300,15 +330,28 @@ export function BookingDetailSheet({
                     Total Amount
                   </p>
                   <span className="text-2xl font-bold text-primary">
-                    €
-                    {Number(booking.total_price || booking.totalPrice).toFixed(
-                      2,
-                    )}
+                    {formatCurrency(Number(booking.total_price || booking.totalPrice), salon?.currency)}
                   </span>
                 </div>
-                <Badge variant="outline" className="text-xs px-3 py-1">
-                  {booking.payment_status || "Unpaid"}
-                </Badge>
+                <div className="flex flex-col items-end gap-2">
+                  <Badge variant="outline" className="text-xs px-3 py-1">
+                    {booking.payment_status || booking.paymentStatus || booking.payment?.status || "Unpaid"}
+                  </Badge>
+                  {(booking.payment_method || booking.paymentMethod || booking.payment?.method) && (
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      {(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash') ? (
+                        <Banknote className="w-3 h-3 mr-1" />
+                      ) : (
+                        <CreditCard className="w-3 h-3 mr-1" />
+                      )}
+                      <span className="capitalize">{
+                        (booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
+                          ? 'Pay at Salon'
+                          : (booking.payment_method || booking.paymentMethod || booking.payment?.method)
+                      }</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -348,9 +391,14 @@ export function BookingDetailSheet({
               )}
 
               {booking.status === "confirmed" && (
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleComplete}
+                  disabled={completeBooking.isPending}
+                >
                   <CreditCard className="h-4 w-4 mr-2" />
-                  Checkout
+                  Complete (Cash)
                 </Button>
               )}
 

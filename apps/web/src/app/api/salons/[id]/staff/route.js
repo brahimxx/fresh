@@ -29,22 +29,23 @@ export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const includeInactive = searchParams.get('includeInactive') === 'true';
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
       return forbidden("Not authorized to view staff");
     }
 
-    const staff = await query(
-      `SELECT st.id, st.role, st.is_active, st.user_id, st.color,
+    let queryStr = `SELECT st.id, st.role, st.is_active, st.user_id, st.color,
               st.first_name as staff_first_name, st.last_name as staff_last_name,
               u.first_name, u.last_name, u.email, u.phone
        FROM staff st
        JOIN users u ON u.id = st.user_id
-       WHERE st.salon_id = ? AND st.is_active = 1
-       ORDER BY st.role DESC, COALESCE(st.first_name, u.first_name)`,
-      [id]
-    );
+       WHERE st.salon_id = ? ${includeInactive ? '' : 'AND st.is_active = 1'}
+       ORDER BY st.role DESC, COALESCE(st.first_name, u.first_name)`;
+
+    const staff = await query(queryStr, [id]);
 
     // Get service IDs for each staff member
     const staffWithServices = await Promise.all(

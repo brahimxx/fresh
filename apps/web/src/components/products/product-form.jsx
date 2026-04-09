@@ -32,12 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 import {
   useCreateProduct,
   useUpdateProduct,
   PRODUCT_CATEGORIES,
 } from "@/hooks/use-products";
+import { useSalon } from "@/providers/salon-provider";
 
 var productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -49,12 +51,14 @@ var productSchema = z.object({
   cost_price: z.coerce.number().min(0).optional(),
   stock_quantity: z.coerce.number().min(0, "Stock must be 0 or more"),
   low_stock_threshold: z.coerce.number().min(0).optional(),
+  is_active: z.boolean().default(true),
 });
 
 export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
   var createProduct = useCreateProduct();
   var updateProduct = useUpdateProduct();
   var isEditing = !!product;
+  var { salon } = useSalon();
 
   var form = useForm({
     resolver: zodResolver(productSchema),
@@ -68,6 +72,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
       cost_price: 0,
       stock_quantity: 0,
       low_stock_threshold: 5,
+      is_active: true,
     },
   });
 
@@ -87,6 +92,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
               product.stock_quantity || product.stockQuantity || 0,
             low_stock_threshold:
               product.low_stock_threshold || product.lowStockThreshold || 5,
+            is_active: product.isActive !== undefined ? product.isActive : (product.is_active !== undefined ? product.is_active : true),
           });
         } else {
           form.reset({
@@ -99,6 +105,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
             cost_price: 0,
             stock_quantity: 0,
             low_stock_threshold: 5,
+            is_active: true,
           });
         }
       }
@@ -110,6 +117,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
     var payload = {
       ...data,
       salon_id: salonId,
+      isActive: data.is_active,
     };
 
     if (isEditing) {
@@ -251,7 +259,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel>Selling Price (EUR) *</FormLabel>
+                      <FormLabel>Selling Price ({salon?.currency || 'EUR'}) *</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -273,7 +281,7 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel>Cost Price (EUR)</FormLabel>
+                      <FormLabel>Cost Price ({salon?.currency || 'EUR'})</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -339,6 +347,33 @@ export function ProductFormDialog({ open, onOpenChange, product, salonId }) {
                 }}
               />
             </div>
+
+            {isEditing && (
+              <div className="pb-4">
+                <FormField
+                  control={form.control}
+                  name="is_active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Active Status
+                        </FormLabel>
+                        <FormDescription>
+                          Turn off to hide this product from availability and marketplace.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <DialogFooter>
               <Button

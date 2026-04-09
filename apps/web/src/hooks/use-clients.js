@@ -62,11 +62,12 @@ export function useClients(filters, options) {
       return api.get("/clients", filters);
     },
     select: function (response) {
-      // API returns { data: { clients: [...], pagination: {...} } }
+      // API returns { data: { clients: [...], pagination: {...}, stats: {...} } }
       var responseData = response.data || response;
       return {
         data: responseData.clients || responseData.data || [],
         pagination: responseData.pagination,
+        stats: responseData.stats,
       };
     },
     staleTime: 1000 * 60, // 1 minute
@@ -235,6 +236,27 @@ export function useDeleteClientNote() {
     },
     onError: function (error) {
       toast.error(error.message || "Failed to delete note");
+    },
+  });
+}
+
+export function useUpdateClientStatus() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function (data) {
+      if (!data.id) throw new Error("Client ID is required");
+      return api.patch("/clients/" + data.id, {
+        salonId: data.salonId,
+        isActive: data.isActive
+      });
+    },
+    onSuccess: function (response, variables) {
+      queryClient.invalidateQueries({ queryKey: clientKeys.all });
+      toast.success(response.data?.message || "Client status updated");
+      return response.data;
+    },
+    onError: function (error) {
+      toast.error(error.message || "Failed to update client status");
     },
   });
 }

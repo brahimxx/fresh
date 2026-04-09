@@ -165,7 +165,9 @@ export default function SalonDashboardPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Manage your {salon?.salonCategories?.find(c => c.isPrimary)?.name || salon?.category || 'Salon'}
+          </h1>
           <p className="text-muted-foreground">{today}</p>
         </div>
         <div className="flex gap-2">

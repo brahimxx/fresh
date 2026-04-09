@@ -1,0 +1,35 @@
+import {
+  Scissors,
+  Sparkles,
+  Store,
+  Heart,
+  Activity,
+  Droplets,
+  Flame,
+  Bike,
+  Dog,
+  LayoutGrid,
+  Eye,
+  Crosshair,
+  Glasses,
+  Waves
+} from "lucide-react";
+
+export const BUSINESS_CATEGORIES = [
+  { id: "Hair salon", label: "Hair salon", icon: Waves, slug: "hair-salon", gradient: "from-blue-500/20 to-cyan-500/20" },
+  { id: "Nails", label: "Nails", icon: Sparkles, slug: "nails", gradient: "from-pink-500/20 to-rose-500/20" },
+  { id: "Eyebrows & lashes", label: "Eyebrows & lashes", icon: Eye, slug: "eyebrows-lashes", gradient: "from-violet-500/20 to-purple-500/20" },
+  { id: "Beauty salon", label: "Beauty salon", icon: Store, slug: "beauty-salon", gradient: "from-amber-500/20 to-orange-500/20" },
+  { id: "Medspa", label: "Medspa", icon: Sparkles, slug: "medspa", gradient: "from-emerald-500/20 to-teal-500/20" },
+  { id: "Barber", label: "Barber", icon: Scissors, slug: "barber", gradient: "from-slate-500/20 to-gray-500/20" },
+  { id: "Massage", label: "Massage", icon: Activity, slug: "massage", gradient: "from-indigo-500/20 to-blue-500/20" },
+  { id: "Spa & sauna", label: "Spa & sauna", icon: Droplets, slug: "spa-sauna", gradient: "from-cyan-500/20 to-sky-500/20" },
+  { id: "Waxing salon", label: "Waxing salon", icon: Flame, slug: "waxing-salon", gradient: "from-orange-500/20 to-red-500/20" },
+  { id: "Tattooing & piercing", label: "Tattooing & piercing", icon: Heart, slug: "tattooing-piercing", gradient: "from-zinc-500/20 to-slate-500/20" },
+  { id: "Tanning studio", label: "Tanning studio", icon: Glasses, slug: "tanning-studio", gradient: "from-yellow-500/20 to-amber-500/20" },
+  { id: "Fitness & recovery", label: "Fitness & recovery", icon: Bike, slug: "fitness-recovery", gradient: "from-green-500/20 to-emerald-500/20" },
+  { id: "Physical therapy", label: "Physical therapy", icon: Activity, slug: "physical-therapy", gradient: "from-sky-500/20 to-blue-500/20" },
+  { id: "Health practice", label: "Health practice", icon: Crosshair, slug: "health-practice", gradient: "from-rose-500/20 to-pink-500/20" },
+  { id: "Pet grooming", label: "Pet grooming", icon: Dog, slug: "pet-grooming", gradient: "from-amber-600/20 to-yellow-600/20" },
+  { id: "Other", label: "Other", icon: LayoutGrid, slug: "other", gradient: "from-gray-500/20 to-slate-500/20" },
+];

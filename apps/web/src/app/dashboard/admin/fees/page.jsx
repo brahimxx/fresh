@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency } from "@/lib/format";
 import { Badge } from '@/components/ui/badge';
 import {
     Select,
@@ -57,6 +56,13 @@ export default function AdminFeesPage() {
     const fees = data?.data?.fees ?? [];
     const summary = data?.data?.summary ?? { totalCollected: 0, totalPending: 0, totalDisputed: 0, disputedCount: 0 };
     const pagination = data?.data?.pagination ?? { page: 1, totalPages: 1, total: 0 };
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        }).format(amount);
+    };
 
     return (
         <div className="space-y-6">

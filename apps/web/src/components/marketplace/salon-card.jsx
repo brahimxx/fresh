@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { Star, MapPin, Scissors, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { generateSalonSlug } from '@/lib/utils';
 
 export function SalonCard({ salon, style, onMouseEnter, onMouseLeave }) {
     return (
         <Link
-            href={`/salon/${salon.id}`}
+            href={`/salon/${generateSalonSlug(salon)}`}
             className="block h-full group"
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}

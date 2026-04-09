@@ -39,7 +39,7 @@ export async function GET(request, { params }) {
     const serviceStaffPairs = servicesParam.split(',').map((pair) => {
       const [serviceIdRaw, staffIdRaw] = pair.split(':');
       const serviceId = Number(serviceIdRaw);
-      const staffId = Number(staffIdRaw);
+      const staffId = staffIdRaw === 'any' ? 'any' : Number(staffIdRaw);
       return { serviceId, staffId };
     });
 
@@ -48,7 +48,7 @@ export async function GET(request, { params }) {
       if (!Number.isInteger(serviceId) || serviceId <= 0) {
         return error('Invalid services parameter (serviceId must be a positive integer)', 400);
       }
-      if (!Number.isInteger(staffId) || staffId <= 0) {
+      if (staffId !== 'any' && (!Number.isInteger(staffId) || staffId <= 0)) {
         return error(`Staff not selected for service ${serviceId}`, 400);
       }
     }
@@ -71,56 +71,78 @@ export async function GET(request, { params }) {
         return error(`Staff not selected for service ${pair.serviceId}`);
       }
       
+      let capableStaffIds = [];
+      if (pair.staffId === 'any') {
+        const staffList = await query(
+          `SELECT staff_id FROM service_staff ss
+           JOIN staff st ON st.id = ss.staff_id
+           WHERE ss.service_id = ? AND st.salon_id = ? AND st.is_active = 1`,
+          [pair.serviceId, salonId]
+        );
+        capableStaffIds = staffList.map(s => s.staff_id);
+        if (capableStaffIds.length === 0) {
+          return error(`No active staff can perform service ${pair.serviceId}`);
+        }
+      } else {
+        capableStaffIds = [pair.staffId];
+      }
+      
       servicesData.push({
         ...service,
-        staffId: pair.staffId
+        staffId: pair.staffId,
+        capableStaffIds
       });
       totalDuration += service.duration_minutes;
       totalBuffer += (service.buffer_time_minutes || 0);
     }
 
-    // Get unique staff IDs
-    const staffIds = [...new Set(servicesData.map(s => s.staffId))];
+    // Get unique staff IDs (union of all capable staff for all services)
+    const staffIds = [...new Set(servicesData.flatMap(s => s.capableStaffIds))];
 
-    // Verify all staff are active and can perform their assigned services
+    // Verify all exactly-specified staff are active and can perform their assigned services
     for (const serviceData of servicesData) {
-      const canPerform = await getOne(
-        `SELECT 1 FROM service_staff ss
-         JOIN staff st ON st.id = ss.staff_id
-         WHERE ss.service_id = ? AND ss.staff_id = ? AND st.is_active = 1`,
-        [serviceData.id, serviceData.staffId]
-      );
-      
-      if (!canPerform) {
-        return error(`Staff ${serviceData.staffId} cannot perform service ${serviceData.id}`);
+      if (serviceData.staffId !== 'any') {
+        const canPerform = await getOne(
+          `SELECT 1 FROM service_staff ss
+           JOIN staff st ON st.id = ss.staff_id
+           WHERE ss.service_id = ? AND ss.staff_id = ? AND st.is_active = 1`,
+          [serviceData.id, serviceData.staffId]
+        );
+        
+        if (!canPerform) {
+          return error(`Staff ${serviceData.staffId} cannot perform service ${serviceData.id}`);
+        }
       }
     }
 
     const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
     const slots = [];
 
-    // Batch fetch working hours for all staff at once
+    // ── Helpers ────────────────────────────────────────────────────────────
+    const padLocal = (n) => String(n).padStart(2, '0');
+    const fmtTime = (d) => `${padLocal(d.getHours())}:${padLocal(d.getMinutes())}:00`;
+    const fmtLocal = (d) => `${d.getFullYear()}-${padLocal(d.getMonth() + 1)}-${padLocal(d.getDate())}T${padLocal(d.getHours())}:${padLocal(d.getMinutes())}:00`;
+
+    // ── Batch fetch working hours for all involved staff ──────────────────
     const staffWorkingHoursData = await query(
       `SELECT staff_id, start_time, end_time
        FROM staff_working_hours
        WHERE staff_id IN (?) AND day_of_week = ?`,
-      [staffIds, dayOfWeek]
+      [staffIds.length > 0 ? staffIds : [0], dayOfWeek]
     );
 
-    // Batch fetch business hours as fallback (in case no staff hours exist)
     const businessHours = await getOne(
       'SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0',
       [salonId, dayOfWeek]
     );
 
-    // Build working hours map for each staff
-    const staffWorkingHours = [];
-    const staffTimeOffs = {};
+    // Build per-staff working hours and time-off maps
+    const staffWorkingHoursMap = {};   // staffId → { startTime, endTime }
+    const staffTimeOffsMap = {};       // staffId → [{ start_datetime, end_datetime }]
 
     for (const staffId of staffIds) {
       let workingHours = staffWorkingHoursData.find(row => row.staff_id === staffId);
 
-      // Fallback to salon business hours
       if (!workingHours && businessHours) {
         workingHours = {
           staff_id: staffId,
@@ -129,130 +151,165 @@ export async function GET(request, { params }) {
         };
       }
 
-      if (!workingHours) {
-        // If any staff doesn't work this day, no slots available
-        return success({ slots: [], message: `Staff ${staffId} is not working on this day` });
+      if (workingHours) {
+        staffWorkingHoursMap[staffId] = {
+          startTime: workingHours.start_time,
+          endTime: workingHours.end_time
+        };
       }
+      // If a specific staff has no working hours, they'll fail individual checks below.
+      // For "any" staff, we simply skip that candidate.
 
-      // Check for time off with datetime granularity
-      const startDateTimeStr = `${date} ${workingHours.start_time}`;
-      const endDateTimeStr = `${date} ${workingHours.end_time}`;
+      const whStart = workingHours ? `${date} ${workingHours.start_time}` : `${date} 00:00:00`;
+      const whEnd   = workingHours ? `${date} ${workingHours.end_time}`   : `${date} 23:59:59`;
 
       const timeOffs = await query(
         `SELECT start_datetime, end_datetime FROM staff_time_off
-         WHERE staff_id = ?
-         AND start_datetime < ?
-         AND end_datetime > ?`,
-        [staffId, endDateTimeStr, startDateTimeStr]
+         WHERE staff_id = ? AND start_datetime < ? AND end_datetime > ?`,
+        [staffId, whEnd, whStart]
       );
-
-      staffTimeOffs[staffId] = timeOffs;
-
-      staffWorkingHours.push({
-        staffId,
-        startTime: workingHours.start_time,
-        endTime: workingHours.end_time
-      });
+      staffTimeOffsMap[staffId] = timeOffs;
     }
 
-    // Find the overlapping working hours (latest start, earliest end)
-    const startTimeStr = staffWorkingHours.reduce((latest, curr) => {
-      return curr.startTime > latest ? curr.startTime : latest;
-    }, staffWorkingHours[0].startTime);
+    // ── Compute the scan window ───────────────────────────────────────────
+    //
+    // Instead of the intersection (overlapping) of all staff hours, we use
+    // the UNION: earliest start of any staff → latest end of any staff.
+    // This ensures we don't hide valid slots where an early-starting staff
+    // handles the first service before a later-starting staff takes over.
 
-    const endTimeStr = staffWorkingHours.reduce((earliest, curr) => {
-      return curr.endTime < earliest ? curr.endTime : earliest;
-    }, staffWorkingHours[0].endTime);
+    let earliestStart = '23:59:59';
+    let latestEnd = '00:00:00';
 
-    // Create dates in local time
-    const startTime = new Date(`${date}T${startTimeStr}`);
-    const endTime = new Date(`${date}T${endTimeStr}`);
-    
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-      console.error('Invalid time format:', { start_time: startTimeStr, end_time: endTimeStr });
+    for (const staffId of staffIds) {
+      const wh = staffWorkingHoursMap[staffId];
+      if (!wh) continue;
+      if (wh.startTime < earliestStart) earliestStart = wh.startTime;
+      if (wh.endTime > latestEnd) latestEnd = wh.endTime;
+    }
+
+    if (earliestStart >= latestEnd) {
+      return success({ slots: [], message: 'No overlapping availability for the selected staff' });
+    }
+
+    const scanStart = new Date(`${date}T${earliestStart}`);
+    const scanEnd = new Date(`${date}T${latestEnd}`);
+
+    if (isNaN(scanStart.getTime()) || isNaN(scanEnd.getTime())) {
+      console.error('Invalid time format:', { earliestStart, latestEnd });
       return success({ slots: [] });
     }
 
-    // Get existing bookings for all staff on this date (batch query)
+    // ── Batch fetch existing sub-window bookings for all staff ─────────────
     const allBookings = await query(
-      `SELECT b.staff_id, b.start_datetime, b.end_datetime
-       FROM bookings b
-       WHERE b.staff_id IN (?) AND DATE(b.start_datetime) = ?
-       AND b.status IN ('pending', 'confirmed')
-       AND b.deleted_at IS NULL
-       
-       UNION
-       
-       SELECT bs.staff_id, b.start_datetime, b.end_datetime
+      `SELECT COALESCE(bs.staff_id, b.staff_id) AS staff_id, bs.start_datetime, bs.end_datetime
        FROM bookings b
        JOIN booking_services bs ON bs.booking_id = b.id
-       WHERE bs.staff_id IN (?) AND DATE(b.start_datetime) = ?
+       WHERE COALESCE(bs.staff_id, b.staff_id) IN (?) 
+       AND DATE(b.start_datetime) = ?
        AND b.status IN ('pending', 'confirmed')
        AND b.deleted_at IS NULL`,
-      [staffIds, date, staffIds, date]
+      [staffIds, date]
     );
 
-    // Group bookings by staff
     const staffBookings = {};
     for (const staffId of staffIds) {
       staffBookings[staffId] = allBookings.filter(b => b.staff_id === staffId);
     }
 
-    const now = new Date();
-    let currentSlot = new Date(startTime);
+    // ── Helper: check if a single staff member is free in a time window ───
+    function isStaffAvailable(staffId, windowStart, windowEnd) {
+      // 1. Working hours — staff must cover the entire service window
+      const wh = staffWorkingHoursMap[staffId];
+      if (!wh) return false;
+      if (fmtTime(windowStart) < wh.startTime || fmtTime(windowEnd) > wh.endTime) {
+        return false;
+      }
 
-    // Generate slots checking all staff availability
-    while (currentSlot.getTime() + (totalDuration + totalBuffer) * 60000 <= endTime.getTime()) {
+      // 2. Booking conflicts
+      const bookings = staffBookings[staffId] || [];
+      const hasConflict = bookings.some((b) => {
+        const bStart = new Date(String(b.start_datetime).replace(' ', 'T'));
+        const bEnd = new Date(String(b.end_datetime).replace(' ', 'T'));
+        return windowStart < bEnd && windowEnd > bStart;
+      });
+      if (hasConflict) return false;
+
+      // 3. Time-off conflicts
+      const timeOffs = staffTimeOffsMap[staffId] || [];
+      const hasTimeOff = timeOffs.some((t) => {
+        const tStart = new Date(String(t.start_datetime).replace(' ', 'T'));
+        const tEnd = new Date(String(t.end_datetime).replace(' ', 'T'));
+        return windowStart < tEnd && windowEnd > tStart;
+      });
+      if (hasTimeOff) return false;
+
+      return true;
+    }
+
+    // ── Generate slots using sequential service scheduling ────────────────
+    //
+    // For each candidate start time, we build the sequential schedule:
+    //   Service 1: slotStart → slotStart + duration1
+    //   Service 2: end1 → end1 + duration2   (no buffer gap between services)
+    //   ...last service includes buffer in its end time
+    //
+    // Each service's specific staff (or any capable staff) only needs to be
+    // available during THEIR service window, not the entire booking span.
+
+    const now = new Date();
+    let currentSlot = new Date(scanStart);
+
+    while (currentSlot.getTime() + (totalDuration + totalBuffer) * 60000 <= scanEnd.getTime()) {
       const slotStart = new Date(currentSlot);
-      const slotEnd = new Date(currentSlot.getTime() + totalDuration * 60000);
-      const slotEndWithBuffer = new Date(currentSlot.getTime() + (totalDuration + totalBuffer) * 60000);
 
       // Skip past times
       if (slotStart <= now) {
-        currentSlot.setMinutes(currentSlot.getMinutes() + (totalDuration + totalBuffer));
+        currentSlot.setMinutes(currentSlot.getMinutes() + 15);
         continue;
       }
 
-      // Check if ALL staff are available for this slot
-      let allAvailable = true;
-      
-      for (const staffId of staffIds) {
-        const bookings = staffBookings[staffId];
-        const timeOffs = staffTimeOffs[staffId] || [];
-        
-        const hasBookingConflict = bookings.some((booking) => {
-          const bookingStart = new Date(String(booking.start_datetime).replace(' ', 'T'));
-          const bookingEnd = new Date(String(booking.end_datetime).replace(' ', 'T'));
-          
-          // Check overlap with buffer
-          return slotStart < bookingEnd && slotEndWithBuffer > bookingStart;
-        });
+      // Build sequential schedule for this candidate slot
+      let cursor = new Date(slotStart);
+      let allServicesCanBeFulfilled = true;
 
-        const hasTimeOffConflict = timeOffs.some((timeOff) => {
-          const timeOffStart = new Date(String(timeOff.start_datetime).replace(' ', 'T'));
-          const timeOffEnd = new Date(String(timeOff.end_datetime).replace(' ', 'T'));
-          
-          // Check overlap with buffer
-          return slotStart < timeOffEnd && slotEndWithBuffer > timeOffStart;
-        });
+      for (let i = 0; i < servicesData.length; i++) {
+        const serviceData = servicesData[i];
+        const duration = serviceData.duration_minutes;
+        const buffer = serviceData.buffer_time_minutes || 0;
+        const isLast = i === servicesData.length - 1;
 
-        if (hasBookingConflict || hasTimeOffConflict) {
-          allAvailable = false;
+        const svcStart = new Date(cursor);
+        const svcEnd = new Date(cursor.getTime() + (duration + (isLast ? buffer : 0)) * 60000);
+
+        // Check if at least one capable staff is available for THIS service's window
+        let anyCapableStaffAvailable = false;
+
+        for (const staffId of serviceData.capableStaffIds) {
+          if (isStaffAvailable(staffId, svcStart, svcEnd)) {
+            anyCapableStaffAvailable = true;
+            break;
+          }
+        }
+
+        if (!anyCapableStaffAvailable) {
+          allServicesCanBeFulfilled = false;
           break;
         }
+
+        // Advance cursor by pure duration (no buffer gap between services)
+        cursor = new Date(cursor.getTime() + duration * 60000);
       }
 
-      if (allAvailable) {
-        const pad = (n) => String(n).padStart(2, '0');
-        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-        
+      if (allServicesCanBeFulfilled) {
+        const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
         slots.push({
-          startTime: formatLocal(slotStart),
-          endTime: formatLocal(slotEnd),
+          startTime: fmtLocal(slotStart),
+          endTime: fmtLocal(slotEnd),
         });
       }
 
-      currentSlot.setMinutes(currentSlot.getMinutes() + (totalDuration + totalBuffer));
+      currentSlot.setMinutes(currentSlot.getMinutes() + 15);
     }
 
     return success({

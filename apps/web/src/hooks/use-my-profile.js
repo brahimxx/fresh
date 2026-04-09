@@ -29,7 +29,21 @@ export function useUpdateProfile() {
       if (!res.ok) throw new Error(json.error?.message || 'Failed to update profile');
       return json.data;
     },
-    onSuccess: () => {
+    // Optimistic Update
+    onMutate: async (newProfileData) => {
+      await queryClient.cancelQueries({ queryKey: ['my-profile'] });
+      const previousProfile = queryClient.getQueryData(['my-profile']);
+      queryClient.setQueryData(['my-profile'], (old) => {
+        return old ? { ...old, ...newProfileData } : old;
+      });
+      return { previousProfile };
+    },
+    onError: (err, newProfileData, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(['my-profile'], context.previousProfile);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['my-profile'] });
     },
   });
@@ -101,6 +115,21 @@ export function useMyReviews(page = 1, limit = 10) {
   });
 }
 
+// ─── Security ──────────────────────────────────────────────────────────────
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async ({ currentPassword, newPassword }) => {
+      const res = await fetch('/api/auth/me/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Failed to change password');
+      return json.data;
+    },
+  });
+}
 
 // ─── Addresses ─────────────────────────────────────────────────────────────
 export function useMyAddresses() {

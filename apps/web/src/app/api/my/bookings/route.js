@@ -16,7 +16,7 @@ export async function GET(request) {
 
     let sql = `
       SELECT b.*, s.name as salon_name, s.address as salon_address, s.city as salon_city,
-        s.phone as salon_phone, s.email as salon_email,
+        s.phone as salon_phone, s.email as salon_email, s.currency as salon_currency,
         (SELECT image_url FROM salon_photos WHERE salon_id = s.id AND is_cover = 1 LIMIT 1) as salon_image,
         GROUP_CONCAT(DISTINCT sv.name) as services,
         GROUP_CONCAT(DISTINCT CONCAT(sv.name, '|', COALESCE(bs.price, 0), '|', COALESCE(bs.duration_minutes, 0)) SEPARATOR ';;') as service_details,
@@ -28,7 +28,7 @@ export async function GET(request) {
       LEFT JOIN services sv ON sv.id = bs.service_id
       LEFT JOIN staff st ON st.id = b.staff_id
       LEFT JOIN users u2 ON u2.id = st.user_id
-      WHERE b.client_id = ?
+      WHERE b.client_id = ? AND b.deleted_at IS NULL
     `;
     const sqlParams = [session.userId];
 
@@ -81,6 +81,7 @@ export async function GET(request) {
           salonPhone: b.salon_phone,
           salonEmail: b.salon_email,
           salonImage: b.salon_image,
+          salonCurrency: b.salon_currency,
           staffId: b.staff_id,
           staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
           services: b.services,

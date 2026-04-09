@@ -26,12 +26,13 @@ export async function GET(request) {
         // 2. Popular Categories (last 30 days)
         const popularCategoriesSql = `
             SELECT 
-                COALESCE(s.category, 'Other') as category, 
+                COALESCE(MAX(sc.category_name), 'Other') as category, 
                 COUNT(b.id) as booking_count
             FROM bookings b
             JOIN salons s ON b.salon_id = s.id
+            LEFT JOIN salon_categories sc ON sc.salon_id = s.id AND sc.is_primary = 1
             WHERE b.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY COALESCE(s.category, 'Other')
+            GROUP BY sc.category_name
             ORDER BY booking_count DESC
         `;
         const popularCategoriesData = await query(popularCategoriesSql);

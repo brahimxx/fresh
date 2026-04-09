@@ -13,7 +13,7 @@ export async function GET() {
     const user = await getOne(
       `SELECT id, email, phone, first_name, last_name, role, country,
               gender, date_of_birth, address, city, postal_code, avatar_url,
-              created_at
+              created_at, email_verified
        FROM users WHERE id = ? AND deleted_at IS NULL`,
       [session.userId]
     );
@@ -37,6 +37,7 @@ export async function GET() {
       postalCode: user.postal_code,
       avatarUrl: user.avatar_url,
       createdAt: user.created_at,
+      emailVerified: !!user.email_verified,
       impersonatorAdminId: session.impersonatorAdminId || null,
     });
   } catch (err) {

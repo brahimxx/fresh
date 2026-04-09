@@ -51,6 +51,7 @@ import {
 } from "@/hooks/use-discounts";
 import { useServices } from "@/hooks/use-services";
 import { useProducts } from "@/hooks/use-products";
+import { useSalon } from "@/providers/salon-provider";
 
 var discountSchema = z.object({
   code: z.string().min(1, "Code is required").max(20),
@@ -83,6 +84,7 @@ export function DiscountForm({
   var { data: products } = useProducts(salonId);
 
   var isEditing = !!discount;
+  var { salon } = useSalon();
 
   var form = useForm({
     resolver: zodResolver(discountSchema),
@@ -316,8 +318,8 @@ export function DiscountForm({
                           <FormLabel>Value</FormLabel>
                           <FormControl>
                             <div className="relative">
-                              <span className="absolute left-3 top-2.5 text-muted-foreground">
-                                {form.watch("type") === "percentage" ? "%" : "€"}
+                              <span className="absolute left-3 top-2.5 text-muted-foreground text-xs mt-0.5">
+                                {form.watch("type") === "percentage" ? "%" : (salon?.currency || "EUR")}
                               </span>
                               <Input {...field} type="number" className="pl-8" />
                             </div>
@@ -337,7 +339,7 @@ export function DiscountForm({
                     render={function ({ field }) {
                       return (
                         <FormItem>
-                          <FormLabel>Min Purchase (€)</FormLabel>
+                          <FormLabel>Min Purchase ({salon?.currency || 'EUR'})</FormLabel>
                           <FormControl>
                             <Input {...field} type="number" />
                           </FormControl>

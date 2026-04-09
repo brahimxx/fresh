@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 import { useCreateStaff, useUpdateStaff, STAFF_ROLES } from "@/hooks/use-staff";
 
@@ -42,6 +43,7 @@ var staffSchema = z.object({
   role: z.string().min(1, "Role is required"),
   title: z.string().optional(),
   bio: z.string().optional(),
+  is_active: z.boolean().default(true),
 });
 
 export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
@@ -58,6 +60,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
       role: "staff",
       title: "",
       bio: "",
+      is_active: true,
     },
   });
 
@@ -81,6 +84,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
             role: staff.role || "staff",
             title: staff.title || "",
             bio: staff.bio || "",
+            is_active: staff.isActive !== undefined ? staff.isActive : (staff.is_active !== undefined ? staff.is_active : true),
           });
         } else {
           form.reset({
@@ -90,6 +94,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
             role: "staff",
             title: "",
             bio: "",
+            is_active: true,
           });
         }
       }
@@ -102,6 +107,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
       ...data,
       salon_id: salonId,
       email: data.email || null,
+      isActive: data.is_active,
     };
 
     if (isEditing) {
@@ -261,6 +267,31 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
                 );
               }}
             />
+
+            {isEditing && (
+              <FormField
+                control={form.control}
+                name="is_active"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 mt-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">
+                        Active Status
+                      </FormLabel>
+                      <FormDescription>
+                        Turn off to hide this staff member from the salon schedule and marketplace.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter>
               <Button

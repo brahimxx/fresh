@@ -42,7 +42,7 @@ export async function GET(request, { params }) {
       FROM salon_clients sc
       JOIN users u ON u.id = sc.client_id
       WHERE sc.salon_id = ?
-        AND sc.is_active = 1
+        
         AND u.deleted_at IS NULL
     `;
     const params_query = [id];
@@ -58,7 +58,7 @@ export async function GET(request, { params }) {
     const clients = await query(sql, params_query);
 
     // Get total count — only active relationships
-    let countSql = 'SELECT COUNT(*) as total FROM salon_clients WHERE salon_id = ? AND is_active = 1';
+    let countSql = 'SELECT COUNT(*) as total FROM salon_clients WHERE salon_id = ?';
     const [{ total }] = await query(countSql, [id]);
 
     return success({
@@ -71,6 +71,7 @@ export async function GET(request, { params }) {
         firstVisitDate: c.first_visit_date,
         lastVisitDate: c.last_visit_date,
         totalVisits: c.total_visits,
+        isActive: c.is_active === 1,
       })),
       pagination: {
         page,

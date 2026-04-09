@@ -54,11 +54,21 @@ export async function GET(request, { params }) {
     }
 
     let salonData = null;
+    let totalSpent = 0;
     if (salonId) {
       salonData = await getOne(
         "SELECT * FROM salon_clients WHERE salon_id = ? AND client_id = ?",
         [salonId, id]
       );
+      
+      const statsQuery = await getOne(
+        `SELECT COALESCE(SUM(p.amount), 0) as total_spent
+         FROM payments p
+         JOIN bookings b ON b.id = p.booking_id
+         WHERE b.client_id = ? AND b.salon_id = ? AND p.status = 'paid'`,
+        [id, salonId]
+      );
+      totalSpent = parseFloat(statsQuery?.total_spent || 0);
     }
 
     return success({
@@ -73,12 +83,14 @@ export async function GET(request, { params }) {
       city: client.city,
       postalCode: client.postal_code,
       notes: salonData?.notes || null,
+      isActive: salonData ? salonData.is_active === 1 : null,
       createdAt: client.created_at,
       salonStats: salonData
         ? {
           firstVisitDate: salonData.first_visit_date,
           lastVisitDate: salonData.last_visit_date,
           totalVisits: salonData.total_visits,
+          totalSpent: totalSpent,
         }
         : null,
     });
@@ -263,7 +275,7 @@ export async function PUT(request, { params }) {
       ),
       salonId
         ? getOne(
-          "SELECT notes FROM salon_clients WHERE salon_id = ? AND client_id = ?",
+          "SELECT notes, is_active FROM salon_clients WHERE salon_id = ? AND client_id = ?",
           [salonId, clientId],
         )
         : Promise.resolve(null),
@@ -281,6 +293,7 @@ export async function PUT(request, { params }) {
       city: updatedClient.city,
       postalCode: updatedClient.postal_code,
       notes: salonData?.notes ?? null,
+      isActive: salonData ? salonData.is_active === 1 : null,
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
@@ -292,45 +305,35 @@ export async function PUT(request, { params }) {
   }
 }
 
-// DELETE /api/clients/[id] - Remove client from salon
-export async function DELETE(request, { params }) {
+// PATCH /api/clients/[id]?salonId=3 - Toggle active status (blacklist/un-blacklist)
+export async function PATCH(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get("salon_id") || searchParams.get("salonId");
+    const { id: clientId } = await params;
+    const body = await request.json();
+    const salonId = body.salonId || body.salon_id || null;
+    
+    if (!salonId) return error({ code: 'MISSING_SALON', message: 'salonId is required' }, 400);
 
-    if (!salonId) {
-      return error("Salon ID is required", 400);
-    }
-
-    // Check salon access — any active staff member may remove a client link
     const hasAccess = await checkSalonAccess(salonId, session.userId, session.role);
-    if (!hasAccess) {
-      return forbidden("Not authorized to remove clients from this salon");
+    if (!hasAccess) return forbidden('Not authorized to update clients for this salon');
+
+    if (body.isActive === undefined) {
+      return error({ code: 'INVALID_REQUEST', message: 'isActive status is required' }, 400);
     }
 
-    // Soft-delete: mark inactive instead of removing the row.
-    //
-    // Hard DELETE would orphan the booking history — bookings.client_id still
-    // points at users.id so the FK is fine, but every report and history view
-    // would show a client that no longer exists in the CRM.  Soft-delete
-    // keeps the row (and its booking history) intact while hiding the client
-    // from all active CRM lists.  The client is automatically re-activated
-    // if they book again or are re-added via findOrCreateClient.
-    const result = await query(
-      "UPDATE salon_clients SET is_active = 0, updated_at = NOW() WHERE salon_id = ? AND client_id = ?",
-      [salonId, id],
+    const val = body.isActive ? 1 : 0;
+    const notesStr = val ? "\\nManually Un-Blacklisted by staff." : "\\nManually Blacklisted by staff.";
+    
+    await pool.query(
+      "UPDATE salon_clients SET is_active = ?, notes = CONCAT(COALESCE(notes, ''), ?) WHERE salon_id = ? AND client_id = ?",
+      [val, notesStr, salonId, clientId]
     );
 
-    if (result.affectedRows === 0) {
-      return error({ code: "CLIENT_NOT_FOUND", message: "Client not found in this salon" }, 404);
-    }
-
-    return success({ message: "Client deactivated from salon" });
+    return success({ success: true, message: 'Client status updated successfully', isActive: val === 1 });
   } catch (err) {
-    if (err.message === "Unauthorized") return unauthorized();
-    console.error("Delete client error:", err);
-    return error("Failed to remove client", 500);
+    if (err.message === 'Unauthorized') return unauthorized();
+    console.error('Update client status error:', err);
+    return error({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update client status' }, 500);
   }
 }

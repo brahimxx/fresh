@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { formatDuration, formatCurrency } from "@/lib/format";
 
 export function BookingConfirmation({
   booking,
@@ -138,7 +139,7 @@ export function BookingConfirmation({
               <div>
                 <p className="font-medium">{formatDate(selectedDate)}</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatTime(selectedTime)} - {totalDuration} minutes
+                  {formatTime(selectedTime)} - {formatDuration(totalDuration)}
                 </p>
               </div>
             </div>
@@ -192,12 +193,12 @@ export function BookingConfirmation({
                     <div>
                       <p className="font-medium">{service.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {service.duration} min
+                        {formatDuration(service.duration)}
                         {service.staffName && " • with " + service.staffName}
                       </p>
                     </div>
                     <p className="font-medium">
-                      ${(parseFloat(service.price) || 0).toFixed(2)}
+                      {formatCurrency(service.price || 0, salon?.currency)}
                     </p>
                   </div>
                 );
@@ -206,7 +207,7 @@ export function BookingConfirmation({
           <Separator className="my-3" />
           <div className="flex justify-between items-center font-semibold">
             <span>Total</span>
-            <span>${totalPrice.toFixed(2)}</span>
+            <span>{formatCurrency(totalPrice, salon?.currency)}</span>
           </div>
         </div>
 

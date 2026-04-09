@@ -30,7 +30,7 @@ export async function POST(request) {
 
     // Find user
     const user = await getOne(
-      'SELECT id, email, password_hash, first_name, last_name, role FROM users WHERE email = ?',
+      'SELECT id, email, password_hash, first_name, last_name, role, email_verified FROM users WHERE email = ?',
       [email]
     );
 
@@ -67,6 +67,7 @@ export async function POST(request) {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role,
+        emailVerified: !!user.email_verified,
       },
       token,
     });

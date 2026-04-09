@@ -24,6 +24,7 @@ export function useProducts(salonId, options) {
       if (options?.category_id) params.append('category_id', options.category_id);
       if (options?.search) params.append('search', options.search);
       if (options?.in_stock !== undefined) params.append('in_stock', options.in_stock);
+      if (options?.includeInactive !== undefined) params.append('includeInactive', options.includeInactive);
       return api.get('/products?' + params.toString());
     },
     select: function(response) {

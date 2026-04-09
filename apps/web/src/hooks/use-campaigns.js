@@ -19,11 +19,11 @@ export var CAMPAIGN_TYPES = [
 
 // Campaign statuses
 export var CAMPAIGN_STATUSES = {
-  draft: { label: 'Draft', color: 'bg-gray-100 text-gray-800' },
-  scheduled: { label: 'Scheduled', color: 'bg-blue-100 text-blue-800' },
-  sending: { label: 'Sending', color: 'bg-yellow-100 text-yellow-800' },
-  sent: { label: 'Sent', color: 'bg-green-100 text-green-800' },
-  failed: { label: 'Failed', color: 'bg-red-100 text-red-800' },
+  draft: { label: 'Draft', color: 'bg-muted text-muted-foreground border-border' },
+  scheduled: { label: 'Scheduled', color: 'bg-slate-50/50 text-slate-700 border-slate-200' },
+  sending: { label: 'Sending', color: 'bg-amber-50/50 text-amber-600 border-amber-200' },
+  sent: { label: 'Sent', color: 'bg-green-50/50 text-green-600 border-green-200' },
+  failed: { label: 'Failed', color: 'bg-destructive/10 text-destructive border-destructive/20' },
 };
 
 // Audience types

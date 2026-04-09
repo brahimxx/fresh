@@ -38,9 +38,12 @@ export async function GET(request, { params }) {
     let bookingSql = `
       SELECT b.*, 
              u.first_name as client_first_name, u.last_name as client_last_name,
+             u.email as client_email, u.phone as client_phone,
+             sc.is_active as client_is_active,
              st.id as staff_id, su.first_name as staff_first_name, su.last_name as staff_last_name
       FROM bookings b
       JOIN users u ON u.id = b.client_id
+      LEFT JOIN salon_clients sc ON sc.client_id = u.id AND sc.salon_id = b.salon_id
       LEFT JOIN staff st ON st.id = b.staff_id
       LEFT JOIN users su ON su.id = st.user_id
       WHERE b.salon_id = ?
@@ -64,7 +67,7 @@ export async function GET(request, { params }) {
     let bookingServices = [];
     if (bookingIds.length > 0) {
       bookingServices = await query(
-        `SELECT bs.*, sv.name as service_name
+        `SELECT bs.*, sv.name as service_name, bs.staff_id, bs.start_datetime, bs.end_datetime
          FROM booking_services bs
          JOIN services sv ON sv.id = bs.service_id
          WHERE bs.booking_id IN (${bookingIds.map(() => '?').join(',')})`,
@@ -102,12 +105,29 @@ export async function GET(request, { params }) {
         status: b.status,
         staffId: b.staff_id,
         staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
+        client_id: b.client_id,
+        clientId: b.client_id,
+        client_first_name: b.client_first_name,
+        client_last_name: b.client_last_name,
+        clientName: `${b.client_first_name} ${b.client_last_name}`.trim(),
+        clientIsActive: b.client_is_active === 1,
+        clientEmail: b.client_email,
+        clientPhone: b.client_phone,
+        notes: b.notes,
+        totalPrice: b.total_price,
+        paymentStatus: b.payment_status,
+        paymentMethod: b.payment_method,
         services: bookingServices
           .filter((bs) => bs.booking_id === b.id)
           .map((bs) => ({
+            id: bs.service_id,
+            service_id: bs.service_id,
             name: bs.service_name,
             duration: bs.duration_minutes,
             price: bs.price,
+            staffId: bs.staff_id,
+            startDatetime: bs.start_datetime ? String(bs.start_datetime).replace(' ', 'T') : null,
+            endDatetime: bs.end_datetime ? String(bs.end_datetime).replace(' ', 'T') : null,
           })),
       })),
       ...timeOff.map((to) => ({

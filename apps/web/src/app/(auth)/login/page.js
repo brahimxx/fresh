@@ -125,6 +125,7 @@ function LoginForm() {
 
   if (showUpgradeState) {
     return (
+      <div className="w-full max-w-md">
       <Card className="border-accent">
         <CardHeader className="space-y-1">
           <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-4 mx-auto">
@@ -158,11 +159,13 @@ function LoginForm() {
           </Button>
         </CardFooter>
       </Card>
+      </div>
     );
   }
 
   return (
-    <Card className={isProfessionalPath ? "border-accent shadow-accent/5 shadow-2xl" : "shadow-xl border-border/50"}>
+    <div className="w-full max-w-md">
+      <Card className={isProfessionalPath ? "border-accent shadow-accent/5 shadow-2xl" : "shadow-xl border-border/50"}>
       <CardHeader className="space-y-1">
         {isProfessionalPath && (
           <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mb-2 mx-auto">
@@ -241,6 +244,7 @@ function LoginForm() {
         </CardFooter>
       </form>
     </Card>
+    </div>
   );
 }
 

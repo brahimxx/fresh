@@ -42,15 +42,15 @@ export async function GET(request) {
     );
 
     return successResponse({
-      totalReviews: stats.total_reviews || 0,
-      averageRating: stats.average_rating ? parseFloat(stats.average_rating.toFixed(1)) : 0,
-      repliedCount: stats.replied_count || 0,
-      responseRate: stats.total_reviews > 0 
-        ? Math.round((stats.replied_count / stats.total_reviews) * 100) 
+      totalReviews: Number(stats.total_reviews) || 0,
+      averageRating: stats.average_rating ? Number(Number(stats.average_rating).toFixed(1)) : 0,
+      repliedCount: Number(stats.replied_count) || 0,
+      responseRate: Number(stats.total_reviews) > 0 
+        ? Math.round((Number(stats.replied_count) / Number(stats.total_reviews)) * 100) 
         : 0,
-      thisMonth: stats.this_month || 0,
+      thisMonth: Number(stats.this_month) || 0,
       distribution: distribution.reduce((acc, item) => {
-        acc[item.rating] = item.count;
+        acc[item.rating] = Number(item.count);
         return acc;
       }, {}),
     });

@@ -6,6 +6,7 @@ import { AuthProvider } from "@/providers/auth-provider";
 import { ToastProvider } from "@/providers/toast-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -79,6 +80,7 @@ export default function RootLayout({ children }) {
           <QueryProvider>
             <AuthProvider>
               <ImpersonationBanner />
+              <EmailVerificationBanner />
               {children}
               <ToastProvider />
             </AuthProvider>

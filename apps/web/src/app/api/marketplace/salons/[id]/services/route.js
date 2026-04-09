@@ -19,9 +19,15 @@ export async function GET(request, { params }) {
         s.price, s.category_id, s.display_order, s.is_popular, sc.name as category_name
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id
+       INNER JOIN service_staff ss ON ss.service_id = s.id
+       INNER JOIN staff st ON st.id = ss.staff_id 
+         AND st.is_active = 1 
+         AND st.is_visible = 1 
+         AND st.salon_id = s.salon_id
        WHERE s.salon_id = ? 
          AND s.is_active = 1 
          AND s.deleted_at IS NULL
+       GROUP BY s.id
        ORDER BY sc.display_order ASC, sc.name ASC, s.display_order ASC, s.name ASC`,
       [id]
     );

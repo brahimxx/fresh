@@ -12,9 +12,9 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salonId');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const salonId = searchParams.get('salonId') || searchParams.get('salon_id');
+    const startDate = searchParams.get('startDate') || searchParams.get('start_date');
+    const endDate = searchParams.get('endDate') || searchParams.get('end_date');
 
     if (!salonId) {
       return error('Salon ID is required');

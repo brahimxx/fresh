@@ -25,6 +25,7 @@ export async function GET(request) {
     const categoryId = searchParams.get("category_id");
     const search = searchParams.get("search");
     const inStock = searchParams.get("in_stock");
+    const includeInactive = searchParams.get("includeInactive") === 'true';
 
     let sql = `
       SELECT p.*, pc.name as category_name
@@ -33,6 +34,10 @@ export async function GET(request) {
       WHERE p.deleted_at IS NULL
     `;
     const params = [];
+
+    if (!includeInactive) {
+      sql += " AND p.is_active = 1";
+    }
 
     if (salonId) {
       sql += " AND p.salon_id = ?";

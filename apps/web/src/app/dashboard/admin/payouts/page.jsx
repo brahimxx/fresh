@@ -20,7 +20,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from "@/lib/format";
 import { Badge } from '@/components/ui/badge';
 import { Loader2, DollarSign, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -59,6 +58,13 @@ export default function AdminPayoutsPage() {
             });
         },
     });
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'EUR',
+        }).format(amount || 0);
+    };
 
     const handleSelectAll = (checked) => {
         if (checked && payoutsData?.balances) {

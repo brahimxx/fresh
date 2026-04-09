@@ -203,7 +203,7 @@ export async function GET(request, { params }) {
 
         // Skip past times
         if (slotStart <= now) {
-          currentSlot = new Date(currentSlot.getTime() + stepMinutes * 60000);
+          currentSlot = new Date(currentSlot.getTime() + 15 * 60000);
           continue;
         }
 
@@ -224,7 +224,7 @@ export async function GET(request, { params }) {
           });
         }
 
-        currentSlot = new Date(currentSlot.getTime() + stepMinutes * 60000);
+        currentSlot = new Date(currentSlot.getTime() + 15 * 60000);
       }
 
       availability.push({ staffId: staff.id, staffName, slots });

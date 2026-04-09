@@ -56,6 +56,34 @@ export async function POST(request, { params }) {
 
       await conn.commit();
 
+      // Trigger Review Flow Notification to client
+      try {
+        const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [result.booking.clientId]);
+        const salon = await getOne('SELECT name FROM salons WHERE id = ?', [result.booking.salonId]);
+        
+        if (client) {
+          const { sendNotification } = require('@/lib/notifications');
+          const reviewUrl = `http://localhost:3000/dashboard/client/bookings/${bookingId}/review`; // Example review link
+          
+          sendNotification({
+            userId: client.id,
+            email: client.email,
+            type: 'email',
+            title: 'Thank you for your visit!',
+            message: `
+              <p>Hi ${client.first_name || 'there'},</p>
+              <p>Thank you for visiting <strong>${salon?.name || 'the salon'}</strong>! Your payment has been successfully processed.</p>
+              <p>We'd love to hear about your experience. Please take a moment to leave a review for your service.</p>
+              <p><a href="${reviewUrl}">Leave a Review</a></p>
+              <p>We hope to see you again soon!</p>
+            `,
+            data: { bookingId, status: 'completed', event: 'review_prompt' }
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to trigger review notification:', notifErr);
+      }
+
       return success({
         message: 'Checkout completed successfully',
         ...result,

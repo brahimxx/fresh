@@ -8,6 +8,7 @@ import { useState, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/marketplace/search-bar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { NotificationPopover } from '@/components/layout/notification-popover';
 import { useAuth } from '@/providers/auth-provider';
 import { useRouter } from 'next/navigation';
 import {
@@ -76,6 +77,8 @@ export default function MarketplaceLayout({ children }) {
               )}
 
               <ThemeToggle />
+
+              {isAuthenticated && <NotificationPopover />}
 
               {!isAuthenticated ? (
                 <Link href="/auth/choose">

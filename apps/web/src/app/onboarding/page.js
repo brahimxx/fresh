@@ -18,6 +18,17 @@ import {
   Plus,
   X,
   Globe,
+  Activity,
+  Heart,
+  Droplets,
+  Flame,
+  Bike,
+  Dog,
+  LayoutGrid,
+  Eye,
+  Crosshair,
+  Glasses,
+  Waves
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -43,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COUNTRIES } from "@/lib/constants/countries";
+import { formatDuration } from "@/lib/format";
 
 // Schemas
 const salonSchema = z.object({
@@ -56,15 +68,36 @@ const salonSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   country: z.string().min(1, "Country is required"),
+  categories: z.array(z.string()).min(1, "Please select at least one category").max(4, "You can select up to 4 categories"),
 });
 
 const STEPS = [
   { id: 1, title: "Account setup", question: "Welcome to Fresh" },
   { id: 2, title: "Account setup", question: "What's your business name?" },
-  { id: 3, title: "Location", question: "Where is your salon located?" },
-  { id: 4, title: "Services", question: "What services do you offer?" },
-  { id: 5, title: "Team", question: "Invite your team members" },
-  { id: 6, title: "Complete", question: "You're all set!" },
+  { id: 3, title: "Business type", question: "What type of business are you?" },
+  { id: 4, title: "Location", question: "Where is your salon located?" },
+  { id: 5, title: "Services", question: "What services do you offer?" },
+  { id: 6, title: "Team", question: "Invite your team members" },
+  { id: 7, title: "Complete", question: "You're all set!" },
+];
+
+const BUSINESS_CATEGORIES = [
+  { id: "Hair salon", label: "Hair salon", icon: Waves },
+  { id: "Nails", label: "Nails", icon: Sparkles },
+  { id: "Eyebrows & lashes", label: "Eyebrows & lashes", icon: Eye },
+  { id: "Beauty salon", label: "Beauty salon", icon: Store },
+  { id: "Medspa", label: "Medspa", icon: Sparkles },
+  { id: "Barber", label: "Barber", icon: Scissors },
+  { id: "Massage", label: "Massage", icon: Activity },
+  { id: "Spa & sauna", label: "Spa & sauna", icon: Droplets },
+  { id: "Waxing salon", label: "Waxing salon", icon: Flame },
+  { id: "Tattooing & piercing", label: "Tattooing & piercing", icon: Heart },
+  { id: "Tanning studio", label: "Tanning studio", icon: Glasses },
+  { id: "Fitness & recovery", label: "Fitness & recovery", icon: Bike },
+  { id: "Physical therapy", label: "Physical therapy", icon: Activity },
+  { id: "Health practice", label: "Health practice", icon: Crosshair },
+  { id: "Pet grooming", label: "Pet grooming", icon: Dog },
+  { id: "Other", label: "Other", icon: LayoutGrid },
 ];
 
 // Theme-aware input class
@@ -91,6 +124,7 @@ export default function OnboardingPage() {
       address: "",
       city: "",
       country: "",
+      categories: [],
     },
   });
 
@@ -108,6 +142,8 @@ export default function OnboardingPage() {
 
   // Staff email input
   const [staffEmail, setStaffEmail] = useState("");
+
+  const [otherCategoryName, setOtherCategoryName] = useState("");
 
   const handleNext = () => {
     if (currentStep < STEPS.length) {
@@ -127,6 +163,29 @@ export default function OnboardingPage() {
       salonForm.setError("name", { message: "Business name must be at least 2 characters" });
       return;
     }
+    handleNext();
+  };
+
+  const handleCategorySubmit = () => {
+    const categories = salonForm.getValues("categories");
+    if (!categories || categories.length === 0) {
+      toast.error("Please select a business type");
+      return;
+    }
+    if (categories.includes("Other") && !otherCategoryName.trim()) {
+      toast.error("Please specify your business type");
+      return;
+    }
+    
+    // Replace "Other" with the custom name before saving
+    if (categories.includes("Other") && otherCategoryName.trim()) {
+      const idx = categories.indexOf("Other");
+      if (idx !== -1) {
+        categories[idx] = `Other: ${otherCategoryName.trim()}`;
+        salonForm.setValue("categories", categories);
+      }
+    }
+
     handleNext();
   };
 
@@ -242,17 +301,18 @@ export default function OnboardingPage() {
   const handleContinue = () => {
     if (currentStep === 1) handleNext();
     else if (currentStep === 2) handleSalonNameSubmit();
-    else if (currentStep === 3) handleLocationSubmit();
-    else if (currentStep === 4) handleNext();
+    else if (currentStep === 3) handleCategorySubmit();
+    else if (currentStep === 4) handleLocationSubmit();
     else if (currentStep === 5) handleNext();
-    else if (currentStep === 6) handleComplete();
+    else if (currentStep === 6) handleNext();
+    else if (currentStep === 7) handleComplete();
   };
 
   const continueLabel = () => {
     if (currentStep === 1) return "Get Started";
-    if (currentStep === 6) return isLoading ? "Creating..." : "Launch Dashboard";
-    if (currentStep === 4 && services.length === 0) return "Skip";
-    if (currentStep === 5 && staffMembers.length === 0) return "Skip";
+    if (currentStep === 7) return isLoading ? "Creating..." : "Launch Dashboard";
+    if (currentStep === 5 && services.length === 0) return "Skip";
+    if (currentStep === 6 && staffMembers.length === 0) return "Skip";
     return "Continue";
   };
 
@@ -441,8 +501,109 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3: Location */}
+          {/* Step 3: Category */}
           {currentStep === 3 && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div>
+                <p className="text-sm text-muted-foreground mb-3">Business type</p>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+                  What type of business are you?
+                </h1>
+                <p className="mt-3 text-muted-foreground text-base leading-relaxed">
+                  Choose your primary and up to 3 related service types.
+                </p>
+              </div>
+
+              <Form {...salonForm}>
+                <FormField
+                  control={salonForm.control}
+                  name="categories"
+                  render={({ field }) => {
+                    const currentCategories = field.value || [];
+                    const hasOther = currentCategories.includes("Other");
+                    
+                    return (
+                      <FormItem>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                          {BUSINESS_CATEGORIES.map((cat) => {
+                            const Icon = cat.icon;
+                            // Check if selected normally or as a transformed "Other: xxx" string
+                            const selectedIndex = currentCategories.findIndex(c => c === cat.label || (cat.label === "Other" && c.startsWith("Other:")));
+                            const isSelected = selectedIndex !== -1;
+                            const isMaxReached = currentCategories.length >= 4;
+                            const isDisabled = !isSelected && isMaxReached;
+                            
+                            const handleSelect = () => {
+                              if (isSelected) {
+                                field.onChange(currentCategories.filter((_, i) => i !== selectedIndex));
+                              } else {
+                                if (isMaxReached) {
+                                  toast.error("You can select up to 4 categories");
+                                  return;
+                                }
+                                field.onChange([...currentCategories, cat.label]);
+                              }
+                            };
+
+                            return (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={handleSelect}
+                                disabled={isDisabled}
+                                className={cn(
+                                  "relative flex flex-col items-start p-4 text-left rounded-xl transition-all duration-200 border cursor-pointer",
+                                  isSelected
+                                    ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                                    : "border-border/50 bg-muted/30 hover:bg-muted/80 hover:border-primary/30",
+                                  isDisabled && "opacity-50 cursor-not-allowed hover:bg-muted/30 hover:border-border/50"
+                                )}
+                              >
+                                {isSelected && (
+                                  <div className="absolute top-3 right-3 bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
+                                    {selectedIndex === 0 ? "Primary" : selectedIndex + 1}
+                                  </div>
+                                )}
+                                <div className={cn(
+                                  "p-2 rounded-lg mb-3 inline-flex",
+                                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                                  isDisabled && "bg-muted text-muted-foreground/50"
+                                )}>
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <span className={cn(
+                                  "font-medium text-sm md:text-base",
+                                  isSelected ? "text-primary" : "text-foreground",
+                                  isDisabled && "text-muted-foreground/50"
+                                )}>
+                                  {cat.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {hasOther && (
+                          <div className="mt-6 animate-in fade-in slide-in-from-top-2">
+                            <label className="text-sm font-semibold text-foreground block mb-2">Please specify</label>
+                            <Input 
+                              value={otherCategoryName} 
+                              onChange={(e) => setOtherCategoryName(e.target.value)} 
+                              placeholder="e.g. Dietitian, Chiropractor" 
+                              className={inputClass}
+                            />
+                          </div>
+                        )}
+                        <FormMessage className="mt-4" />
+                      </FormItem>
+                    );
+                  }}
+                />
+              </Form>
+            </div>
+          )}
+
+          {/* Step 4: Location */}
+          {currentStep === 4 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Location</p>
@@ -534,8 +695,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4: Services */}
-          {currentStep === 4 && (
+          {/* Step 5: Services */}
+          {currentStep === 5 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Services</p>
@@ -605,7 +766,7 @@ export default function OnboardingPage() {
                       <div>
                         <p className="font-medium text-foreground text-sm">{service.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {service.duration} min &bull; ${service.price}
+                          {formatDuration(service.duration)} &bull; ${service.price}
                         </p>
                       </div>
                       <button
@@ -631,8 +792,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 5: Team */}
-          {currentStep === 5 && (
+          {/* Step 6: Team */}
+          {currentStep === 6 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Team</p>
@@ -700,8 +861,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 6: Complete */}
-          {currentStep === 6 && (
+          {/* Step 7: Complete */}
+          {currentStep === 7 && (
             <div className="space-y-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mx-auto">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, Check, Clock, User } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatDuration, formatCurrency } from "@/lib/format";
 
-export function ServiceSelection({ salonId, selected, onSelect }) {
+export function ServiceSelection({ salonId, selected, onSelect, currency }) {
+  var searchParams = useSearchParams();
   var [services, setServices] = useState([]);
   var [categories, setCategories] = useState([]);
   var [loading, setLoading] = useState(true);
@@ -29,9 +32,40 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
           var res = await fetch("/api/widget/" + salonId + "/services");
           if (res.ok) {
             var data = await res.json();
-            console.log("Loaded services:", data.data.services);
-            setServices(data.data.services || []);
+            var fetchedServices = data.data.services || [];
+            var servicesWithVirtualStaff = fetchedServices.map(function(s) {
+              if (s.availableStaff && s.availableStaff.length > 0) {
+                return {
+                  ...s,
+                  availableStaff: [
+                    { id: "any", name: "Anyone Available", title: "First available team member" },
+                    ...s.availableStaff
+                  ]
+                };
+              }
+              return s;
+            });
+
+            console.log("Loaded services:", servicesWithVirtualStaff);
+            setServices(servicesWithVirtualStaff);
             setCategories(data.data.categories || []);
+
+            // Check for pre-selected service in URL
+            var urlServiceId = searchParams?.get("service");
+            if (urlServiceId && selected.length === 0) {
+              var serviceToSelect = servicesWithVirtualStaff.find(function(s) {
+                return s.id.toString() === urlServiceId;
+              });
+              
+              if (serviceToSelect && serviceToSelect.availableStaff && serviceToSelect.availableStaff.length > 0) {
+                var defaultStaff = serviceToSelect.availableStaff[0];
+                onSelect([{
+                  ...serviceToSelect,
+                  staffId: defaultStaff.id,
+                  staffName: defaultStaff.name
+                }]);
+              }
+            }
           } else {
             console.error("Service API error:", res.status, await res.text());
           }
@@ -251,13 +285,13 @@ export function ServiceSelection({ salonId, selected, onSelect }) {
                               <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
-                                  {service.duration} min
+                                  {formatDuration(service.duration)}
                                 </span>
                               </div>
                             </div>
                             <div className="text-right">
                               <p className="font-semibold">
-                                ${(parseFloat(service.price) || 0).toFixed(2)}
+                                {formatCurrency(service.price || 0, currency)}
                               </p>
                             </div>
                           </div>

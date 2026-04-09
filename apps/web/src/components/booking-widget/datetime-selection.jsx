@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDuration } from "@/lib/format";
 
 export function DateTimeSelection({
   salonId,
@@ -350,7 +351,7 @@ export function DateTimeSelection({
               </h4>
               <Badge variant="outline" className="gap-1">
                 <Clock className="h-3 w-3" />
-                {totalDuration} min
+                {formatDuration(totalDuration)}
               </Badge>
             </div>
 

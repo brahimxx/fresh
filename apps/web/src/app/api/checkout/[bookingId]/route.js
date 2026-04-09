@@ -270,7 +270,14 @@ export async function POST(request, { params }) {
       // Create payment record
       const [paymentResult] = await conn.execute(
         `INSERT INTO payments (booking_id, amount, tip_amount, method, status, stripe_payment_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE 
+            amount = VALUES(amount),
+            tip_amount = VALUES(tip_amount),
+            method = VALUES(method),
+            status = VALUES(status),
+            stripe_payment_id = VALUES(stripe_payment_id),
+            updated_at = NOW()`,
         [
           bookingId,
           finalAmount,

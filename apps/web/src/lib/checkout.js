@@ -213,14 +213,14 @@ export async function processCheckout(bookingId, { method, tipAmount = 0, promoC
 
   // 3. Check for existing payment (UNIQUE constraint backup)
   const [[existingPayment]] = await conn.query(
-    "SELECT id FROM payments WHERE booking_id = ?",
+    "SELECT id, status FROM payments WHERE booking_id = ?",
     [bookingId]
   );
 
-  if (existingPayment) {
+  if (existingPayment && existingPayment.status === 'paid') {
     throw new CheckoutError(
       "ALREADY_PAID",
-      "This booking already has a payment recorded",
+      "This booking already has a paid payment recorded",
       409
     );
   }
@@ -279,7 +279,12 @@ export async function processCheckout(bookingId, { method, tipAmount = 0, promoC
   // 5. Insert payment
   const [paymentResult] = await conn.query(
     `INSERT INTO payments (booking_id, amount, method, status, tip_amount, created_at)
-     VALUES (?, ?, ?, 'paid', ?, NOW())`,
+     VALUES (?, ?, ?, 'paid', ?, NOW())
+     ON DUPLICATE KEY UPDATE 
+       amount = VALUES(amount), 
+       method = VALUES(method), 
+       status = VALUES(status), 
+       tip_amount = VALUES(tip_amount)`,
     [bookingId, finalAmountDue, method, tip]
   );
 
@@ -302,6 +307,17 @@ export async function processCheckout(bookingId, { method, tipAmount = 0, promoC
     "UPDATE bookings SET status = 'completed' WHERE id = ?",
     [bookingId]
   );
+
+  // 7. Update salon_clients visit statistics
+  if (booking.client_id) {
+    await conn.query(
+      `UPDATE salon_clients 
+       SET total_visits = total_visits + 1, 
+           last_visit_date = NOW() 
+       WHERE salon_id = ? AND client_id = ?`,
+      [booking.salon_id, booking.client_id]
+    );
+  }
 
   return {
     payment: {

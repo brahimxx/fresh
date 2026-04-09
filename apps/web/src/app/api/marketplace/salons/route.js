@@ -32,13 +32,14 @@ export async function GET(request) {
       SELECT
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
         s.address, s.city, s.state, s.postal_code,
-        s.phone, s.website, s.price_level, s.category,
+        s.phone, s.website, s.price_level, MAX(sc_primary.category_name) AS category,
         s.latitude, s.longitude,
         AVG(r.rating)        AS rating,
         COUNT(DISTINCT r.id) AS review_count,
         svc.services_preview
       FROM salons s
       LEFT JOIN reviews r ON r.salon_id = s.id AND r.status = 'approved'
+      LEFT JOIN salon_categories sc_primary ON sc_primary.salon_id = s.id AND sc_primary.is_primary = 1
       LEFT JOIN (
         SELECT salon_id,
           GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') AS services_preview
@@ -46,8 +47,7 @@ export async function GET(request) {
         WHERE is_active = 1 AND deleted_at IS NULL
         GROUP BY salon_id
       ) svc ON svc.salon_id = s.id
-      WHERE s.status = 'active'
-        AND s.is_active = 1
+      WHERE s.is_active = 1
         AND s.deleted_at IS NULL
         AND s.is_marketplace_enabled = 1
     `;
@@ -85,7 +85,10 @@ export async function GET(request) {
     }
 
     if (categories.length > 0) {
-      sql += ` AND s.category IN (${categories.map(() => '?').join(',')})`;
+      sql += ` AND EXISTS (
+        SELECT 1 FROM salon_categories sc_filter 
+        WHERE sc_filter.salon_id = s.id AND sc_filter.category_name IN (${categories.map(() => '?').join(',')})
+      )`;
       params.push(...categories);
     }
 
