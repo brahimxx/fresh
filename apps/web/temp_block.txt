@@ -1,0 +1,40 @@
+    return "Continue";
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground relative flex flex-col selection:bg-primary/30">
+      {/* ─── Top Segmented Progress Bar ─────────────────────── */}
+      <div className="max-w-7xl mx-auto w-full flex gap-1.5 px-4 sm:px-6 lg:px-8 pt-4">
+        {STEPS.map((step, i) => {
+            let widthClass = "w-0";
+            if (i < currentStep - 1) {
+              widthClass = "w-full";
+            } else if (i === currentStep - 1) {
+              if (currentStep === 4) {
+                if (!accountType) widthClass = "w-1/2";
+                else widthClass = "w-full";
+              } else {
+                widthClass = "w-full";
+              }
+            }
+
+            return (
+              <div
+                key={step.id}
+                className="flex-1 h-[5px] rounded-full overflow-hidden bg-muted"
+              >
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-primary to-violet-500",
+                    widthClass
+                  )}
+                />
+              </div>
+            );
+          })}}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Business Name */}
+          {currentStep === 2 && (

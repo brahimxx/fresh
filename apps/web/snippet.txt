@@ -1,0 +1,8 @@
+   987	                {[
+   988	                  { icon: Store, title: "Salon Created", desc: "Ready to go" },
+   989	                  { icon: Scissors, title: `${services.length} Services`, desc: "Added" },
+   990	                  { icon: Users
+   991	  Users, title: `${staffMembers.length} Invitations`, desc: "To send" },
+   992	                ].map((item) => {
+   993	                  const Icon = item.icon;
+   994	                  return (

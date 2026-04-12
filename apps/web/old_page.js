@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Store,
   Scissors,
-  User,
   Users,
   Sparkles,
   ArrowRight,
@@ -29,7 +28,7 @@ import {
   Eye,
   Crosshair,
   Glasses,
-  Waves,
+  Waves
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -69,21 +68,17 @@ const salonSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   country: z.string().min(1, "Country is required"),
-  categories: z
-    .array(z.string())
-    .min(1, "Please select at least one category")
-    .max(4, "You can select up to 4 categories"),
+  categories: z.array(z.string()).min(1, "Please select at least one category").max(4, "You can select up to 4 categories"),
 });
 
 const STEPS = [
   { id: 1, title: "Account setup", question: "Welcome to Fresh" },
   { id: 2, title: "Account setup", question: "What's your business name?" },
   { id: 3, title: "Business type", question: "What type of business are you?" },
-  { id: 4, title: "Account setup", question: "Select account type" },
-  { id: 5, title: "Location", question: "Where is your salon located?" },
-  { id: 6, title: "Services", question: "What services do you offer?" },
-  { id: 7, title: "Team", question: "Invite your team members" },
-  { id: 8, title: "Complete", question: "You're all set!" },
+  { id: 4, title: "Location", question: "Where is your salon located?" },
+  { id: 5, title: "Services", question: "What services do you offer?" },
+  { id: 6, title: "Team", question: "Invite your team members" },
+  { id: 7, title: "Complete", question: "You're all set!" },
 ];
 
 const BUSINESS_CATEGORIES = [
@@ -113,9 +108,6 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { checkAuth, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
-  const [locationType, setLocationType] = useState(null);
-  const [accountType, setAccountType] = useState(null);
-  const [teamSize, setTeamSize] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [salonData, setSalonData] = useState(null);
   const [services, setServices] = useState([]);
@@ -154,33 +146,21 @@ export default function OnboardingPage() {
   const [otherCategoryName, setOtherCategoryName] = useState("");
 
   const handleNext = () => {
-    let nextStep = currentStep + 1;
-    if (currentStep === 4) nextStep = 5;
-    if (currentStep === 6 && accountType === "independent") nextStep = 8;
-    if (nextStep <= STEPS.length) {
-      setCurrentStep(nextStep);
+    if (currentStep < STEPS.length) {
+      setCurrentStep(currentStep + 1);
     }
   };
 
   const handleBack = () => {
-    if (currentStep === 4 && accountType === "team") {
-      setAccountType(null);
-      setTeamSize(null);
-      return;
-    }
-    let prevStep = currentStep - 1;
-    if (currentStep === 8 && accountType === "independent") prevStep = 6;
-    if (prevStep >= 1) {
-      setCurrentStep(prevStep);
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
   const handleSalonNameSubmit = () => {
     const name = salonForm.getValues("name");
     if (!name || name.length < 2) {
-      salonForm.setError("name", {
-        message: "Business name must be at least 2 characters",
-      });
+      salonForm.setError("name", { message: "Business name must be at least 2 characters" });
       return;
     }
     handleNext();
@@ -196,7 +176,7 @@ export default function OnboardingPage() {
       toast.error("Please specify your business type");
       return;
     }
-
+    
     // Replace "Other" with the custom name before saving
     if (categories.includes("Other") && otherCategoryName.trim()) {
       const idx = categories.indexOf("Other");
@@ -209,34 +189,15 @@ export default function OnboardingPage() {
     handleNext();
   };
 
-  const handleLocationSubmit = (activeType = locationType) => {
-    if (activeType !== "physical" && activeType !== null && activeType !== undefined) {
-      salonForm.setValue("address", "Mobile or Virtual Provider", { shouldValidate: false });
-      salonForm.setValue("city", "N/A", { shouldValidate: false });
-      salonForm.setValue("country", "N/A", { shouldValidate: false });
-      setSalonData(salonForm.getValues());
-      handleNext();
-      return;
-    }
-
+  const handleLocationSubmit = () => {
     const address = salonForm.getValues("address");
     const city = salonForm.getValues("city");
     const country = salonForm.getValues("country");
 
     let hasError = false;
-    if (!address) {
-      salonForm.setError("address", { message: "Address is required" });
-      hasError = true;
-    }
-    if (!city) {
-      salonForm.setError("city", { message: "City is required" });
-      hasError = true;
-    }
-    if (!country) {
-      salonForm.setError("country", { message: "Country is required" });
-      hasError = true;
-    }
-
+    if (!address) { salonForm.setError("address", { message: "Address is required" }); hasError = true; }
+    if (!city) { salonForm.setError("city", { message: "City is required" }); hasError = true; }
+    if (!country) { salonForm.setError("country", { message: "Country is required" }); hasError = true; }
     if (hasError) return;
 
     setSalonData(salonForm.getValues());
@@ -305,8 +266,8 @@ export default function OnboardingPage() {
               duration: service.duration,
               price: service.price,
               categoryId: null,
-            }),
-          ),
+            })
+          )
         );
       }
 
@@ -316,8 +277,8 @@ export default function OnboardingPage() {
           staffMembers.map((member) =>
             api.post(`/salons/${newSalonId}/staff/invite`, {
               email: member.email,
-            }),
-          ),
+            })
+          )
         );
       }
 
@@ -341,21 +302,17 @@ export default function OnboardingPage() {
     if (currentStep === 1) handleNext();
     else if (currentStep === 2) handleSalonNameSubmit();
     else if (currentStep === 3) handleCategorySubmit();
-    else if (currentStep === 4) {
-      if (accountType === "independent") handleNext();
-      else if (accountType === "team" && teamSize) handleNext();
-    } else if (currentStep === 5) handleLocationSubmit();
+    else if (currentStep === 4) handleLocationSubmit();
+    else if (currentStep === 5) handleNext();
     else if (currentStep === 6) handleNext();
-    else if (currentStep === 7) handleNext();
-    else if (currentStep === 8) handleComplete();
+    else if (currentStep === 7) handleComplete();
   };
 
   const continueLabel = () => {
     if (currentStep === 1) return "Get Started";
-    if (currentStep === 8)
-      return isLoading ? "Creating..." : "Launch Dashboard";
-    if (currentStep === 7 && services.length === 0) return "Skip";
-    if (currentStep === 7 && staffMembers.length === 0) return "Skip";
+    if (currentStep === 7) return isLoading ? "Creating..." : "Launch Dashboard";
+    if (currentStep === 5 && services.length === 0) return "Skip";
+    if (currentStep === 6 && staffMembers.length === 0) return "Skip";
     return "Continue";
   };
 
@@ -363,47 +320,21 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-background text-foreground relative flex flex-col selection:bg-primary/30">
       {/* ─── Top Segmented Progress Bar ─────────────────────── */}
       <div className="max-w-7xl mx-auto w-full flex gap-1.5 px-4 sm:px-6 lg:px-8 pt-4">
-        {STEPS.filter(
-          (step) => !(step.id === 7 && accountType === "independent"),
-        ).map((step) => {
-          let widthClass = "w-0";
-
-          // Re-calculate visual position based on the displayed array so skipping Step 7 doesn't jump
-          if (step.id < currentStep) {
-            widthClass = "w-full"; // Past steps are completely filled
-          } else if (step.id === currentStep) {
-            // Current Step
-            if (step.id === 4) {
-              // Step 4 has two halves: 1. Account type, 2. Team size
-              if (accountType === "team")
-                widthClass = "w-full"; // Has reached second half
-              else widthClass = "w-1/2"; // Still deciding
-            } else {
-              // Every other current step gives partial visual feedback?
-              // Or standard Fresha makes the *current* step fully highlighted or half?
-              // Let's make all other current steps w-full so they match the original behavior of "active = full"
-              widthClass = "w-full";
-            }
-          }
-
-          return (
+        {STEPS.map((step, i) => (
+          <div
+            key={step.id}
+            className="flex-1 h-[5px] rounded-full overflow-hidden bg-muted"
+          >
             <div
-              key={step.id}
-              className="flex-1 h-[5px] rounded-full overflow-hidden bg-muted"
-            >
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-500 ease-out",
-                  widthClass === "w-full"
-                    ? "bg-gradient-to-r from-primary to-violet-500 w-full"
-                    : widthClass === "w-1/2"
-                      ? "bg-gradient-to-r from-primary to-violet-500 w-1/2"
-                      : "w-0",
-                )}
-              />
-            </div>
-          );
-        })}
+              className={cn(
+                "h-full rounded-full transition-all duration-500 ease-out",
+                i < currentStep
+                  ? "w-full bg-gradient-to-r from-primary to-violet-500"
+                  : "w-0"
+              )}
+            />
+          </div>
+        ))}
       </div>
 
       {/* ─── Floating Navigation ────────────────────────────── */}
@@ -437,6 +368,7 @@ export default function OnboardingPage() {
       {/* ─── Main Content ───────────────────────────────────── */}
       <div className="flex-1 flex items-start md:items-center justify-center px-4 sm:px-6 lg:px-8 pb-16">
         <div className="w-full max-w-2xl">
+
           {/* Step 1: Welcome */}
           {currentStep === 1 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -449,29 +381,15 @@ export default function OnboardingPage() {
                   </span>
                 </h1>
                 <p className="mt-4 text-muted-foreground text-base leading-relaxed max-w-lg">
-                  It only takes a few minutes. You&apos;ll create your salon
-                  profile, add services, and invite your team. Everything can be
-                  changed later.
+                  It only takes a few minutes. You&apos;ll create your salon profile, add services, and invite your team. Everything can be changed later.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  {
-                    icon: Store,
-                    title: "Create Salon",
-                    desc: "Add your details",
-                  },
-                  {
-                    icon: Scissors,
-                    title: "Add Services",
-                    desc: "List what you offer",
-                  },
-                  {
-                    icon: Users,
-                    title: "Invite Team",
-                    desc: "Bring your staff",
-                  },
+                  { icon: Store, title: "Create Salon", desc: "Add your details" },
+                  { icon: Scissors, title: "Add Services", desc: "List what you offer" },
+                  { icon: Users, title: "Invite Team", desc: "Bring your staff" },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -480,12 +398,8 @@ export default function OnboardingPage() {
                       className="p-4 rounded-xl bg-muted/50 border border-border/50"
                     >
                       <Icon className="w-6 h-6 text-primary mb-2" />
-                      <h3 className="font-semibold text-sm text-foreground">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.desc}
-                      </p>
+                      <h3 className="font-semibold text-sm text-foreground">{item.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
                     </div>
                   );
                 })}
@@ -497,15 +411,12 @@ export default function OnboardingPage() {
           {currentStep === 2 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Account setup
-                </p>
+                <p className="text-sm text-muted-foreground mb-3">Account setup</p>
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
                   What&apos;s your business name?
                 </h1>
                 <p className="mt-3 text-zinc-400 text-base leading-relaxed">
-                  This is the brand name your clients will see. Your billing and
-                  legal name can be added later.
+                  This is the brand name your clients will see. Your billing and legal name can be added later.
                 </p>
               </div>
 
@@ -516,9 +427,7 @@ export default function OnboardingPage() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold text-foreground">
-                          Business name
-                        </FormLabel>
+                        <FormLabel className="text-sm font-semibold text-foreground">Business name</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
@@ -526,9 +435,7 @@ export default function OnboardingPage() {
                             className={inputClass}
                             disabled={isLoading}
                             autoFocus
-                            onKeyDown={(e) =>
-                              e.key === "Enter" && handleSalonNameSubmit()
-                            }
+                            onKeyDown={(e) => e.key === "Enter" && handleSalonNameSubmit()}
                           />
                         </FormControl>
                         <FormMessage />
@@ -542,20 +449,14 @@ export default function OnboardingPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-sm font-semibold text-foreground">
-                          Description{" "}
-                          <span className="text-muted-foreground font-normal">
-                            (Optional)
-                          </span>
+                          Description <span className="text-muted-foreground font-normal">(Optional)</span>
                         </FormLabel>
                         <FormControl>
                           <Textarea
                             {...field}
                             placeholder="Tell clients about your salon..."
                             rows={3}
-                            className={cn(
-                              inputClass,
-                              "h-auto min-h-[80px] py-3",
-                            )}
+                            className={cn(inputClass, "h-auto min-h-[80px] py-3")}
                             disabled={isLoading}
                           />
                         </FormControl>
@@ -570,19 +471,10 @@ export default function OnboardingPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-sm font-semibold text-foreground">
-                            Email{" "}
-                            <span className="text-muted-foreground font-normal">
-                              (Optional)
-                            </span>
+                            Email <span className="text-muted-foreground font-normal">(Optional)</span>
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              type="email"
-                              placeholder="contact@salon.com"
-                              className={inputClass}
-                              disabled={isLoading}
-                            />
+                            <Input {...field} type="email" placeholder="contact@salon.com" className={inputClass} disabled={isLoading} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -594,19 +486,10 @@ export default function OnboardingPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-sm font-semibold text-foreground">
-                            Phone{" "}
-                            <span className="text-muted-foreground font-normal">
-                              (Optional)
-                            </span>
+                            Phone <span className="text-muted-foreground font-normal">(Optional)</span>
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              type="tel"
-                              placeholder="+1 234 567 8900"
-                              className={inputClass}
-                              disabled={isLoading}
-                            />
+                            <Input {...field} type="tel" placeholder="+1 234 567 8900" className={inputClass} disabled={isLoading} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -622,9 +505,7 @@ export default function OnboardingPage() {
           {currentStep === 3 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Business type
-                </p>
+                <p className="text-sm text-muted-foreground mb-3">Business type</p>
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
                   What type of business are you?
                 </h1>
@@ -640,41 +521,27 @@ export default function OnboardingPage() {
                   render={({ field }) => {
                     const currentCategories = field.value || [];
                     const hasOther = currentCategories.includes("Other");
-
+                    
                     return (
                       <FormItem>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                           {BUSINESS_CATEGORIES.map((cat) => {
                             const Icon = cat.icon;
                             // Check if selected normally or as a transformed "Other: xxx" string
-                            const selectedIndex = currentCategories.findIndex(
-                              (c) =>
-                                c === cat.label ||
-                                (cat.label === "Other" &&
-                                  c.startsWith("Other:")),
-                            );
+                            const selectedIndex = currentCategories.findIndex(c => c === cat.label || (cat.label === "Other" && c.startsWith("Other:")));
                             const isSelected = selectedIndex !== -1;
                             const isMaxReached = currentCategories.length >= 4;
                             const isDisabled = !isSelected && isMaxReached;
-
+                            
                             const handleSelect = () => {
                               if (isSelected) {
-                                field.onChange(
-                                  currentCategories.filter(
-                                    (_, i) => i !== selectedIndex,
-                                  ),
-                                );
+                                field.onChange(currentCategories.filter((_, i) => i !== selectedIndex));
                               } else {
                                 if (isMaxReached) {
-                                  toast.error(
-                                    "You can select up to 4 categories",
-                                  );
+                                  toast.error("You can select up to 4 categories");
                                   return;
                                 }
-                                field.onChange([
-                                  ...currentCategories,
-                                  cat.label,
-                                ]);
+                                field.onChange([...currentCategories, cat.label]);
                               }
                             };
 
@@ -689,38 +556,26 @@ export default function OnboardingPage() {
                                   isSelected
                                     ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
                                     : "border-border/50 bg-muted/30 hover:bg-muted/80 hover:border-primary/30",
-                                  isDisabled &&
-                                    "opacity-50 cursor-not-allowed hover:bg-muted/30 hover:border-border/50",
+                                  isDisabled && "opacity-50 cursor-not-allowed hover:bg-muted/30 hover:border-border/50"
                                 )}
                               >
                                 {isSelected && (
                                   <div className="absolute top-3 right-3 bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
-                                    {selectedIndex === 0
-                                      ? "Primary"
-                                      : selectedIndex + 1}
+                                    {selectedIndex === 0 ? "Primary" : selectedIndex + 1}
                                   </div>
                                 )}
-                                <div
-                                  className={cn(
-                                    "p-2 rounded-lg mb-3 inline-flex",
-                                    isSelected
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-muted text-muted-foreground",
-                                    isDisabled &&
-                                      "bg-muted text-muted-foreground/50",
-                                  )}
-                                >
+                                <div className={cn(
+                                  "p-2 rounded-lg mb-3 inline-flex",
+                                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                                  isDisabled && "bg-muted text-muted-foreground/50"
+                                )}>
                                   <Icon className="w-5 h-5" />
                                 </div>
-                                <span
-                                  className={cn(
-                                    "font-medium text-sm md:text-base",
-                                    isSelected
-                                      ? "text-primary"
-                                      : "text-foreground",
-                                    isDisabled && "text-muted-foreground/50",
-                                  )}
-                                >
+                                <span className={cn(
+                                  "font-medium text-sm md:text-base",
+                                  isSelected ? "text-primary" : "text-foreground",
+                                  isDisabled && "text-muted-foreground/50"
+                                )}>
                                   {cat.label}
                                 </span>
                               </button>
@@ -729,15 +584,11 @@ export default function OnboardingPage() {
                         </div>
                         {hasOther && (
                           <div className="mt-6 animate-in fade-in slide-in-from-top-2">
-                            <label className="text-sm font-semibold text-foreground block mb-2">
-                              Please specify
-                            </label>
-                            <Input
-                              value={otherCategoryName}
-                              onChange={(e) =>
-                                setOtherCategoryName(e.target.value)
-                              }
-                              placeholder="e.g. Dietitian, Chiropractor"
+                            <label className="text-sm font-semibold text-foreground block mb-2">Please specify</label>
+                            <Input 
+                              value={otherCategoryName} 
+                              onChange={(e) => setOtherCategoryName(e.target.value)} 
+                              placeholder="e.g. Dietitian, Chiropractor" 
                               className={inputClass}
                             />
                           </div>
@@ -751,150 +602,27 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4: Account Type */}
+          {/* Step 4: Location */}
           {currentStep === 4 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Account setup
-                </p>
-                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-                  {accountType !== "team"
-                    ? "Select account type"
-                    : "What is your team size?"}
-                </h1>
-                <p className="mt-3 text-muted-foreground text-base leading-relaxed">
-                  {accountType !== "team"
-                    ? "Choose how you'll be using Fresh to manage your business."
-                    : "This helps us personalize your team management experience."}
-                </p>
-              </div>
-
-              {accountType !== "team" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => {
-                      setAccountType("independent");
-                      handleNext();
-                    }}
-                    className={cn(
-                      "p-6 text-left rounded-xl border-2 transition-all duration-200 cursor-pointer group hover:border-primary/50 bg-background",
-                      accountType === "independent"
-                        ? "border-primary bg-primary/5"
-                        : "border-border",
-                    )}
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <User className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="font-semibold text-lg">
-                      I&apos;m an independent
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      I work alone and manage everything myself.
-                    </p>
-                  </button>
-
-                  <button
-                    onClick={() => setAccountType("team")}
-                    className={cn(
-                      "p-6 text-left rounded-xl border-2 transition-all duration-200 cursor-pointer group hover:border-primary/50 bg-background",
-                      accountType === "team"
-                        ? "border-primary bg-primary/5"
-                        : "border-border",
-                    )}
-                  >
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <Users className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="font-semibold text-lg">It&apos;s a team</h3>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      I have staff members working with me.
-                    </p>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {["2-5", "6-10", "11-20", "20+"].map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => {
-                        setTeamSize(size);
-                        handleNext();
-                      }}
-                      className={cn(
-                        "p-6 rounded-xl border-2 text-center transition-all duration-200 font-medium hover:border-primary/50 cursor-pointer bg-background",
-                        teamSize === size
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-foreground hover:bg-muted/50",
-                      )}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 5: Location */}
-          {currentStep === 5 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Location</p>
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-                  {!locationType 
-                    ? "Where do you provide your services?" 
-                    : "Where is your salon located?"}
+                  Where is your salon located?
                 </h1>
                 <p className="mt-3 text-muted-foreground text-base leading-relaxed">
-                  {!locationType
-                    ? "Let clients know where they can find you."
-                    : "Your address will be used to show your salon on the map and help clients find you."}
+                  Your address will be used to show your salon on the map and help clients find you.
                 </p>
               </div>
 
-              {!locationType ? (
-                <div className="flex flex-col gap-3">
-                  {[
-                    { id: "physical", label: "Clients come to me at a physical location" },
-                    { id: "mobile", label: "I visit my clients as a mobile operator" },
-                    { id: "virtual", label: "I provide virtual services online" },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => {
-                        setLocationType(option.id);
-                        if (option.id !== "physical") {
-                          handleLocationSubmit(option.id);
-                        }
-                      }}
-                      className={cn(
-                        "p-5 text-left rounded-xl border-2 transition-all duration-200 cursor-pointer flex items-center justify-between group hover:border-primary/50 bg-background",
-                        locationType === option.id ? "border-primary bg-primary/5" : "border-border"
-                      )}
-                    >
-                      <span className="font-semibold text-base">{option.label}</span>
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                        locationType === option.id ? "border-primary bg-primary" : "border-muted-foreground/30"
-                      )}>
-                        {locationType === option.id && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : locationType === "physical" && (
-                <Form {...salonForm}>
+              <Form {...salonForm}>
                 <div className="space-y-5">
                   <FormField
                     control={salonForm.control}
                     name="address"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold text-foreground">
-                          Street Address
-                        </FormLabel>
+                        <FormLabel className="text-sm font-semibold text-foreground">Street Address</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
@@ -915,16 +643,9 @@ export default function OnboardingPage() {
                       name="city"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-sm font-semibold text-foreground">
-                            City
-                          </FormLabel>
+                          <FormLabel className="text-sm font-semibold text-foreground">City</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="Paris"
-                              className={inputClass}
-                              disabled={isLoading}
-                            />
+                            <Input {...field} placeholder="Paris" className={inputClass} disabled={isLoading} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -950,17 +671,12 @@ export default function OnboardingPage() {
                                   value={field.value}
                                   disabled={isLoading}
                                 >
-                                  <SelectTrigger
-                                    className={cn(inputClass, "w-full")}
-                                  >
+                                  <SelectTrigger className={cn(inputClass, "w-full")}>
                                     <SelectValue placeholder="Select country" />
                                   </SelectTrigger>
                                   <SelectContent position="popper">
                                     {COUNTRIES.map((country) => (
-                                      <SelectItem
-                                        key={country.value}
-                                        value={country.value}
-                                      >
+                                      <SelectItem key={country.value} value={country.value}>
                                         {country.label}
                                       </SelectItem>
                                     ))}
@@ -976,12 +692,11 @@ export default function OnboardingPage() {
                   </div>
                 </div>
               </Form>
-              )}
             </div>
           )}
 
-          {/* Step 6: Services */}
-          {currentStep === 6 && (
+          {/* Step 5: Services */}
+          {currentStep === 5 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Services</p>
@@ -989,8 +704,7 @@ export default function OnboardingPage() {
                   What services do you offer?
                 </h1>
                 <p className="mt-3 text-muted-foreground text-base leading-relaxed">
-                  Add the services you offer. You can always add more later from
-                  your dashboard.
+                  Add the services you offer. You can always add more later from your dashboard.
                 </p>
               </div>
 
@@ -998,9 +712,7 @@ export default function OnboardingPage() {
               <div className="rounded-xl border border-border/50 bg-muted/30 p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Service Name
-                    </label>
+                    <label className="text-sm font-semibold text-foreground mb-1.5 block">Service Name</label>
                     <Input
                       value={serviceName}
                       onChange={(e) => setServiceName(e.target.value)}
@@ -1009,29 +721,21 @@ export default function OnboardingPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Duration (min)
-                    </label>
+                    <label className="text-sm font-semibold text-foreground mb-1.5 block">Duration (min)</label>
                     <Input
                       type="number"
                       value={serviceDuration}
-                      onChange={(e) =>
-                        setServiceDuration(parseInt(e.target.value))
-                      }
+                      onChange={(e) => setServiceDuration(parseInt(e.target.value))}
                       min="5"
                       className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Price ($)
-                    </label>
+                    <label className="text-sm font-semibold text-foreground mb-1.5 block">Price ($)</label>
                     <Input
                       type="number"
                       value={servicePrice}
-                      onChange={(e) =>
-                        setServicePrice(parseFloat(e.target.value))
-                      }
+                      onChange={(e) => setServicePrice(parseFloat(e.target.value))}
                       min="0"
                       step="0.01"
                       className={inputClass}
@@ -1052,8 +756,7 @@ export default function OnboardingPage() {
               {services.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">
-                    {services.length} service{services.length > 1 ? "s" : ""}{" "}
-                    added
+                    {services.length} service{services.length > 1 ? "s" : ""} added
                   </p>
                   {services.map((service) => (
                     <div
@@ -1061,12 +764,9 @@ export default function OnboardingPage() {
                       className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border border-border/50"
                     >
                       <div>
-                        <p className="font-medium text-foreground text-sm">
-                          {service.name}
-                        </p>
+                        <p className="font-medium text-foreground text-sm">{service.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDuration(service.duration)} &bull; $
-                          {service.price}
+                          {formatDuration(service.duration)} &bull; ${service.price}
                         </p>
                       </div>
                       <button
@@ -1092,8 +792,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 7: Team */}
-          {currentStep === 7 && (
+          {/* Step 6: Team */}
+          {currentStep === 6 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Team</p>
@@ -1101,8 +801,7 @@ export default function OnboardingPage() {
                   Invite your team members
                 </h1>
                 <p className="mt-3 text-muted-foreground text-base leading-relaxed">
-                  Send invitations to your staff. They&apos;ll receive an email
-                  to join your salon.
+                  Send invitations to your staff. They&apos;ll receive an email to join your salon.
                 </p>
               </div>
 
@@ -1131,17 +830,14 @@ export default function OnboardingPage() {
               {staffMembers.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">
-                    {staffMembers.length} invitation
-                    {staffMembers.length > 1 ? "s" : ""} to send
+                    {staffMembers.length} invitation{staffMembers.length > 1 ? "s" : ""} to send
                   </p>
                   {staffMembers.map((member) => (
                     <div
                       key={member.id}
                       className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border border-border/50"
                     >
-                      <p className="font-medium text-foreground text-sm">
-                        {member.email}
-                      </p>
+                      <p className="font-medium text-foreground text-sm">{member.email}</p>
                       <button
                         type="button"
                         onClick={() => handleRemoveStaff(member.id)}
@@ -1165,8 +861,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 8: Complete */}
-          {currentStep === 8 && (
+          {/* Step 7: Complete */}
+          {currentStep === 7 && (
             <div className="space-y-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mx-auto">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400" />
@@ -1177,24 +873,15 @@ export default function OnboardingPage() {
                   You&apos;re all set!
                 </h1>
                 <p className="mt-4 text-muted-foreground text-base leading-relaxed max-w-md mx-auto">
-                  Your salon is ready to accept bookings. Click below to launch
-                  your dashboard and start managing your business.
+                  Your salon is ready to accept bookings. Click below to launch your dashboard and start managing your business.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto">
                 {[
                   { icon: Store, title: "Salon Created", desc: "Ready to go" },
-                  {
-                    icon: Scissors,
-                    title: `${services.length} Services`,
-                    desc: "Added",
-                  },
-                  {
-                    icon: Users,
-                    title: `${staffMembers.length} Invitations`,
-                    desc: "To send",
-                  },
+                  { icon: Scissors, title: `${services.length} Services`, desc: "Added" },
+                  { icon: Users, title: `${staffMembers.length} Invitations`, desc: "To send" },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -1203,12 +890,8 @@ export default function OnboardingPage() {
                       className="p-4 rounded-xl bg-muted/50 border border-border/50 text-center"
                     >
                       <Icon className="w-6 h-6 text-primary mx-auto mb-2" />
-                      <p className="font-semibold text-sm text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.desc}
-                      </p>
+                      <p className="font-semibold text-sm text-foreground">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
                     </div>
                   );
                 })}
