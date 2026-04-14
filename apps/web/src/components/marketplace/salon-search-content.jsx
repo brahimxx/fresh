@@ -8,7 +8,7 @@ import {
   Search, MapPin, Star, Filter, SlidersHorizontal,
   ChevronDown, X, Clock, Grid, List as ListIcon,
   Map as MapIcon, EyeOff, Eye
-} from 'lucide-react';
+, Car, Monitor } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -110,6 +110,8 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
   var [minRating, setMinRating] = useState(null);
   var [sortBy, setSortBy] = useState('recommended');
   var [openNow, setOpenNow] = useState(false);
+  var [isMobile, setIsMobile] = useState(false);
+  var [isVirtual, setIsVirtual] = useState(false);
 
   // Persist map visibility
   useEffect(() => {
@@ -162,7 +164,7 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
     if (isMapDragging) {
       setIsMapDragging(false);
     }
-  }, [query, location, bounds, selectedCategories, selectedPrices, minRating, sortBy, openNow]);
+  }, [query, location, bounds, selectedCategories, selectedPrices, minRating, sortBy, openNow, isMobile, isVirtual]);
 
   function handleBoundsChange(newBounds) {
     setIsMapDragging(true); // Flag that this interaction came from the map
@@ -384,9 +386,45 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
                     );
                   })}
                   {openNow && (
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3 bg-card border border-border shadow-sm text-sm">
+                      <Clock className="h-3.5 w-3.5" />
                       Open Now
-                      <X className="h-3 w-3 cursor-pointer" onClick={function () { setOpenNow(false); }} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-muted/80 rounded-full"
+                        onClick={function () { setOpenNow(false); }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  )}
+                  {isMobile && (
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3 bg-card border border-border shadow-sm text-sm">
+                      <Car className="h-3.5 w-3.5" />
+                      Travel to Me
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-muted/80 rounded-full"
+                        onClick={function () { setIsMobile(false); }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  )}
+                  {isVirtual && (
+                    <Badge variant="secondary" className="gap-1.5 py-1 px-3 bg-card border border-border shadow-sm text-sm">
+                      <Monitor className="h-3.5 w-3.5" />
+                      Virtual Session
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-muted/80 rounded-full"
+                        onClick={function () { setIsVirtual(false); }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </Badge>
                   )}
                   <Button variant="ghost" size="sm" onClick={clearFilters}>

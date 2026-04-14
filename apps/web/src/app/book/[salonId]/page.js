@@ -29,6 +29,7 @@ import { generateSalonSlug } from "@/lib/utils";
 
 // Import booking steps
 import { ServiceSelection } from "@/components/booking-widget/service-selection";
+import { FulfillmentSelection } from "@/components/booking-widget/fulfillment-selection";
 import { DateTimeSelection } from "@/components/booking-widget/datetime-selection";
 import { BookingAuth } from "@/components/booking-widget/booking-auth";
 import { BookingConfirmation } from "@/components/booking-widget/booking-confirmation";
@@ -38,6 +39,7 @@ import { formatDuration, formatCurrency } from "@/lib/format";
 
 var STEPS = [
   { id: "services", label: "Services", icon: Scissors },
+  { id: "location", label: "Location", icon: MapPin },
   { id: "datetime", label: "Date & Time", icon: Calendar },
   { id: "account", label: "Sign In", icon: User },
   { id: "confirm", label: "Confirm", icon: Check },
@@ -58,6 +60,8 @@ export default function BookingPage({ params }) {
 
   // Booking state - now services include staff assignments
   var [selectedServices, setSelectedServices] = useState([]); // Each service has: { ...service, staffId, staffName }
+  var [fulfillmentType, setFulfillmentType] = useState("physical");
+  var [clientAddress, setClientAddress] = useState("");
   var [selectedDate, setSelectedDate] = useState(null);
   var [selectedTime, setSelectedTime] = useState(null);
   var [bookingNotes, setBookingNotes] = useState("");
@@ -193,8 +197,9 @@ export default function BookingPage({ params }) {
     return sum + (isNaN(price) ? 0 : price);
   }, 0) : 0;
 
+  var travelFee = fulfillmentType === "mobile" && salon?.travel_fee_type !== "none" ? parseFloat(salon?.travel_fee_amount || 0) : 0;
   var discountAmount = appliedDiscount ? parseFloat(appliedDiscount.calculatedAmount || 0) : 0;
-  var finalTotal = Math.max(0, totalPrice - discountAmount);
+  var finalTotal = Math.max(0, (totalPrice + travelFee) - discountAmount);
 
   async function handleApplyDiscount() {
     if (!discountInput.trim()) return;
@@ -298,6 +303,9 @@ export default function BookingPage({ params }) {
           startTime: startTime,
           notes: bookingNotes,
           paymentMethod: paymentMethod,
+          clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          fulfillmentType: fulfillmentType,
+          serviceLocationAddress: fulfillmentType === "mobile" ? clientAddress : undefined,
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
@@ -545,15 +553,25 @@ export default function BookingPage({ params }) {
           <div className="lg:col-span-2 transition-all duration-300 ease-in-out">
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {currentStep === 0 && (
-                <ServiceSelection
-                  salonId={salonId}
-                  selected={selectedServices}
-                  onSelect={setSelectedServices}
-                  currency={salon?.currency}
-                />
-              )}
+            <ServiceSelection
+              salonId={salonId}
+              selected={selectedServices}
+              onSelect={setSelectedServices}
+              currency={salon?.country || "US"}
+            />
+          )}
 
-              {currentStep === 1 && (
+          {currentStep === 1 && salon && (
+            <FulfillmentSelection
+              salon={salon}
+              fulfillmentType={fulfillmentType}
+              onSelectType={setFulfillmentType}
+              clientAddress={clientAddress}
+              onSelectAddress={setClientAddress}
+            />
+          )}
+
+              {currentStep === 4 && (
                 <DateTimeSelection
                   salonId={salonId}
                   selectedServices={selectedServices}
@@ -564,7 +582,7 @@ export default function BookingPage({ params }) {
                 />
               )}
 
-              {currentStep === 2 && (
+              {currentStep === 4 && (
                 <BookingAuth
                   onAuthenticated={function () {
                     /* User just logged in, can proceed */
@@ -572,7 +590,7 @@ export default function BookingPage({ params }) {
                 />
               )}
 
-              {currentStep === 3 && (
+              {currentStep === 4 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Review Your Booking</CardTitle>

@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error } from '@/lib/response';
 
 // GET /api/marketplace/salons/[id]/services - Get salon's public services
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Server-side pricing gate: check salon widget settings before returning prices
     const widgetSettings = await getOne(

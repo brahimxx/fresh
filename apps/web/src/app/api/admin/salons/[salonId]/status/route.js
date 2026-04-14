@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, forbidden, notFound } from '@/lib/response';
@@ -11,7 +12,8 @@ export async function PATCH(request, { params }) {
       return forbidden('Admin access required');
     }
 
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     // Check if salon exists
     const salon = await getOne('SELECT id, is_active FROM salons WHERE id = ?', [salonId]);

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
@@ -11,7 +12,8 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salon_id');
+    const rawSalonId = searchParams.get('salon_id');
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
 
     if (!salonId) {
       return errorResponse('Salon ID is required', 400);

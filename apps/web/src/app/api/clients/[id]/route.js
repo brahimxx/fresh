@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import pool, { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -40,9 +41,11 @@ function normalizePhone(raw) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get("salon_id") || searchParams.get("salonId");
+    const rawSalonId = searchParams.get("salon_id") || searchParams.get("salonId");
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
 
     const client = await getOne(
       "SELECT id, first_name, last_name, email, phone, gender, date_of_birth, address, city, postal_code, created_at FROM users WHERE id = ?",

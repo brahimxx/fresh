@@ -1,58 +1,31 @@
 /**
  * API Client for Fresh Backoffice
- * Handles all HTTP requests with authentication
+ * Handles all HTTP requests with authentication via HttpOnly cookies
  */
 
 const API_BASE = "/api";
 
 class ApiClient {
-  constructor() {
-    this.token = null;
-  }
-
-  setToken(token) {
-    this.token = token;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("fresh_token", token);
-    }
-  }
-
-  getToken() {
-    if (this.token) return this.token;
-    if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("fresh_token");
-    }
-    return this.token;
-  }
-
-  clearToken() {
-    this.token = null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("fresh_token");
-    }
-  }
-
   async request(endpoint, options = {}) {
-    const token = this.getToken();
-
     const headers = {
       "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     };
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
-      credentials: "include",
+      credentials: "include", // Ensures HttpOnly cookies are attached securely
     });
 
-    // Handle 401 Unauthorized - clear token and redirect
-    if (response.status === 401) {
-      this.clearToken();
-      if (typeof window !== "undefined" && !endpoint.includes("/auth/")) {
-        window.location.href = "/login";
-      }
+    // Handle 401 Unauthorized - redirect to login
+    if (
+      response.status === 401 &&
+      typeof window !== "undefined" &&
+      !endpoint.includes("/auth/") &&
+      endpoint !== "/auth/me"
+    ) {
+      window.location.href = "/login";
     }
 
     const data = await response.json();

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { getSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { success, error, unauthorized } from '@/lib/response';
@@ -9,7 +10,8 @@ export async function PATCH(request, { params }) {
             return unauthorized('Admin access required');
         }
 
-        const { id } = await params;
+        const { id: rawId } = await params;
+  const id = decodeId(rawId);
         const body = await request.json();
         const { isActive } = body;
 

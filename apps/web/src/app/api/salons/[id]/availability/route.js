@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error } from '@/lib/response';
 
 // GET /api/salons/[id]/availability - Get staff availability (optimized - no N+1)
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
 
     const date = searchParams.get('date'); // YYYY-MM-DD format

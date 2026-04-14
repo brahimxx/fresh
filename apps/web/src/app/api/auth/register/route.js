@@ -1,10 +1,10 @@
-import { query, getOne } from '@/lib/db';
-import { hashPassword, verifyPassword, createToken } from '@/lib/auth';
-import { success, error, created } from '@/lib/response';
-import { cookies } from 'next/headers';
-import rateLimiter, { RateLimitPresets } from '@/lib/rate-limit';
-import { sendEmail } from '@/lib/email';
-import { getVerificationEmailTemplate } from '@/lib/constants/email-templates';
+import { query, getOne } from "@/lib/db";
+import { hashPassword, verifyPassword, createToken } from "@/lib/auth";
+import { success, error, created } from "@/lib/response";
+import { cookies } from "next/headers";
+import rateLimiter, { RateLimitPresets } from "@/lib/rate-limit";
+import { sendEmail } from "@/lib/email";
+import { getVerificationEmailTemplate } from "@/lib/constants/email-templates";
 // POST /api/auth/register - Register a new user
 export async function POST(request) {
   try {
@@ -12,17 +12,24 @@ export async function POST(request) {
     // Accept both camelCase and snake_case from client
     const email = body.email;
 
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    // Securely extract the real client IP (protect against spoofed proxy lists)
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const ip =
+      request.ip ||
+      (forwardedFor
+        ? forwardedFor.split(",")[0].trim()
+        : request.headers.get("x-real-ip") || "unknown");
+
     const rateLimit = rateLimiter.check(
       `register:${ip}`,
       RateLimitPresets.AUTH.maxAttempts,
-      RateLimitPresets.AUTH.windowMs
+      RateLimitPresets.AUTH.windowMs,
     );
 
     if (!rateLimit.success) {
       return error(
         `Too many registration attempts. Please try again in ${rateLimit.retryAfter} seconds.`,
-        429
+        429,
       );
     }
 
@@ -31,40 +38,94 @@ export async function POST(request) {
     const firstName = body.firstName ?? body.first_name;
     const lastName = body.lastName ?? body.last_name;
     const country = body.country ?? null;
-    const role = body.role ?? 'client';
+    const role = "client"; // Always client on registration
 
     // Validation
     if (!email || !password || !firstName || !lastName) {
-      return error({ code: 'MISSING_FIELDS', message: 'Missing required fields: email, password, first name, and last name are required' }, 400);
+      return error(
+        {
+          code: "MISSING_FIELDS",
+          message:
+            "Missing required fields: email, password, first name, and last name are required",
+        },
+        400,
+      );
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return error({ code: 'INVALID_EMAIL', message: 'Invalid email format. Please provide a valid email address.' }, 400);
+      return error(
+        {
+          code: "INVALID_EMAIL",
+          message:
+            "Invalid email format. Please provide a valid email address.",
+        },
+        400,
+      );
     }
 
     // Validate password strength
     if (password.length < 8) {
-      return error({ code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters long' }, 400);
+      return error(
+        {
+          code: "WEAK_PASSWORD",
+          message: "Password must be at least 8 characters long",
+        },
+        400,
+      );
     }
     if (!/[A-Z]/.test(password)) {
-      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one uppercase letter' }, 400);
+      return error(
+        {
+          code: "WEAK_PASSWORD",
+          message: "Password must contain at least one uppercase letter",
+        },
+        400,
+      );
     }
     if (!/[a-z]/.test(password)) {
-      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one lowercase letter' }, 400);
+      return error(
+        {
+          code: "WEAK_PASSWORD",
+          message: "Password must contain at least one lowercase letter",
+        },
+        400,
+      );
     }
     if (!/[0-9]/.test(password)) {
-      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one number' }, 400);
+      return error(
+        {
+          code: "WEAK_PASSWORD",
+          message: "Password must contain at least one number",
+        },
+        400,
+      );
     }
     if (!/[!@#$%^&*]/.test(password)) {
-      return error({ code: 'WEAK_PASSWORD', message: 'Password must contain at least one special character (!@#$%^&*)' }, 400);
+      return error(
+        {
+          code: "WEAK_PASSWORD",
+          message:
+            "Password must contain at least one special character (!@#$%^&*)",
+        },
+        400,
+      );
     }
 
     // Check if email already exists
-    const existingUser = await getOne('SELECT id FROM users WHERE email = ?', [email]);
+    const existingUser = await getOne("SELECT id FROM users WHERE email = ?", [
+      email,
+    ]);
     if (existingUser) {
-      return error({ code: 'EMAIL_IN_USE', message: 'This email is already registered. Please use a different email or try logging in.' }, 409);
+      return error(
+        {
+          code: "EMAIL_IN_USE",
+          message:
+            "This email is already registered. Please use a different email or try logging in.",
+        },
+        409,
+      );
     }
 
     // Hash password and create user
@@ -72,26 +133,26 @@ export async function POST(request) {
     const result = await query(
       `INSERT INTO users (email, phone, country, password_hash, first_name, last_name, role, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [email, phone || null, country, passwordHash, firstName, lastName, role]
+      [email, phone || null, country, passwordHash, firstName, lastName, role],
     );
 
     const userId = result.insertId;
 
     // Create Email Verification Token
     const verificationToken = await createToken(
-      { type: 'email_verification', userId, email },
-      { expiresIn: '24h' }
+      { type: "email_verification", userId, email },
+      { expiresIn: "24h" },
     );
 
     // Send Verification Email
-    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
-    
+    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify-email?token=${verificationToken}`;
+
     await sendEmail({
       to: email,
-      subject: 'Welcome to Fresh - Verify your email address',
+      subject: "Welcome to Fresh - Verify your email address",
       html: getVerificationEmailTemplate(firstName, verifyUrl),
-      text: `Welcome to Fresh! Please verify your email by clicking the following link: ${verifyUrl}`
-    }).catch(e => console.error("Email send failed, continuing:", e));
+      text: `Welcome to Fresh! Please verify your email by clicking the following link: ${verifyUrl}`,
+    }).catch((e) => console.error("Email send failed, continuing:", e));
 
     // Create standard auth token
     const token = await createToken({
@@ -102,10 +163,10 @@ export async function POST(request) {
 
     // Set cookie
     const cookieStore = await cookies();
-    cookieStore.set('token', token, {
+    cookieStore.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 
@@ -122,7 +183,10 @@ export async function POST(request) {
       token,
     });
   } catch (err) {
-    console.error('Registration error:', err);
-    return error('An unexpected error occurred during registration. Please try again.', 500);
+    console.error("Registration error:", err);
+    return error(
+      "An unexpected error occurred during registration. Please try again.",
+      500,
+    );
   }
 }

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -24,7 +25,8 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {

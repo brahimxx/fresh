@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
@@ -6,7 +7,8 @@ import { success, error, unauthorized, notFound, forbidden } from '@/lib/respons
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Strict ID validation to prevent type confusion attacks
     const userId = Number(id);
@@ -49,7 +51,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Strict ID validation to prevent type confusion attacks
     const userId = Number(id);
@@ -96,7 +99,8 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Strict ID validation to prevent type confusion attacks
     const userId = Number(id);

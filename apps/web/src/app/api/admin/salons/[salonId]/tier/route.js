@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { success, error, unauthorized } from '@/lib/response';
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
@@ -9,7 +10,8 @@ export async function PATCH(request, { params }) {
             return unauthorized('Admin access required');
         }
 
-        const { salonId } = await params;
+        const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
         const body = await request.json().catch(() => ({}));
         const { planTier } = body;
 

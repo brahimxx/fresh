@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized } from '@/lib/response';
@@ -7,7 +8,8 @@ import { success, error, unauthorized } from '@/lib/response';
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const addressId = parseInt(id);
 
     if (!addressId) {

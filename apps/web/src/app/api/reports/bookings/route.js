@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -12,7 +13,8 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get('salonId') || searchParams.get('salon_id');
+    const rawSalonId = searchParams.get('salonId') || searchParams.get('salon_id');
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
     const startDate = searchParams.get('startDate') || searchParams.get('start_date');
     const endDate = searchParams.get('endDate') || searchParams.get('end_date');
     const groupBy = searchParams.get('groupBy') || 'day'; // day, week, month

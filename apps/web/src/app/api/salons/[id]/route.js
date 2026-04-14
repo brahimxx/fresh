@@ -1,3 +1,4 @@
+import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { getSession, requireAuth } from "@/lib/auth";
 import {
@@ -23,7 +24,8 @@ async function checkSalonOwnership(salonId, userId, role) {
 // GET /api/salons/[id] - Get salon details
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = decodeId(rawId);
 
     const salon = await getOne(
       `SELECT s.*, 
@@ -82,24 +84,35 @@ export async function GET(request, { params }) {
 
     // Get business hours
     const dbHours = await query(
-      'SELECT day_of_week, open_time, close_time, is_closed FROM business_hours WHERE salon_id = ? ORDER BY day_of_week',
-      [id]
-    );
-    
-    // Get salon categories
-    const salonCategories = await query(
-      'SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC',
-      [id]
+      "SELECT day_of_week, open_time, close_time, is_closed FROM business_hours WHERE salon_id = ? ORDER BY day_of_week",
+      [id],
     );
 
-    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const business_hours = dbHours.length > 0 ? dbHours.map(h => ({
-      day: h.day_of_week,
-      name: DAYS[h.day_of_week],
-      enabled: !h.is_closed,
-      open: h.open_time ? h.open_time.slice(0, 5) : '09:00',
-      close: h.close_time ? h.close_time.slice(0, 5) : '17:00'
-    })) : undefined;
+    // Get salon categories
+    const salonCategories = await query(
+      "SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC",
+      [id],
+    );
+
+    const DAYS = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const business_hours =
+      dbHours.length > 0
+        ? dbHours.map((h) => ({
+            day: h.day_of_week,
+            name: DAYS[h.day_of_week],
+            enabled: !h.is_closed,
+            open: h.open_time ? h.open_time.slice(0, 5) : "09:00",
+            close: h.close_time ? h.close_time.slice(0, 5) : "17:00",
+          }))
+        : undefined;
 
     return success({
       id: salon.id,
@@ -118,18 +131,18 @@ export async function GET(request, { params }) {
       avgRating: parseFloat(salon.avg_rating).toFixed(1),
       reviewCount: salon.review_count,
       createdAt: salon.created_at,
-      salonCategories: salonCategories.map(c => ({
+      salonCategories: salonCategories.map((c) => ({
         name: c.name,
-        isPrimary: c.is_primary === 1
+        isPrimary: c.is_primary === 1,
       })),
       business_hours,
       settings: settings
         ? {
-          cancellationPolicyHours: settings.cancellation_policy_hours,
-          noShowFee: settings.no_show_fee,
-          depositRequired: settings.deposit_required,
-          depositPercentage: settings.deposit_percentage,
-        }
+            cancellationPolicyHours: settings.cancellation_policy_hours,
+            noShowFee: settings.no_show_fee,
+            depositRequired: settings.deposit_required,
+            depositPercentage: settings.deposit_percentage,
+          }
         : null,
       photos: photos.map((p) => ({
         id: p.id,
@@ -162,7 +175,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = decodeId(rawId);
 
     const isOwner = await checkSalonOwnership(id, session.userId, session.role);
     if (!isOwner) {
@@ -183,6 +197,16 @@ export async function PUT(request, { params }) {
       isMarketplaceEnabled,
       currency,
       salonCategories,
+      is_physical,
+      is_mobile,
+      is_virtual,
+      travel_radius,
+      travel_fee_type,
+      travel_fee_amount,
+      min_booking_amount,
+      travel_buffer_time,
+      covered_zip_codes,
+      virtual_meeting_link,
     } = body;
 
     await query(
@@ -197,7 +221,17 @@ export async function PUT(request, { params }) {
         latitude = COALESCE(?, latitude),
         longitude = COALESCE(?, longitude),
         is_marketplace_enabled = COALESCE(?, is_marketplace_enabled),
-        currency = COALESCE(?, currency)
+        currency = COALESCE(?, currency),
+        is_physical = COALESCE(?, is_physical),
+        is_mobile = COALESCE(?, is_mobile),
+        is_virtual = COALESCE(?, is_virtual),
+        travel_radius = COALESCE(?, travel_radius),
+        travel_fee_type = COALESCE(?, travel_fee_type),
+        travel_fee_amount = COALESCE(?, travel_fee_amount),
+        min_booking_amount = COALESCE(?, min_booking_amount),
+          travel_buffer_time = COALESCE(?, travel_buffer_time),
+          covered_zip_codes = COALESCE(?, covered_zip_codes),
+        virtual_meeting_link = COALESCE(?, virtual_meeting_link)
        WHERE id = ?`,
       [
         name,
@@ -211,6 +245,14 @@ export async function PUT(request, { params }) {
         longitude,
         isMarketplaceEnabled,
         currency,
+        is_physical !== undefined ? (is_physical ? 1 : 0) : null,
+        is_mobile !== undefined ? (is_mobile ? 1 : 0) : null,
+        is_virtual !== undefined ? (is_virtual ? 1 : 0) : null,
+        travel_radius,
+        travel_fee_type,
+        travel_fee_amount,
+        min_booking_amount,
+        virtual_meeting_link,
         id,
       ],
     );
@@ -218,17 +260,17 @@ export async function PUT(request, { params }) {
     // If salonCategories is provided, update them
     if (Array.isArray(salonCategories)) {
       // Delete existing categories
-      await query('DELETE FROM salon_categories WHERE salon_id = ?', [id]);
-      
+      await query("DELETE FROM salon_categories WHERE salon_id = ?", [id]);
+
       // Insert new categories (up to 4)
       const categoriesToInsert = salonCategories.slice(0, 4);
       for (let i = 0; i < categoriesToInsert.length; i++) {
         const cat = categoriesToInsert[i];
         // The first item (index 0) or the one marked isPrimary gets is_primary = 1
-        const isPrimary = (i === 0 || cat.isPrimary) ? 1 : 0;
+        const isPrimary = i === 0 || cat.isPrimary ? 1 : 0;
         await query(
-          'INSERT INTO salon_categories (salon_id, category_name, is_primary) VALUES (?, ?, ?)',
-          [id, cat.name || cat, isPrimary]
+          "INSERT INTO salon_categories (salon_id, category_name, is_primary) VALUES (?, ?, ?)",
+          [id, cat.name || cat, isPrimary],
         );
       }
     }
@@ -236,8 +278,8 @@ export async function PUT(request, { params }) {
     const salon = await getOne("SELECT * FROM salons WHERE id = ?", [id]);
 
     const updatedCategories = await query(
-      'SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC',
-      [id]
+      "SELECT category_name as name, is_primary FROM salon_categories WHERE salon_id = ? ORDER BY is_primary DESC, category_name ASC",
+      [id],
     );
 
     return success({
@@ -253,10 +295,10 @@ export async function PUT(request, { params }) {
       longitude: salon.longitude,
       isMarketplaceEnabled: salon.is_marketplace_enabled,
       currency: salon.currency,
-      salonCategories: updatedCategories.map(c => ({
+      salonCategories: updatedCategories.map((c) => ({
         name: c.name,
-        isPrimary: c.is_primary === 1
-      }))
+        isPrimary: c.is_primary === 1,
+      })),
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
@@ -269,7 +311,8 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+    const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
     const force = searchParams.get("force") === "true";
 
@@ -391,6 +434,12 @@ export async function DELETE(request, { params }) {
     // Deactivate all staff members for this salon
     await query("UPDATE staff SET is_active = 0 WHERE salon_id = ?", [id]);
 
+    // Revoke all pending team invitations
+    await query(
+      "UPDATE staff_invitations SET status = 'revoked' WHERE salon_id = ? AND status = 'pending'",
+      [id],
+    );
+
     // Cancel all pending future bookings
     await query(
       `UPDATE bookings SET 
@@ -403,6 +452,19 @@ export async function DELETE(request, { params }) {
          AND start_datetime > NOW()`,
       [session.userId, id],
     );
+
+    // If this was the owner's last active salon, downgrade their role back to client
+    const otherSalons = await query(
+      "SELECT id FROM salons WHERE owner_id = ? AND id != ? AND deleted_at IS NULL",
+      [session.userId, id],
+    );
+
+    if (otherSalons.length === 0) {
+      await query(
+        "UPDATE users SET role = 'client' WHERE id = ? AND role = 'owner'",
+        [session.userId],
+      );
+    }
 
     return success({
       message: "Salon deleted successfully",

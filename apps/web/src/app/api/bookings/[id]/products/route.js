@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import pool from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
@@ -29,7 +30,8 @@ async function checkBookingAccess(bookingId, userId, role) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const { access } = await checkBookingAccess(id, session.userId, session.role);
     if (!access) return forbidden('Not authorized');

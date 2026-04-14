@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -158,7 +159,8 @@ export async function GET(request) {
     const session = await requireAuth();
     const { searchParams } = new URL(request.url);
 
-    const salonId = searchParams.get("salon_id") || searchParams.get("salonId");
+    const rawSalonId = searchParams.get("salon_id") || searchParams.get("salonId");
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
     if (!salonId) {
       return error({ code: "MISSING_SALON", message: "salonId is required" }, 400);
     }

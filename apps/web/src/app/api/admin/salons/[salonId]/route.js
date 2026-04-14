@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden, notFound } from '@/lib/response';
@@ -8,7 +9,8 @@ export async function GET(request, { params }) {
     const session = await requireAuth();
     if (session.role !== 'admin') return forbidden('Admin access required');
 
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     const salon = await getOne(
       `SELECT s.*, u.email as owner_email, u.first_name as owner_first_name, u.last_name as owner_last_name
@@ -70,7 +72,8 @@ export async function PUT(request, { params }) {
     const session = await requireAuth();
     if (session.role !== 'admin') return forbidden('Admin access required');
 
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
     const body = await request.json();
     const { isActive, marketplaceEnabled, ownerId } = body;
 
@@ -97,7 +100,8 @@ export async function DELETE(request, { params }) {
     const session = await requireAuth();
     if (session.role !== 'admin') return forbidden('Admin access required');
 
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     await query('UPDATE salons SET deleted_at = NOW(), deleted_by = ?, is_active = 0 WHERE id = ? AND deleted_at IS NULL', [session.userId, salonId]);
 

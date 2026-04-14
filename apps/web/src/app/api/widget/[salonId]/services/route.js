@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query } from "@/lib/db";
 import { success, error, notFound } from "@/lib/response";
 
 // GET /api/widget/[salonId]/services - Get services for booking widget
 export async function GET(request, { params }) {
   try {
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     // Get categories
     const categories = await query(

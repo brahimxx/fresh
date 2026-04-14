@@ -1,6 +1,6 @@
-import { query, getOne } from '@/lib/db';
-import { getSession } from '@/lib/auth';
-import { success, error, unauthorized } from '@/lib/response';
+import { query, getOne } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { success, error, unauthorized } from "@/lib/response";
 
 // GET /api/auth/me - Get current user (expanded for profile page)
 export async function GET() {
@@ -15,11 +15,25 @@ export async function GET() {
               gender, date_of_birth, address, city, postal_code, avatar_url,
               created_at, email_verified
        FROM users WHERE id = ? AND deleted_at IS NULL`,
-      [session.userId]
+      [session.userId],
     );
 
     if (!user) {
       return unauthorized();
+    }
+
+    // Self-healing: if an old user has 'owner' role but 0 active salons, downgrade them to 'client'
+    if (user.role === "owner") {
+      const activeSalons = await getOne(
+        "SELECT COUNT(*) as count FROM salons WHERE owner_id = ? AND deleted_at IS NULL",
+        [session.userId],
+      );
+      if (activeSalons?.count === 0) {
+        await query("UPDATE users SET role = 'client' WHERE id = ?", [
+          session.userId,
+        ]);
+        user.role = "client";
+      }
     }
 
     return success({
@@ -41,7 +55,7 @@ export async function GET() {
       impersonatorAdminId: session.impersonatorAdminId || null,
     });
   } catch (err) {
-    console.error('Get current user error:', err);
+    console.error("Get current user error:", err);
     return unauthorized();
   }
 }
@@ -56,24 +70,32 @@ export async function PATCH(request) {
 
     const body = await request.json();
     const allowedFields = [
-      'first_name', 'last_name', 'phone', 'email',
-      'gender', 'date_of_birth', 'address', 'city',
-      'postal_code', 'country', 'avatar_url'
+      "first_name",
+      "last_name",
+      "phone",
+      "email",
+      "gender",
+      "date_of_birth",
+      "address",
+      "city",
+      "postal_code",
+      "country",
+      "avatar_url",
     ];
 
     // Map camelCase body keys to snake_case DB columns
     const fieldMap = {
-      firstName: 'first_name',
-      lastName: 'last_name',
-      phone: 'phone',
-      email: 'email',
-      gender: 'gender',
-      dateOfBirth: 'date_of_birth',
-      address: 'address',
-      city: 'city',
-      postalCode: 'postal_code',
-      country: 'country',
-      avatarUrl: 'avatar_url',
+      firstName: "first_name",
+      lastName: "last_name",
+      phone: "phone",
+      email: "email",
+      gender: "gender",
+      dateOfBirth: "date_of_birth",
+      address: "address",
+      city: "city",
+      postalCode: "postal_code",
+      country: "country",
+      avatarUrl: "avatar_url",
     };
 
     const updates = [];
@@ -88,15 +110,12 @@ export async function PATCH(request) {
     }
 
     if (updates.length === 0) {
-      return error('No valid fields to update', 400);
+      return error("No valid fields to update", 400);
     }
 
     values.push(session.userId);
 
-    await query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
+    await query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
 
     // Re-fetch the updated user
     const updatedUser = await getOne(
@@ -104,7 +123,7 @@ export async function PATCH(request) {
               gender, date_of_birth, address, city, postal_code, avatar_url,
               created_at
        FROM users WHERE id = ?`,
-      [session.userId]
+      [session.userId],
     );
 
     return success({
@@ -125,10 +144,13 @@ export async function PATCH(request) {
     });
   } catch (err) {
     // Handle duplicate email
-    if (err.code === 'ER_DUP_ENTRY' && err.message.includes('email')) {
-      return error('This email address is already in use by another account', 409);
+    if (err.code === "ER_DUP_ENTRY" && err.message.includes("email")) {
+      return error(
+        "This email address is already in use by another account",
+        409,
+      );
     }
-    console.error('Update user profile error:', err);
-    return error('Failed to update profile', 500);
+    console.error("Update user profile error:", err);
+    return error("Failed to update profile", 500);
   }
 }

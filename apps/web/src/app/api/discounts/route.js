@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { success, error, created, forbidden } from "@/lib/response";
@@ -21,7 +22,8 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const salonId = searchParams.get("salon_id");
+    const rawSalonId = searchParams.get("salon_id");
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
     const status = searchParams.get("status");
 
     let sql = `SELECT * FROM discounts WHERE deleted_at IS NULL`;

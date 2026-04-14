@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { error, notFound } from '@/lib/response';
 import { NextResponse } from 'next/server';
@@ -5,7 +6,8 @@ import { NextResponse } from 'next/server';
 // GET /api/marketplace/salons/[id] - Get salon public profile
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Single query: salon + inlined business hours (eliminates one round trip)
     const salon = await getOne(

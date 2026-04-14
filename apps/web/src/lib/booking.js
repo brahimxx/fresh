@@ -77,6 +77,10 @@ export async function createSafeBooking({
   isMarketplaceEnabled = false,
   discountCode = null,
   giftCardCode = null,
+  fulfillmentType = "physical",
+  serviceLocationAddress = null,
+  clientTimezone = null,
+  virtualMeetingLink = null,
 }) {
   // ── Step 1: Input validation ──────────────────────────────────────────────
 

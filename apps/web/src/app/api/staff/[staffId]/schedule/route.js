@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -38,7 +39,8 @@ const DAY_MAP = {
 // GET /api/staff/[staffId]/schedule - Get staff schedule
 export async function GET(request, { params }) {
   try {
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
 
     const workingHours = await query(
       'SELECT day_of_week, start_time, end_time FROM staff_working_hours WHERE staff_id = ? ORDER BY day_of_week',
@@ -71,7 +73,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
 
     const canManage = await canManageStaff(staffId, session.userId, session.role);
     if (!canManage) {

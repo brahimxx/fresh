@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -17,7 +18,8 @@ async function checkSalonAccess(salonId, userId, role) {
 // GET /api/salons/[id]/packages - Get service packages/bundles
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
@@ -75,7 +77,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {

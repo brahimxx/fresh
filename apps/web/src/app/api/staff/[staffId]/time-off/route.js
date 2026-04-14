@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -25,7 +26,8 @@ async function canManageStaff(staffId, userId, role) {
 // GET /api/staff/[staffId]/time-off - Get staff time off
 export async function GET(request, { params }) {
   try {
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
     const { searchParams } = new URL(request.url);
     const includePast = searchParams.get('includePast') === 'true';
 
@@ -58,7 +60,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
 
     const canManage = await canManageStaff(staffId, session.userId, session.role);
     if (!canManage) {
@@ -94,7 +97,8 @@ export async function POST(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
 
     const canManage = await canManageStaff(staffId, session.userId, session.role);
     if (!canManage) {

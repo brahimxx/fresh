@@ -1,14 +1,16 @@
-import { getOne } from '@/lib/db';
-import { notFound } from 'next/navigation';
+import { getOne } from "@/lib/db";
+import { decodeId } from "@/lib/id";
+
+import { notFound } from "next/navigation";
 
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const slug = resolvedParams.slug;
-  const idStr = String(slug).split('-').pop();
-  const id = parseInt(idStr, 10);
+  const idStr = String(slug).split("-").pop();
+  const id = decodeId(idStr);
 
-  if (isNaN(id)) {
-    return { title: 'Salon Not Found' };
+  if (!id || isNaN(id)) {
+    return { title: "Salon Not Found" };
   }
 
   // A very fast cached DB read since it's server-side Next.js
@@ -18,17 +20,17 @@ export async function generateMetadata({ params }) {
       (SELECT category_name FROM salon_categories WHERE salon_id = s.id AND is_primary = 1 LIMIT 1) as primary_category
      FROM salons s 
      WHERE s.id = ? AND s.is_active = 1 AND s.is_marketplace_enabled = 1 AND s.deleted_at IS NULL`,
-    [id]
+    [id],
   );
 
   if (!salon) {
-    return { title: 'Salon Not Found' };
+    return { title: "Salon Not Found" };
   }
 
-  const categoryLabel = salon.primary_category || 'Beauty & Wellness';
-  const location = salon.city ? ` in ${salon.city}` : '';
-  const desc = salon.description 
-    ? salon.description.substring(0, 160) 
+  const categoryLabel = salon.primary_category || "Beauty & Wellness";
+  const location = salon.city ? ` in ${salon.city}` : "";
+  const desc = salon.description
+    ? salon.description.substring(0, 160)
     : `Book appointments at ${salon.name}${location}. View services, pricing, and availability online.`;
 
   return {
@@ -37,16 +39,12 @@ export async function generateMetadata({ params }) {
     openGraph: {
       title: `${salon.name} - ${categoryLabel} | Book Online`,
       description: desc,
-      type: 'website',
-    }
+      type: "website",
+    },
   };
 }
 
 export default function SalonLayout({ children }) {
   // Pass through the children (the client-side page component)
-  return (
-    <>
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

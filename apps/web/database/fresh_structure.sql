@@ -178,6 +178,12 @@ CREATE TABLE `bookings` (
   `cancelled_by` bigint unsigned DEFAULT NULL,
   `cancellation_reason` text,
   `deleted_at` datetime DEFAULT NULL,
+  `fulfillment_type` enum('physical','mobile','virtual') NOT NULL DEFAULT 'physical' COMMENT 'How this exact booking is being fulfilled',
+  `service_location_address` text COMMENT 'Client address for mobile bookings',
+  `service_lat` decimal(10,7) DEFAULT NULL COMMENT 'Lat for mobile bookings',
+  `service_lng` decimal(10,7) DEFAULT NULL COMMENT 'Lng for mobile bookings',
+  `client_timezone` varchar(50) DEFAULT NULL COMMENT 'Timezone for virtual bookings',
+  `virtual_meeting_link` text COMMENT 'Generated or static meeting link for virtual bookings',
   PRIMARY KEY (`id`),
   KEY `idx_bookings_salon_id` (`salon_id`),
   KEY `idx_bookings_client_id` (`client_id`),
@@ -447,7 +453,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `idx_notifications_user_id` (`user_id`),
   CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=712 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=713 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -790,7 +796,7 @@ CREATE TABLE `salon_categories` (
   KEY `idx_salon_categories_salon_id` (`salon_id`),
   KEY `idx_salon_categories_name` (`category_name`),
   CONSTRAINT `fk_salon_categories_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=62 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -937,6 +943,16 @@ CREATE TABLE `salons` (
   `plan_tier` enum('basic','pro','enterprise') DEFAULT 'basic',
   `deleted_at` datetime DEFAULT NULL,
   `deleted_by` bigint unsigned DEFAULT NULL,
+  `is_physical` tinyint(1) NOT NULL DEFAULT '1',
+  `is_mobile` tinyint(1) NOT NULL DEFAULT '0',
+  `is_virtual` tinyint(1) NOT NULL DEFAULT '0',
+  `travel_radius` int DEFAULT NULL COMMENT 'Travel radius in km/miles',
+  `travel_fee_type` enum('fixed','per_km','none') DEFAULT 'none',
+  `travel_fee_amount` decimal(10,2) DEFAULT '0.00',
+  `min_booking_amount` decimal(10,2) DEFAULT '0.00' COMMENT 'Min order value to make travel worth it',
+  `virtual_meeting_link` text,
+  `covered_zip_codes` text COMMENT 'Comma separated list of zip codes covered for mobile service',
+  `travel_buffer_time` int DEFAULT '0' COMMENT 'Minutes automatically added before/after mobile bookings',
   PRIMARY KEY (`id`),
   KEY `idx_salons_owner_id` (`owner_id`),
   KEY `idx_salons_marketplace_city` (`is_marketplace_enabled`,`city`),
@@ -948,7 +964,7 @@ CREATE TABLE `salons` (
   KEY `idx_salons_stripe_account` (`stripe_account_id`),
   CONSTRAINT `fk_salons_deleted_by` FOREIGN KEY (`deleted_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_salons_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=223 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=224 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1009,6 +1025,7 @@ CREATE TABLE `services` (
   `display_order` int DEFAULT '0',
   `deleted_at` datetime DEFAULT NULL,
   `is_popular` tinyint(1) DEFAULT '0',
+  `offering_type` enum('physical','mobile','virtual','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT 'How this specific service can be fulfilled',
   PRIMARY KEY (`id`),
   KEY `idx_services_salon_id` (`salon_id`),
   KEY `idx_services_category_id` (`category_id`),
@@ -1016,7 +1033,7 @@ CREATE TABLE `services` (
   KEY `idx_services_salon_active_name` (`salon_id`,`is_active`,`name`),
   CONSTRAINT `fk_services_category` FOREIGN KEY (`category_id`) REFERENCES `service_categories` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_services_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=62 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1059,7 +1076,7 @@ CREATE TABLE `staff` (
   KEY `idx_staff_user_active` (`user_id`,`is_active`),
   CONSTRAINT `fk_staff_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_staff_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=81 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=82 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1133,6 +1150,31 @@ CREATE TABLE `staff_emergency_contacts` (
   KEY `idx_staff_emergency_staff_id` (`staff_id`),
   CONSTRAINT `fk_staff_emergency_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `staff_invitations`
+--
+
+DROP TABLE IF EXISTS `staff_invitations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff_invitations` (
+  `id` char(36) NOT NULL,
+  `salon_id` bigint unsigned NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `role` enum('staff','manager','owner','receptionist') NOT NULL DEFAULT 'staff',
+  `token` varchar(255) NOT NULL,
+  `status` enum('pending','accepted','expired','revoked') NOT NULL DEFAULT 'pending',
+  `expires_at` datetime NOT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_invitations_token` (`token`),
+  KEY `idx_invitations_salon` (`salon_id`),
+  KEY `idx_invitations_email` (`email`),
+  CONSTRAINT `fk_invitations_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1456,4 +1498,4 @@ CREATE TABLE `widget_settings` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-04-09 13:04:43
+-- Dump completed on 2026-04-14 10:42:09

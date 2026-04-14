@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const bookingId = searchParams.get("bookingId");
-  const salonId = searchParams.get("salonId");
+  const rawSalonId = searchParams.get("salonId");
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get("origin") || "http://localhost:3000";
 

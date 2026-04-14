@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { encodeId } from '@/lib/id';
+
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -75,7 +77,7 @@ export default function NewLocationPage() {
       toast.success("Salon created successfully! 🎉");
 
       // Redirect to the new salon's dashboard
-      router.push(`/dashboard/salon/${salonId}`);
+      router.push(`/dashboard/salon/${encodeId(salonId)}`);
     } catch (error) {
       toast.error(error.message || "Failed to create salon");
     } finally {

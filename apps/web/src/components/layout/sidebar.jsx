@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { encodeId } from '@/lib/id';
+
 import { usePathname, useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -72,7 +74,7 @@ export function Sidebar() {
   const basePath = isAdmin
     ? '/dashboard/admin'
     : salonId
-      ? `/dashboard/salon/${salonId}`
+      ? `/dashboard/salon/${encodeId(salonId)}`
       : '/dashboard';
   const hasSalon = !!salonId;
 

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { getSession } from '@/lib/auth';
 import { query, getOne } from '@/lib/db';
 import { success, error, unauthorized } from '@/lib/response';
@@ -9,7 +10,8 @@ export async function PUT(request, { params }) {
             return unauthorized();
         }
 
-        const { id } = await params;
+        const { id: rawId } = await params;
+  const id = decodeId(rawId);
         const body = await request.json();
         const { status, priority } = body;
 

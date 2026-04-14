@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -6,7 +7,8 @@ import { validate, createReviewSchema } from '@/lib/validate';
 // GET /api/salons/[id]/reviews - Get salon reviews (public)
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
 
     const page = parseInt(searchParams.get('page') || '1');
@@ -58,7 +60,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const body = await request.json();
     body.salonId = Number(id); // Inject salonId from URL path

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -12,7 +13,8 @@ async function checkSalonOwnership(salonId, userId, role) {
 // GET /api/salons/[id]/photos - Get salon photos
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const photos = await query(
       'SELECT id, image_url, is_cover FROM salon_photos WHERE salon_id = ? ORDER BY is_cover DESC',
@@ -36,7 +38,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const isOwner = await checkSalonOwnership(id, session.userId, session.role);
     if (!isOwner) {
@@ -76,7 +79,8 @@ export async function POST(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const isOwner = await checkSalonOwnership(id, session.userId, session.role);
     if (!isOwner) {

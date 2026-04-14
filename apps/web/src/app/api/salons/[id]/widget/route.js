@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -5,7 +6,8 @@ import { success, error, unauthorized, forbidden } from '@/lib/response';
 // GET /api/salons/[id]/widget - Get widget settings
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const settings = await getOne('SELECT * FROM widget_settings WHERE salon_id = ?', [id]);
 
@@ -49,7 +51,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [id]);
     if (!salon) {

@@ -205,27 +205,47 @@ export async function POST(request) {
       longitude,
       categories,
       isMarketplaceEnabled = true,
+      is_physical,
+      is_mobile,
+      is_virtual
     } = body;
 
-    if (!name || !city || !country) {
-      return error("Name, city, and country are required");
+    if (!name) {
+      return error("Name is required");
     }
 
+    // Determine hybrid flags: If client didn't supply them, try to infer from 'address' workaround
+    let finalPhysical = is_physical !== undefined ? is_physical : (address !== "Mobile or Virtual Provider");
+    let finalMobile = is_mobile !== undefined ? is_mobile : (address === "Mobile or Virtual Provider");
+    let finalVirtual = is_virtual !== undefined ? is_virtual : (address === "Mobile or Virtual Provider");
+
+    const finalCity = city === "N/A" ? null : city;
+    const finalCountry = country === "N/A" ? null : country;
+    const finalAddress = address === "Mobile or Virtual Provider" ? null : address;
+
     const result = await query(
-      `INSERT INTO salons (owner_id, name, description, phone, email, address, city, country, latitude, longitude, is_marketplace_enabled, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO salons (
+        owner_id, name, description, phone, email, 
+        address, city, country, latitude, longitude, 
+        is_marketplace_enabled, created_at,
+        is_physical, is_mobile, is_virtual
+      )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
       [
         session.userId,
         name,
         description || null,
         phone || null,
         email || null,
-        address || null,
-        city,
-        country,
+        finalAddress,
+        finalCity,
+        finalCountry,
         latitude || null,
         longitude || null,
         isMarketplaceEnabled,
+        finalPhysical ? 1 : 0,
+        finalMobile ? 1 : 0,
+        finalVirtual ? 1 : 0,
       ],
     );
 

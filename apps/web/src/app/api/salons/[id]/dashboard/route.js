@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -6,7 +7,8 @@ import { success, error, unauthorized, forbidden } from '@/lib/response';
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Verify ownership
     const salon = await getOne('SELECT * FROM salons WHERE id = ?', [id]);

@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -6,7 +7,8 @@ import { success, error, created, unauthorized, forbidden } from '@/lib/response
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     // Users can only view their own locations, admins can view any
     if (session.role !== 'admin' && session.userId !== parseInt(id)) {
@@ -50,7 +52,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     if (session.role !== 'admin' && session.userId !== parseInt(id)) {
       return forbidden('Not authorized to create locations');

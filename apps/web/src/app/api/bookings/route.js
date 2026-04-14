@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -23,7 +24,8 @@ export async function GET(request) {
 
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const salonId = searchParams.get("salonId");
+    const rawSalonId = searchParams.get("salonId");
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
     const staffId = searchParams.get("staffId");
     const status = searchParams.get("status");
     const startDate = searchParams.get("startDate");

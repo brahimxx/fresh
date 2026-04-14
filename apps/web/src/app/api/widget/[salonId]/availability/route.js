@@ -1,12 +1,15 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error, notFound } from '@/lib/response';
 
 // GET /api/widget/[salonId]/availability - Get available slots for widget
 export async function GET(request, { params }) {
   try {
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const fulfillmentType = searchParams.get('fulfillmentType');
     const servicesParam = searchParams.get('services');
 
     if (!date || !servicesParam) {
@@ -17,7 +20,7 @@ export async function GET(request, { params }) {
       return error('Invalid date format. Expected YYYY-MM-DD', 400);
     }
 
-    const salon = await getOne('SELECT id FROM salons WHERE id = ? AND is_active = 1', [salonId]);
+    const salon = await getOne('SELECT id, travel_buffer_time FROM salons WHERE id = ? AND is_active = 1', [salonId]);
     if (!salon) {
       return notFound('Salon not found');
     }
@@ -56,7 +59,7 @@ export async function GET(request, { params }) {
     // Fetch service details for all services
     const servicesData = [];
     let totalDuration = 0;
-    let totalBuffer = 0;
+    let totalBuffer = fulfillmentType === 'mobile' && salon.travel_buffer_time ? salon.travel_buffer_time : 0;
     
     for (const pair of serviceStaffPairs) {
       const service = await getOne(

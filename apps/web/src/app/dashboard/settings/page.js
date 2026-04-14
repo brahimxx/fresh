@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { encodeId } from '@/lib/id';
+
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +26,7 @@ export default function DashboardSettingsPage() {
   useEffect(() => {
     if (!isLoading && salons && salons.length > 0) {
       // Redirect to first salon's general settings
-      router.replace(`/dashboard/salon/${salons[0].id}/settings/general`);
+      router.replace(`/dashboard/salon/${encodeId(salons[0].id)}/settings/general`);
     }
   }, [salons, isLoading, router]);
 

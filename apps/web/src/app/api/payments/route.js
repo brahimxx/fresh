@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, notFound, forbidden } from '@/lib/response';
@@ -32,7 +33,8 @@ export async function GET(request) {
     const session = await requireAuth();
     const { searchParams } = new URL(request.url);
 
-    const salonId = searchParams.get('salonId');
+    const rawSalonId = searchParams.get('salonId');
+    const salonId = rawSalonId ? decodeId(rawSalonId) : null;
     const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');

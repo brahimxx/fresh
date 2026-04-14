@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query } from '@/lib/db';
 import { success, error } from '@/lib/response';
 
 // GET /api/marketplace/salons/[id]/reviews - Get salon's public reviews
 export async function GET(request, { params }) {
   try {
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
 
     const limit = parseInt(searchParams.get('limit')) || 20;

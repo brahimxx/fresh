@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { success, error, notFound, forbidden } from "@/lib/response";
@@ -33,7 +34,8 @@ async function checkStaffAccess(staffId, userId, role) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
 
     const staff = await checkStaffAccess(staffId, session.userId, session.role);
     if (!staff) {
@@ -70,7 +72,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { staffId } = await params;
+    const { staffId: rawStaffId } = await params;
+  const staffId = decodeId(rawStaffId);
     const body = await request.json();
     const { services } = body;
 

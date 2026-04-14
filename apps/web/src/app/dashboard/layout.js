@@ -1,27 +1,77 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/layout/sidebar';
-import { Header } from '@/components/layout/header';
-import { useAuth } from '@/providers/auth-provider';
-import { SalonProvider } from '@/providers/salon-provider';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { decodeId, encodeId } from "@/lib/id";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Header } from "@/components/layout/header";
+import { useAuth } from "@/providers/auth-provider";
+import { SalonProvider } from "@/providers/salon-provider";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api-client";
 
 export default function DashboardLayout({ children }) {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const params = useParams();
+
+  const rawSalonId = params?.salonId;
+  const decodedSalonId = rawSalonId ? decodeId(rawSalonId) : null;
+
+  const isAdmin = user?.role === "admin";
+
+  const { data: salons, isLoading: salonsLoading } = useQuery({
+    queryKey: ["user-salons", user?.id],
+    queryFn: () => api.get("/salons"),
+    enabled: !!user?.id && !isAdmin && user?.role !== "client",
+    select: (response) => response.data?.salons || [],
+  });
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login');
-    } else if (!loading && isAuthenticated && user?.role === 'client') {
+      router.push("/login");
+    } else if (!loading && isAuthenticated && user?.role === "client") {
       // Clients should not be in the management dashboard
-      router.push('/');
+      router.push("/");
+    } else if (
+      !loading &&
+      !salonsLoading &&
+      isAuthenticated &&
+      !isAdmin &&
+      salons?.length === 0
+    ) {
+      // Strict guard: If they have 0 salons (even if role is owner from old token), redirect them to home instead of forcing onboarding
+      router.replace("/");
+    } else if (
+      !loading &&
+      !salonsLoading &&
+      isAuthenticated &&
+      !isAdmin &&
+      salons?.length > 0 &&
+      decodedSalonId
+    ) {
+      // Prevent users from accessing other owners' dashboards
+      const hasAccess = salons.some((salon) => salon.id === decodedSalonId);
+      if (!hasAccess) {
+        router.replace(`/dashboard/salon/${encodeId(salons[0].id)}`);
+      }
     }
-  }, [loading, isAuthenticated, user, router]);
+  }, [
+    loading,
+    isAuthenticated,
+    user,
+    router,
+    salons,
+    salonsLoading,
+    isAdmin,
+    decodedSalonId,
+  ]);
 
-  if (loading) {
+  if (
+    loading ||
+    (isAuthenticated && !isAdmin && user?.role !== "client" && salonsLoading)
+  ) {
     return (
       <div className="flex h-screen">
         <div className="w-64 border-r border-border p-4 space-y-4">
@@ -44,7 +94,11 @@ export default function DashboardLayout({ children }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (
+    !isAuthenticated ||
+    user?.role === "client" ||
+    (!isAdmin && salons?.length === 0)
+  ) {
     return null;
   }
 
@@ -54,9 +108,7 @@ export default function DashboardLayout({ children }) {
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
-          </main>
+          <main className="flex-1 overflow-y-auto p-6">{children}</main>
         </div>
       </div>
     </SalonProvider>

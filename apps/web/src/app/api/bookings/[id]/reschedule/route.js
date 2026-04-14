@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
@@ -6,7 +7,8 @@ import { success, error, unauthorized, forbidden } from '@/lib/response';
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const booking = await getOne(
       'SELECT b.*, s.owner_id FROM bookings b JOIN salons s ON s.id = b.salon_id WHERE b.id = ?',

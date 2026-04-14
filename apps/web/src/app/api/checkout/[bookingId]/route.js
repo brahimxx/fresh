@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
@@ -21,7 +22,8 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { bookingId } = await params;
+    const { bookingId: rawBookingId } = await params;
+  const bookingId = decodeId(rawBookingId);
 
     const booking = await getOne(
       `SELECT b.*, s.owner_id, s.name as salon_name
@@ -151,7 +153,8 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
-    const { bookingId } = await params;
+    const { bookingId: rawBookingId } = await params;
+  const bookingId = decodeId(rawBookingId);
 
     const booking = await getOne(
       'SELECT b.*, s.owner_id FROM bookings b JOIN salons s ON s.id = b.salon_id WHERE b.id = ?',

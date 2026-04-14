@@ -1,10 +1,12 @@
+import { decodeId } from '@/lib/id';
 import { query } from '@/lib/db';
 import { success, error } from '@/lib/response';
 
 // GET /api/marketplace/salons/[id]/staff-services - Get allowed staff per service mapping
 export async function GET(request, { params }) {
     try {
-        const { id } = await params;
+        const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
         // Fetch mapping strictly for active services and active/visible staff belonging to the salon
         const mappings = await query(

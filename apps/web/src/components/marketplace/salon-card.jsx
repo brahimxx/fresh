@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Star, MapPin, Scissors, ChevronRight } from 'lucide-react';
+import { Star, MapPin, Scissors, ChevronRight, Monitor, Car } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { generateSalonSlug } from '@/lib/utils';
@@ -30,6 +30,27 @@ export function SalonCard({ salon, style, onMouseEnter, onMouseLeave }) {
                     )}
                     {/* Image overlay gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
+
+                    
+                    {/* Fulfillment Badges */}
+                    <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+                        {salon.is_physical === 1 && (
+                          <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-md shadow-sm tooltip-wrapper" title="Physical Location">
+                              <MapPin className="h-4 w-4 text-primary" />
+                          </div>
+                        )}
+                        {salon.is_mobile === 1 && (
+                          <div className="bg-orange-100/90 backdrop-blur-md p-1.5 rounded-md shadow-sm tooltip-wrapper" title="Mobile Service">
+                              <Car className="h-4 w-4 text-orange-600" />
+                          </div>
+                        )}
+                        {salon.is_virtual === 1 && (
+                          <div className="bg-purple-100/90 backdrop-blur-md p-1.5 rounded-md shadow-sm tooltip-wrapper" title="Virtual Service">
+                              <Monitor className="h-4 w-4 text-purple-600" />
+                          </div>
+                        )}
+                    </div>
+
 
                     {/* Rating badge on image */}
                     {salon.rating && (

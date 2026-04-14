@@ -1,6 +1,8 @@
 "use client";
 
 import { Search, ChevronDown, Building2, Check } from "lucide-react";
+import { encodeId, decodeId } from "@/lib/id";
+
 import { NotificationPopover } from "@/components/layout/notification-popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +37,8 @@ export function Header() {
   });
 
   const initials = user
-    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""
+    ? `${user.first_name?.[0] || ""}${
+        user.last_name?.[0] || ""
       }`.toUpperCase() || "U"
     : "U";
 
@@ -71,14 +74,16 @@ export function Header() {
               {userSalons.map((s) => (
                 <DropdownMenuItem
                   key={s.id}
-                  onClick={() => router.push(`/dashboard/salon/${s.id}`)}
+                  onClick={() =>
+                    router.push(`/dashboard/salon/${encodeId(s.id)}`)
+                  }
                   className="flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
                     <span className="truncate">{s.name}</span>
                   </div>
-                  {s.id === Number(salonId) && (
+                  {String(s.id) === String(decodeId(salonId)) && (
                     <Check className="h-4 w-4 text-primary" />
                   )}
                 </DropdownMenuItem>
@@ -124,7 +129,15 @@ export function Header() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href={salonId ? `/dashboard/salon/${salonId}/settings/account` : '/dashboard/settings'}>Account Settings</Link>
+              <Link
+                href={
+                  salonId
+                    ? `/dashboard/salon/${encodeId(salonId)}/settings/account`
+                    : "/dashboard/settings"
+                }
+              >
+                Account Settings
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/dashboard/settings">Change Password</Link>

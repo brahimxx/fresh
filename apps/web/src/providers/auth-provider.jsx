@@ -24,19 +24,11 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      // Always call /auth/me — the server authenticates via HttpOnly cookie.
-      // Do NOT gate this on the localStorage token: if the cookie is valid the
-      // user IS authenticated even when localStorage has been cleared (e.g. after
-      // a hard refresh in a private window, or after storage was wiped).
+      // The server authenticates via HttpOnly cookie securely.
       const response = await api.get("/auth/me");
-      // Sync the in-memory token cache with whatever localStorage holds so that
-      // the Bearer header is injected correctly on subsequent requests.
-      const token = api.getToken();
-      if (token) api.setToken(token);
       setUser(response.data);
     } catch (error) {
       // 401 / network error → not authenticated
-      api.clearToken();
       setUser(null);
     } finally {
       setLoading(false);
@@ -47,8 +39,7 @@ export function AuthProvider({ children }) {
     const res = await api.post("/auth/login", { email, password });
     // Support both { token, user } and { success, data: { token, user } }
     const data = res?.data ?? res;
-    if (data?.token) {
-      api.setToken(data.token);
+    if (data?.token || data?.user) {
       setUser(data.user);
       return data;
     }
@@ -59,8 +50,7 @@ export function AuthProvider({ children }) {
   const register = async (payload) => {
     const res = await api.post("/auth/register", payload);
     const data = res?.data ?? res;
-    if (data?.token) {
-      api.setToken(data.token);
+    if (data?.token || data?.user) {
       setUser(data.user);
       return data;
     }
@@ -74,7 +64,9 @@ export function AuthProvider({ children }) {
     } catch (error) {
       // Ignore logout errors
     } finally {
-      api.clearToken();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("fresh_token"); // Clean up legacy tokens
+      }
       setUser(null);
       router.push("/login");
     }

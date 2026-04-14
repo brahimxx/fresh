@@ -15,6 +15,8 @@ export async function GET(request) {
     const maxPrice    = parseInt(searchParams.get('price_level')) || 0;
     const minRating   = parseFloat(searchParams.get('minRating')) || 0;
     const openNow     = searchParams.get('openNow') === 'true';
+    const isMobile    = searchParams.get('isMobile') === 'true';
+    const isVirtual   = searchParams.get('isVirtual') === 'true';
     const sort        = searchParams.get('sort') || 'recommended';
     const limit       = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
     const offset      = Math.max(0, parseInt(searchParams.get('offset')) || 0);
@@ -31,6 +33,7 @@ export async function GET(request) {
     let sql = `
       SELECT
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
+        s.is_physical, s.is_mobile, s.is_virtual,
         s.address, s.city, s.state, s.postal_code,
         s.phone, s.website, s.price_level, MAX(sc_primary.category_name) AS category,
         s.latitude, s.longitude,
@@ -92,6 +95,10 @@ export async function GET(request) {
       params.push(...categories);
     }
 
+    if (isMobile) {
+      sql += ` AND s.is_mobile = 1`;
+    }
+    
     if (maxPrice > 0) {
       sql += ` AND s.price_level <= ?`;
       params.push(maxPrice);

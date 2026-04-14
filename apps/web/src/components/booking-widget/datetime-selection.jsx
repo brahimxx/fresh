@@ -14,6 +14,7 @@ export function DateTimeSelection({
   selectedServices,
   selectedStaff,
   selectedDate,
+  fulfillmentType,
   selectedTime,
   onDateSelect,
   onTimeSelect,
@@ -90,8 +91,7 @@ export function DateTimeSelection({
             salonId +
             "/availability?date=" +
             dateStr +
-            "&services=" +
-            encodeURIComponent(servicesParam);
+            "&services=" + encodeURIComponent(servicesParam) + (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "");
 
           console.log('===== AVAILABILITY REQUEST =====');
           console.log('Selected date object:', selectedDate);

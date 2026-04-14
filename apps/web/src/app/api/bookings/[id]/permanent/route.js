@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -48,7 +49,8 @@ async function checkBookingAccess(bookingId, userId, userRole) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id } = await params;
+    const { id: rawId } = await params;
+  const id = decodeId(rawId);
 
     const { access, booking } = await checkBookingAccess(
       id,

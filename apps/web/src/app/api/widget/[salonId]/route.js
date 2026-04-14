@@ -1,14 +1,16 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error, notFound } from '@/lib/response';
 
 // GET /api/widget/[salonId] - Get public widget data for embedding
 export async function GET(request, { params }) {
   try {
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     // Get salon basic info
     const salon = await getOne(
-      'SELECT id, name, address, city, phone, email, website, logo_url, currency FROM salons WHERE id = ? AND is_active = 1',
+      'SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes FROM salons WHERE id = ? AND is_active = 1',
       [salonId]
     );
 

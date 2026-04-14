@@ -18,6 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -59,6 +67,21 @@ var generalSchema = z.object({
   state: z.string().optional(),
   zip_code: z.string().optional(),
   country: z.string().optional(),
+  is_physical: z.boolean().optional(),
+  is_mobile: z.boolean().optional(),
+  is_virtual: z.boolean().optional(),
+  virtual_meeting_link: z
+    .string()
+    .url("Must be a valid URL")
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
+  travel_radius: z.coerce.number().optional().nullable(),
+  travel_fee_type: z.string().optional().nullable(),
+  travel_fee_amount: z.coerce.number().optional().nullable(),
+  min_booking_amount: z.coerce.number().optional().nullable(),
+  travel_buffer_time: z.coerce.number().optional().nullable(),
+  covered_zip_codes: z.string().optional().nullable(),
 });
 
 export default function GeneralSettingsPage() {
@@ -89,6 +112,16 @@ export default function GeneralSettingsPage() {
       state: "",
       zip_code: "",
       country: "",
+      is_physical: true,
+      is_mobile: false,
+      is_virtual: false,
+      virtual_meeting_link: "",
+      travel_radius: 0,
+      travel_fee_type: "none",
+      travel_fee_amount: 0,
+      min_booking_amount: 0,
+      travel_buffer_time: 0,
+      covered_zip_codes: "",
     },
   });
 
@@ -102,11 +135,24 @@ export default function GeneralSettingsPage() {
           email: salon.email || "",
           phone: salon.phone || "",
           website: salon.website || "",
-          address: salon.address || "",
-          city: salon.city || "",
+          address:
+            salon.address === "Mobile or Virtual Provider"
+              ? ""
+              : salon.address || "",
+          city: salon.city === "N/A" ? "" : salon.city || "",
           state: salon.state || "",
           zip_code: salon.zip_code || "",
-          country: salon.country || "",
+          country: salon.country === "N/A" ? "" : salon.country || "",
+          is_physical: salon.is_physical ?? true,
+          is_mobile: salon.is_mobile ?? false,
+          is_virtual: salon.is_virtual ?? false,
+          virtual_meeting_link: salon.virtual_meeting_link || "",
+          travel_radius: salon.travel_radius ?? 0,
+          travel_fee_type: salon.travel_fee_type ?? "none",
+          travel_fee_amount: salon.travel_fee_amount ?? 0,
+          min_booking_amount: salon.min_booking_amount ?? 0,
+          travel_buffer_time: salon.travel_buffer_time ?? 0,
+          covered_zip_codes: salon.covered_zip_codes || "",
         });
       }
     },

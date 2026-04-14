@@ -1,3 +1,4 @@
+import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -13,6 +14,7 @@ import {
   formatValidationErrors,
 } from "@/lib/validate";
 import { createSafeBooking, BookingError } from "@/lib/booking";
+import { sendContextualBookingConfirmation } from "@/lib/notifications";
 import { stripe } from "@/lib/stripe";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
@@ -20,10 +22,11 @@ export async function POST(request, { params }) {
   try {
     // Require authentication
     const session = await requireAuth();
-    const { salonId } = await params;
+    const { salonId: rawSalonId } = await params;
+  const salonId = decodeId(rawSalonId);
 
     const salon = await getOne(
-      "SELECT id, name, is_marketplace_enabled FROM salons WHERE id = ?",
+      "SELECT id, name, is_marketplace_enabled, virtual_meeting_link FROM salons WHERE id = ?",
       [salonId],
     );
     if (!salon) {
@@ -48,7 +51,7 @@ export async function POST(request, { params }) {
     const autoConfirm = salonSettings ? !!salonSettings.auto_confirm_bookings : false;
 
     const body = await request.json();
-    const { services, startTime, notes, paymentMethod } = body;
+    const { services, startTime, notes, paymentMethod, fulfillmentType, serviceLocationAddress, clientTimezone } = body;
 
     // Validate services array
     if (!services || !Array.isArray(services) || services.length === 0) {
@@ -143,6 +146,11 @@ export async function POST(request, { params }) {
       });
     }
 
+    // Add travel fee if mobile fulfillment
+    if (fulfillmentType === "mobile" && salon.travel_fee_type !== "none") {
+      totalPrice += parseFloat(salon.travel_fee_amount || 0);
+    }
+    
     // Calculate end time from DB service durations — totalDuration is computed
     // from DB records above so this is authoritative, not frontend-controlled.
     // We add totalBuffer to endDateTime so the buffer is blocked out in the calendar.
@@ -349,7 +357,35 @@ export async function POST(request, { params }) {
       );
     }
 
+    
+    // Send Contextual Client Email / SMS
+    try {
+      if (clientId) {
+        // Find email address for the user, but we already have session? 
+        // We know clientId. Next we need clientEmail. We queried ownerRow, let's just query client properly:
+        const clientProfile = await getOne("SELECT email, first_name, last_name FROM users WHERE id = ?", [clientId]);
+        
+        if (clientProfile && clientProfile.email) {
+          await sendContextualBookingConfirmation({
+            userId: clientId,
+            userEmail: clientProfile.email,
+            userName: clientProfile.first_name,
+            salonName: salon.name,
+            services: serviceDetails,
+            startTime: startDateTime,
+            fulfillmentType: fulfillmentType || 'physical',
+            serviceLocationAddress: serviceLocationAddress || null,
+            virtualMeetingLink: fulfillmentType === 'virtual' ? salon.virtual_meeting_link : null,
+            clientTimezone: clientTimezone || 'UTC'
+          });
+        }
+      }
+    } catch (clientNotifErr) {
+      console.error("[WIDGET BOOKING] Contextual client email trigger failed:", clientNotifErr);
+    }
+
     return created({
+
       success: true,
       bookingId: result.bookingId,
       checkoutUrl,

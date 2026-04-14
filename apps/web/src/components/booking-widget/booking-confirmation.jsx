@@ -11,6 +11,8 @@ import {
   CalendarPlus,
   Home,
   ArrowRight,
+  Monitor,
+  Car,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -144,17 +146,35 @@ export function BookingConfirmation({
               </div>
             </div>
 
-            {/* Location */}
+                        {/* Location or Fulfillment Method */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <MapPin className="h-5 w-5 text-primary" />
+                {booking?.fulfillment_type === "virtual" ? (
+                  <Monitor className="h-5 w-5 text-primary" />
+                ) : booking?.fulfillment_type === "mobile" ? (
+                  <Car className="h-5 w-5 text-primary" />
+                ) : (
+                  <MapPin className="h-5 w-5 text-primary" />
+                )}
               </div>
               <div>
-                <p className="font-medium">{salon.name}</p>
-                {salon.address && (
-                  <p className="text-sm text-muted-foreground">
-                    {salon.address}
-                  </p>
+                {booking?.fulfillment_type === "virtual" ? (
+                  <>
+                    <p className="font-medium">Virtual Appointment</p>
+                    <p className="text-sm text-muted-foreground">The meeting link will be in your booking details.</p>
+                  </>
+                ) : booking?.fulfillment_type === "mobile" ? (
+                  <>
+                    <p className="font-medium">Mobile Service (At your location)</p>
+                    <p className="text-sm text-muted-foreground">{booking?.service_location_address || "Address provided during booking"}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">{salon.name}</p>
+                    {salon.address && (
+                      <p className="text-sm text-muted-foreground">{salon.address}</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
