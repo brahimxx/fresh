@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { use } from 'react';
+import { useState, use } from 'react';
 import { format } from 'date-fns';
-import { 
+import {
   Plus,
   Search,
   Tag,
@@ -14,7 +13,9 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
-  Calendar
+  MoreHorizontal,
+  Calendar,
+  Ticket
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,13 +23,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { TableSkeleton } from '@/components/ui/loading-skeletons';
+import { DataError } from '@/components/ui/data-error';
 import {
   Table,
   TableBody,
@@ -56,347 +54,363 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
-import { 
-  useDiscounts, 
-  useDeleteDiscount, 
+import {
+  useDiscounts,
+  useDeleteDiscount,
   useToggleDiscount,
   DISCOUNT_STATUSES,
-  getDiscountStatus 
+  getDiscountStatus
 } from '@/hooks/use-discounts';
 import { DiscountForm } from '@/components/marketing/discount-form';
 
 export default function DiscountsPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  var { toast } = useToast();
-  
-  var [searchQuery, setSearchQuery] = useState('');
-  var [statusFilter, setStatusFilter] = useState('all');
-  var [showForm, setShowForm] = useState(false);
-  var [editingDiscount, setEditingDiscount] = useState(null);
-  var [deleteDiscount, setDeleteDiscount] = useState(null);
-  
-  var { data: discounts, isLoading } = useDiscounts(salonId, {
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+  const { toast } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showForm, setShowForm] = useState(false);
+  const [editingDiscount, setEditingDiscount] = useState(null);
+  const [deleteDiscount, setDeleteDiscount] = useState(null);
+
+  const { data: discounts, isLoading, error, refetch } = useDiscounts(salonId, {
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
-  var deleteDiscountMutation = useDeleteDiscount();
-  var toggleDiscount = useToggleDiscount();
-  
-  // Filter by search
-  var filteredDiscounts = discounts || [];
-  if (searchQuery) {
-    var query = searchQuery.toLowerCase();
-    filteredDiscounts = filteredDiscounts.filter(function(d) {
-      return d.code.toLowerCase().includes(query) ||
-             (d.name && d.name.toLowerCase().includes(query));
-    });
-  }
-  
-  // Stats
-  var activeCount = (discounts || []).filter(function(d) {
-    return getDiscountStatus(d) === 'active';
-  }).length;
-  
-  var totalUsage = (discounts || []).reduce(function(sum, d) {
-    return sum + Number(d.currentUses || 0);
-  }, 0);
-  
-  function handleCopyCode(code) {
+
+  const deleteDiscountMutation = useDeleteDiscount(salonId);
+  const toggleDiscount = useToggleDiscount(salonId);
+
+  const filteredDiscounts = Object.values(discounts || {}).filter((discount) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (discount.code && discount.code.toLowerCase().includes(q)) ||
+      (discount.name && discount.name.toLowerCase().includes(q))
+    );
+  });
+
+  const activeCount = Object.values(discounts || {}).filter(
+    (d) => getDiscountStatus(d) === 'active'
+  ).length;
+
+  const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
-    toast({
-      title: 'Copied!',
-      description: 'Discount code copied to clipboard',
-    });
-  }
-  
-  function handleToggle(discount) {
-    var currentStatus = discount.isActive !== undefined ? discount.isActive : discount.is_active;
-    var newStatus = !currentStatus;
-    toggleDiscount.mutate({
-      discountId: discount.id,
-      isActive: newStatus,
-    }, {
-      onSuccess: function() {
-        toast({
-          title: newStatus ? 'Discount activated' : 'Discount deactivated',
-        });
-      },
-    });
-  }
-  
-  function handleDelete() {
+    toast({ title: 'Code copied to clipboard' });
+  };
+
+  const handleEdit = (discount) => {
+    setEditingDiscount(discount);
+    setShowForm(true);
+  };
+
+  const handleToggle = (discount) => {
+    const currentStatus = discount.isActive !== undefined ? discount.isActive : discount.is_active;
+    const newStatus = !currentStatus;
+    toggleDiscount.mutate(
+      { discountId: discount.id, isActive: newStatus },
+      {
+        onSuccess: () => {
+          toast({ title: newStatus ? 'Promo activated' : 'Promo deactivated' });
+        },
+      }
+    );
+  };
+
+  const handleDelete = () => {
     if (!deleteDiscount) return;
-    
     deleteDiscountMutation.mutate(deleteDiscount.id, {
-      onSuccess: function() {
+      onSuccess: () => {
         toast({ title: 'Discount deleted' });
         setDeleteDiscount(null);
       },
     });
-  }
-  
-  function getStatusBadge(discount) {
-    var status = getDiscountStatus(discount);
-    var config = DISCOUNT_STATUSES[status];
+  };
+
+  const getStatusBadge = (discount) => {
+    const status = getDiscountStatus(discount);
+    const config = DISCOUNT_STATUSES[status];
     return (
       <Badge variant="outline" className={config.color}>
         {config.label}
       </Badge>
     );
-  }
-  
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-[1400px] mx-auto">
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Discount Codes</h1>
-          <p className="text-muted-foreground">
-            Create and manage promotional discounts
+          <h1 className="text-3xl font-bold tracking-tight">Discounts & Promos</h1>
+          <p className="text-muted-foreground mt-1">
+            Create coupon codes to share with your clients.
           </p>
         </div>
-        <Button onClick={function() { setShowForm(true); setEditingDiscount(null); }}>
+        <Button
+          onClick={() => {
+            setShowForm(true);
+            setEditingDiscount(null);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Create Discount
         </Button>
       </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Tag className="h-4 w-4" />
-            <span className="text-sm">Total Discounts</span>
-          </div>
-          <p className="text-2xl font-bold">{(discounts || []).length}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <ToggleRight className="h-4 w-4" />
-            <span className="text-sm">Active</span>
-          </div>
-          <p className="text-2xl font-bold text-green-600">{activeCount}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Percent className="h-4 w-4" />
-            <span className="text-sm">Total Uses</span>
-          </div>
-          <p className="text-2xl font-bold">{totalUsage}</p>
-        </div>
+
+      {/* Metrics Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Discounts</CardTitle>
+            <Tag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.values(discounts || {}).length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total created promos</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Now</CardTitle>
+            <Ticket className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Currently redeemable codes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Usage Limit</CardTitle>
+            <ToggleRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Configurable</div>
+            <p className="text-xs text-muted-foreground mt-1">Applies per individual</p>
+          </CardContent>
+        </Card>
       </div>
-      
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by code or name..."
-            value={searchQuery}
-            onChange={function(e) { setSearchQuery(e.target.value); }}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : filteredDiscounts.length > 0 ? (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Discount</TableHead>
-                <TableHead>Usage</TableHead>
-                <TableHead>Valid Period</TableHead>
-                <TableHead>Applies To</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredDiscounts.map(function(discount) {
-                return (
-                  <TableRow key={discount.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <code className="bg-muted px-2 py-1 rounded font-mono text-sm">
-                          {discount.code}
-                        </code>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6"
-                          onClick={function() { handleCopyCode(discount.code); }}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      {discount.name && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {discount.name}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {discount.type === 'percentage' ? (
-                          <>
-                            <Percent className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{discount.value}%</span>
-                          </>
-                        ) : (
-                          <>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">${discount.value}</span>
-                          </>
-                        )}
-                      </div>
-                      {discount.minPurchase > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Min: ${discount.minPurchase}
-                        </p>
-                      )}
-                      {discount.maxDiscount > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Max: ${discount.maxDiscount}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span>{discount.currentUses || 0}</span>
-                      {discount.maxUses && (
-                        <span className="text-muted-foreground"> / {discount.maxUses}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {discount.startDate || discount.endDate ? (
-                        <div className="text-sm">
-                          {discount.startDate && (
-                            <p>{format(new Date(discount.startDate), 'MMM d, yyyy')}</p>
-                          )}
-                          {discount.endDate && (
-                            <p className="text-muted-foreground">
-                              to {format(new Date(discount.endDate), 'MMM d, yyyy')}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">No expiry</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1 items-start">
-                        {discount.appliesToServices ? (
-                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">Services</Badge>
-                        ) : null}
-                        {discount.appliesToProducts ? (
-                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">Products</Badge>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(discount)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Switch
-                          checked={discount.isActive}
-                          onCheckedChange={function() { handleToggle(discount); }}
-                        />
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={function() { 
-                              setEditingDiscount(discount); 
-                              setShowForm(true); 
-                            }}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={function() { handleCopyCode(discount.code); }}>
-                              <Copy className="h-4 w-4 mr-2" />
-                              Copy Code
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-red-600"
-                              onClick={function() { setDeleteDiscount(discount); }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="border rounded-lg p-12 text-center">
-          <Tag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-medium mb-1">No discount codes</h3>
-          <p className="text-muted-foreground mb-4">
-            Create your first discount code to attract customers
-          </p>
-          <Button onClick={function() { setShowForm(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Discount
-          </Button>
-        </div>
+
+      <Card className="border-border shadow-sm">
+        {error ? (
+          <div className="p-6">
+            <DataError
+              title="Failed to load discounts"
+              message="Unable to fetch your promos. Please try again."
+              onRetry={refetch}
+              error={error}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="p-4 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b">
+              <Tabs
+                value={statusFilter}
+                onValueChange={(val) => setStatusFilter(val)}
+                className="w-full sm:w-auto"
+              >
+                <TabsList className="w-full sm:w-auto h-auto p-1 grid grid-cols-4 sm:flex">
+                  <TabsTrigger value="all" className="text-xs sm:text-sm">All</TabsTrigger>
+                  <TabsTrigger value="active" className="text-xs sm:text-sm">Active</TabsTrigger>
+                  <TabsTrigger value="inactive" className="text-xs sm:text-sm">Inactive</TabsTrigger>
+                  <TabsTrigger value="expired" className="text-xs sm:text-sm">Expired</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search codes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              {isLoading ? (
+                <div className="p-6">
+                  <TableSkeleton rows={4} columns={6} />
+                </div>
+              ) : filteredDiscounts.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6">Code & Title</TableHead>
+                      <TableHead>Discount Value</TableHead>
+                      <TableHead>Valid Dates</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right pr-6">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDiscounts.map((discount) => {
+                      const isActive = discount.isActive !== undefined ? discount.isActive : discount.is_active;
+                      return (
+                        <TableRow key={discount.id} className="group">
+                          <TableCell className="pl-6">
+                            <div className="flex flex-col gap-1 items-start">
+                              <div className="flex items-center gap-2">
+                                <code className="bg-muted px-2 py-1 rounded font-mono text-sm font-semibold tracking-wider text-primary">
+                                  {discount.code}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleCopyCode(discount.code)}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {discount.name && (
+                                <p className="text-sm font-medium text-muted-foreground mt-0.5">
+                                  {discount.name}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 font-medium">
+                              {discount.type === "percentage" ? (
+                                <>
+                                  <Percent className="h-4 w-4 text-blue-500" />
+                                  <span>{discount.value}% OFF</span>
+                                </>
+                              ) : (
+                                <>
+                                  <DollarSign className="h-4 w-4 text-green-500" />
+                                  <span>€{Number(discount.value).toFixed(2)} OFF</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span>
+                                {discount.startDate || discount.start_date
+                                  ? format(
+                                      new Date(discount.startDate || discount.start_date),
+                                      "MMM d, yyyy"
+                                    )
+                                  : "Always"}
+                              </span>
+                              {(discount.endDate || discount.end_date) && (
+                                <>
+                                  <span className="text-muted-foreground">-</span>
+                                  <span>
+                                    {format(
+                                      new Date(discount.endDate || discount.end_date),
+                                      "MMM d, yyyy"
+                                    )}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={!!isActive}
+                              onCheckedChange={() => handleToggle(discount)}
+                              disabled={toggleDiscount.isPending}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(discount)}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Open menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-[160px]">
+                                <DropdownMenuItem onClick={() => handleEdit(discount)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Discount
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setDeleteDiscount(discount)}
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 text-center">
+                  <div className="bg-muted/50 p-4 rounded-full mb-4">
+                    <Tag className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold">No discounts found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                    You haven&apos;t created any promotional codes yet. Add a discount to start attracting more bookings.
+                  </p>
+                  <Button
+                    className="mt-6"
+                    onClick={() => {
+                      setShowForm(true);
+                      setEditingDiscount(null);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Discount
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* Forms & Dialogs */}
+      {showForm && (
+        <DiscountForm
+          salonId={salonId}
+          discount={editingDiscount}
+          onClose={() => {
+            setShowForm(false);
+            setEditingDiscount(null);
+          }}
+        />
       )}
-      
-      {/* Form Dialog */}
-      <DiscountForm
-        open={showForm}
-        onOpenChange={setShowForm}
-        salonId={salonId}
-        discount={editingDiscount}
-        onSuccess={function() { setShowForm(false); setEditingDiscount(null); }}
-      />
-      
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteDiscount} onOpenChange={function(open) { if (!open) setDeleteDiscount(null); }}>
+
+      <AlertDialog
+        open={!!deleteDiscount}
+        onOpenChange={(open) => !open && setDeleteDiscount(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Discount</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the discount code &quot;{deleteDiscount?.code}&quot;? 
-              This action cannot be undone.
+              Are you sure you want to delete the discount code{' '}
+              <strong className="font-mono text-foreground">
+                {deleteDiscount?.code}
+              </strong>
+              ? This action cannot be undone, and clients will no longer be able to use it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteDiscountMutation.isPending}
             >
-              Delete
+              {deleteDiscountMutation.isPending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

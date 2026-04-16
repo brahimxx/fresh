@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useCallback, memo } from "react";
-import { use } from "react";
+import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Search,
   Plus,
   MoreHorizontal,
-  Eye,
-  Pencil,
-  Trash2,
   Mail,
   Phone,
   User,
   Calendar as CalendarIcon,
+  Filter,
+  Download,
+  MapPin,
+  Clock,
+  ArrowUpDown
 } from "lucide-react";
+
+import { encodeId } from "@/lib/id";
+import { useClients, useDeleteClient } from "@/hooks/use-clients";
+import { ClientFormDialogDialog } from "@/components/clients/client-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,404 +41,286 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TableSkeleton } from "@/components/ui/loading-skeletons";
 import { DataError } from "@/components/ui/data-error";
 import { EmptyClients } from "@/components/ui/empty-states";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-import { useClients, useDeleteClient } from "@/hooks/use-clients";
-import { ClientFormDialog } from "@/components/clients/client-form";
-
-function getInitials(name) {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map(function (n) {
-      return n[0];
-    })
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 export default function ClientsPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  var router = useRouter();
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+  const router = useRouter();
 
-  var [search, setSearch] = useState("");
-  var [sortBy, setSortBy] = useState("name");
-  var [page, setPage] = useState(1);
-  var [createOpen, setCreateOpen] = useState(false);
-  var [editClient, setEditClient] = useState(null);
-  var [deleteClient, setDeleteClient] = useState(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editClient, setEditClient] = useState(null);
 
-  var filters = {
+  const filters = {
     salon_id: salonId,
     search: search || undefined,
     sort: sortBy,
-    page: page,
-    limit: 20,
+    limit: 50,
   };
 
-  var { data, isLoading, error, refetch } = useClients(filters);
-  var deleteClientMutation = useDeleteClient();
+  const { data, isLoading, error, refetch } = useClients(filters);
+  const deleteClientMutation = useDeleteClient();
+  const clients = data?.data || [];
 
-  var clients = data?.data || [];
-  var pagination = data?.pagination || { total: 0, pages: 1 };
+  const handleViewClient = (client) => {
+    router.push(`/dashboard/salon/${encodeId(salonId)}/clients/${encodeId(client.id)}`);
+  };
 
-  var handleViewClient = useCallback(
-    function (client) {
-      router.push("./clients/" + client.id);
-    },
-    [router],
-  );
-
-  var handleEditClient = useCallback(function (client) {
-    setEditClient(client);
-  }, []);
-
-  var handleDeleteConfirm = useCallback(
-    function () {
-      if (deleteClient) {
-        deleteClientMutation.mutate(
-          { id: deleteClient.id, salonId: salonId },
-          {
-            onSuccess: function () {
-              setDeleteClient(null);
-            },
-          },
-        );
-      }
-    },
-    [deleteClient, deleteClientMutation, salonId],
-  );
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-8">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Clients</h1>
-          <p className="text-muted-foreground">Manage your salon clients</p>
+          <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your client list, booking history, and preferences.
+          </p>
         </div>
-        <Button
-          onClick={function () {
-            setCreateOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Client
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="hidden sm:flex gap-2 shadow-sm">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button onClick={() => setCreateOpen(true)} className="gap-2 shadow-sm">
+            <Plus className="h-4 w-4" />
+            Add New Client
+          </Button>
+        </div>
       </div>
 
-      {/* Error State */}
-      {error && (
+      {error ? (
         <DataError
           title="Failed to load clients"
           message="Unable to fetch your client list. Please try again."
           onRetry={refetch}
           error={error}
         />
-      )}
+      ) : (
+        <>
+          {/* Main Content Area */}
+          <div className="bg-background rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden">
+            {/* Toolbar */}
+            <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-4 bg-muted/20">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or phone..."
+                  className="pl-9 bg-background border-muted shadow-sm hover:border-primary/50 transition-colors"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-9 gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  Filters
+                </Button>
+                <div className="h-4 w-[1px] bg-border mx-1"></div>
+                <div className="text-sm text-muted-foreground px-2">
+                  <span className="font-medium text-foreground">{clients.length}</span> clients total
+                </div>
+              </div>
+            </div>
 
-      {/* Filters */}
-      {!error && (
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search clients..."
-              value={search}
-              onChange={function (e) {
-                setSearch(e.target.value);
-              }}
-              className="pl-10"
-            />
-          </div>
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">Name (A-Z)</SelectItem>
-              <SelectItem value="-name">Name (Z-A)</SelectItem>
-              <SelectItem value="-created_at">Newest First</SelectItem>
-              <SelectItem value="created_at">Oldest First</SelectItem>
-              <SelectItem value="-last_visit">Recent Visit</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+            {/* Table Area */}
+            <div className="flex-1 overflow-auto">
+              {isLoading ? (
+                <div className="p-6 space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center space-x-4 border-b pb-4">
+                      <Skeleton className="h-12 w-12 rounded-full" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-4 w-[250px]" />
+                        <Skeleton className="h-4 w-[200px]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : clients.length === 0 ? (
+                <div className="p-12">
+                  <EmptyClients onCreate={() => setCreateOpen(true)} />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-sm">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[300px]">Client Details</TableHead>
+                      <TableHead>Contact Information</TableHead>
+                      <TableHead>Latest Booking</TableHead>
+                      <TableHead className="text-right">Metrics</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clients.map((client) => {
+                      const clientName = `${client.first_name} ${client.last_name || ""}`.trim();
+                      const lastBooking = client.last_booking_date ? new Date(client.last_booking_date) : null;
 
-      {/* Stats Cards */}
-      {!error && !isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Total Clients</p>
-            <p className="text-2xl font-bold">{pagination.total || 0}</p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">New This Month</p>
-            <p className="text-2xl font-bold">-</p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Active</p>
-            <p className="text-2xl font-bold">-</p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Avg. Spend</p>
-            <p className="text-2xl font-bold">-</p>
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
-      {isLoading ? (
-        <TableSkeleton rows={5} columns={6} />
-      ) : !error && clients.length === 0 ? (
-        <EmptyClients onAdd={() => setCreateOpen(true)} />
-      ) : !error ? (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Last Visit</TableHead>
-                <TableHead>Total Visits</TableHead>
-                <TableHead>Total Spent</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map(function (client) {
-                var name =
-                  (client.firstName || client.first_name || "") +
-                  " " +
-                  (client.lastName || client.last_name || "");
-                name = name.trim() || client.name || "Unknown";
-
-                return (
-                  <TableRow
-                    key={client.id}
-                    className="cursor-pointer"
-                    onClick={function () {
-                      handleViewClient(client);
-                    }}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={client.avatar_url} />
-                          <AvatarFallback>{getInitials(name)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{name}</p>
-                          {client.tags && client.tags.length > 0 && (
-                            <div className="flex gap-1 mt-1">
-                              {client.tags.slice(0, 2).map(function (tag) {
-                                return (
-                                  <Badge
-                                    key={tag}
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
-                                    {tag}
-                                  </Badge>
-                                );
-                              })}
+                      return (
+                        <TableRow
+                          key={client.id}
+                          className="cursor-pointer group hover:bg-muted/40 transition-colors"
+                          onClick={() => handleViewClient(client)}
+                        >
+                          <TableCell className="align-top py-4">
+                            <div className="flex items-start gap-4">
+                              <Avatar className="h-10 w-10 border border-border shadow-sm mt-0.5">
+                                <AvatarImage src={client.avatar_url} />
+                                <AvatarFallback className="bg-primary/5 text-primary text-xs font-medium">
+                                  {getInitials(clientName)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                  {clientName}
+                                </p>
+                                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                  <CalendarIcon className="h-3 w-3" />
+                                  <span>Added {format(new Date(client.created_at || new Date()), "MMM yyyy")}</span>
+                                </div>
+                                {client.tags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {client.tags.slice(0, 3).map((tag) => (
+                                      <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 font-medium">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                    {client.tags.length > 3 && (
+                                      <span className="text-[10px] text-muted-foreground flex items-center">+{client.tags.length - 3}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {client.email && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <span className="truncate max-w-[180px]">
-                              {client.email}
-                            </span>
-                          </div>
-                        )}
-                        {client.phone && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            <span>{client.phone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {client.lastVisitDate || client.last_visit ? (
-                        format(
-                          new Date(
-                            String(
-                              client.lastVisitDate || client.last_visit,
-                            ).replace(" ", "T"),
-                          ),
-                          "MMM d, yyyy",
-                        )
-                      ) : (
-                        <span className="text-muted-foreground">Never</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {client.totalVisits ??
-                        client.total_visits ??
-                        client.visit_count ??
-                        0}
-                    </TableCell>
-                    <TableCell>
-                      EUR{" "}
-                      {Number(
-                        client.totalSpent ??
-                          client.total_spent ??
-                          client.lifetime_value ??
-                          0,
-                      ).toFixed(2)}
-                    </TableCell>
-                    <TableCell
-                      onClick={function (e) {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={function () {
-                              handleViewClient(client);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={function () {
-                              handleEditClient(client);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={function () {
-                              setDeleteClient(client);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      ) : null}
+                          </TableCell>
+                          
+                          <TableCell className="align-top py-4">
+                            <div className="space-y-2.5">
+                              {client.phone ? (
+                                <div className="flex items-center gap-2 text-sm text-foreground">
+                                  <Phone className="h-3.5 w-3.5 text-muted-foreground mr-0.5" />
+                                  <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:underline hover:text-primary">
+                                    {client.phone}
+                                  </a>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground/60 italic">
+                                  <Phone className="h-3.5 w-3.5 mr-0.5" />
+                                  No phone
+                                </div>
+                              )}
+                              
+                              {client.email ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Mail className="h-3.5 w-3.5 mr-0.5" />
+                                  <a href={`mailto:${client.email}`} onClick={(e) => e.stopPropagation()} className="truncate max-w-[200px] hover:underline hover:text-primary">
+                                    {client.email}
+                                  </a>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground/60 italic">
+                                  <Mail className="h-3.5 w-3.5 mr-0.5" />
+                                  No email
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
 
-      {/* Pagination */}
-      {!error && !isLoading && pagination.pages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {clients.length} of {pagination.total} clients
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={function () {
-                setPage(page - 1);
-              }}
-            >
-              Previous
-            </Button>
-            <span className="text-sm">
-              Page {page} of {pagination.pages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pagination.pages}
-              onClick={function () {
-                setPage(page + 1);
-              }}
-            >
-              Next
-            </Button>
+                          <TableCell className="align-top py-4">
+                            {lastBooking ? (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <Clock className="h-3.5 w-3.5 text-primary" />
+                                  {format(lastBooking, "MMM d, yyyy")}
+                                </div>
+                                <span className="text-xs text-muted-foreground block ml-5.5">
+                                  {client.last_service_name || "Service visit"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground/70 flex items-center justify-center p-2 rounded-md bg-muted/20 border border-border/50 max-w-fit italic">
+                                No previous bookings
+                              </span>
+                            )}
+                          </TableCell>
+                          
+                          <TableCell className="text-right align-top py-4">
+                            <div className="space-y-1 inline-flex flex-col items-end">
+                              <span className="text-sm font-semibold">
+                                {client.total_bookings || 0} visits
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                ${(client.total_revenue || 0).toLocaleString()} value
+                              </span>
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell className="align-top py-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 shadow-lg">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewClient(client); }}>
+                                  View Profile
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditClient(client); }}>
+                                  Edit Details
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-red-600 focus:text-red-700"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm("Remove this client?")) {
+                                      deleteClientMutation.mutate({ salonId, clientId: client.id });
+                                    }
+                                  }}
+                                >
+                                  Delete Client
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* Create/Edit Dialog */}
-      <ClientFormDialog
-        open={createOpen || !!editClient}
-        onOpenChange={function (open) {
-          if (!open) {
-            setCreateOpen(false);
-            setEditClient(null);
-          }
-        }}
-        client={editClient}
-        salonId={salonId}
-      />
-
-      {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deleteClient}
-        onOpenChange={function (open) {
-          if (!open) setDeleteClient(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this client and all their data. This
-              action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Forms Map To Existing Abstracted Components */}
+      {createOpen && (
+        <ClientFormDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          salonId={salonId}
+        />
+      )}
+      
+      {editClient && (
+        <ClientFormDialog
+          open={!!editClient}
+          onOpenChange={(open) => !open && setEditClient(null)}
+          salonId={salonId}
+          client={editClient}
+        />
+      )}
     </div>
   );
 }

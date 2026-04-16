@@ -1,34 +1,36 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { use } from 'react';
-import { 
-  Plus, 
-  MoreHorizontal, 
-  Pencil, 
-  Trash2, 
-  ChevronDown, 
+import { useState, use, useMemo } from "react";
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  ChevronDown,
   ChevronRight,
   Clock,
-  GripVertical,
-  FolderPlus
-} from 'lucide-react';
+  FolderPlus,
+  Scissors,
+  ArrowUpDown,
+  Tag,
+  DollarSign,
+} from "lucide-react";
 
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,115 +40,120 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
+import { Card, CardContent } from "@/components/ui/card";
 
-import { useServices, useCategories, useDeleteService, useDeleteCategory } from '@/hooks/use-services';
-import { useDiscounts } from '@/hooks/use-discounts';
-import { ServiceFormDialog } from '@/components/services/service-form';
-import { CategoryFormDialog } from '@/components/services/category-form';
+import {
+  useServices,
+  useCategories,
+  useDeleteService,
+  useDeleteCategory,
+} from "@/hooks/use-services";
+import { useDiscounts } from "@/hooks/use-discounts";
+import { ServiceFormDialogDialog } from "@/components/services/service-form";
+import { CategoryFormDialogDialog } from "@/components/services/category-form";
 
 export default function ServicesPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  
-  var [expandedCategories, setExpandedCategories] = useState({});
-  var [serviceFormOpen, setServiceFormOpen] = useState(false);
-  var [categoryFormOpen, setCategoryFormOpen] = useState(false);
-  var [editService, setEditService] = useState(null);
-  var [editCategory, setEditCategory] = useState(null);
-  var [deleteItem, setDeleteItem] = useState(null);
-  var [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  
-  var { data: services, isLoading: servicesLoading } = useServices(salonId);
-  var { data: categories, isLoading: categoriesLoading } = useCategories(salonId);
-  var { data: discounts } = useDiscounts(salonId, { status: 'active' });
-  var deleteService = useDeleteService();
-  var deleteCategory = useDeleteCategory();
-  
-  var isLoading = servicesLoading || categoriesLoading;
-  
-  // Group services by category
-  var servicesByCategory = {};
-  var uncategorizedServices = [];
-  
-  if (services) {
-    services.forEach(function(service) {
-      if (service.category_id) {
-        if (!servicesByCategory[service.category_id]) {
-          servicesByCategory[service.category_id] = [];
-        }
-        servicesByCategory[service.category_id].push(service);
-      } else {
-        uncategorizedServices.push(service);
-      }
-    });
-  }
-  
-  function toggleCategory(categoryId) {
-    setExpandedCategories(function(prev) {
-      var next = { ...prev };
-      next[categoryId] = !prev[categoryId];
-      return next;
-    });
-  }
-  
-  function handleAddService(categoryId) {
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const [editCategory, setEditCategory] = useState(null);
+  const [categoryFormOpen, setCategoryFormDialogOpen] = useState(false);
+  const [editService, setEditService] = useState(null);
+  const [serviceFormOpen, setServiceFormDialogOpen] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [deleteItem, setDeleteItem] = useState(null);
+
+  const { data: servicesData, isLoading: servicesLoading } =
+    useServices(salonId);
+  const { data: categoriesData, isLoading: categoriesLoading } =
+    useCategories(salonId);
+  const { data: discountsData } = useDiscounts({
+    salon_id: salonId,
+    is_active: 1,
+  });
+
+  const deleteService = useDeleteService();
+  const deleteCategory = useDeleteCategory();
+
+  const services = useMemo(() => servicesData?.data || [], [servicesData]);
+  const categories = useMemo(
+    () => categoriesData?.data || [],
+    [categoriesData],
+  );
+  const discounts = useMemo(() => discountsData?.data || [], [discountsData]);
+
+  const uncategorizedServices = services.filter((s) => !s.category_id);
+  const isLoading = servicesLoading || categoriesLoading;
+
+  // Set all categories expanded by default when loaded
+  useMemo(() => {
+    if (categories.length > 0 && Object.keys(expandedCategories).length === 0) {
+      const initialExpanded = {};
+      categories.forEach((cat) => {
+        initialExpanded[cat.id] = true;
+      });
+      setExpandedCategories(initialExpanded);
+    }
+  }, [categories, expandedCategories]);
+
+  const toggleCategory = (id) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const handleAddService = (categoryId) => {
     setSelectedCategoryId(categoryId || null);
     setEditService(null);
-    setServiceFormOpen(true);
-  }
-  
-  function handleEditService(service) {
-    setEditService(service);
-    setSelectedCategoryId(service.category_id);
-    setServiceFormOpen(true);
-  }
-  
-  function handleEditCategory(category) {
-    setEditCategory(category);
-    setCategoryFormOpen(true);
-  }
-  
-  function handleDeleteConfirm() {
+    setServiceFormDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
     if (!deleteItem) return;
-    
-    if (deleteItem.type === 'service') {
+
+    if (deleteItem.type === "service") {
       deleteService.mutate(deleteItem.id, {
-        onSuccess: function() { setDeleteItem(null); },
+        onSuccess: () => setDeleteItem(null),
       });
-    } else if (deleteItem.type === 'category') {
+    } else if (deleteItem.type === "category") {
       deleteCategory.mutate(deleteItem.id, {
-        onSuccess: function() { setDeleteItem(null); },
+        onSuccess: () => setDeleteItem(null),
       });
     }
-  }
-  
-  function formatDuration(minutes) {
-    if (!minutes) return '-';
-    if (minutes < 60) return minutes + 'min';
-    var hours = Math.floor(minutes / 60);
-    var mins = minutes % 60;
-    return hours + 'h' + (mins > 0 ? ' ' + mins + 'min' : '');
-  }
-  
-  function formatPrice(price) {
-    if (!price) return '-';
-    return 'EUR ' + Number(price).toFixed(2);
-  }
-  
-  function getDiscountedPrice(service) {
-    if (!discounts || discounts.length === 0) return null;
-    var bestPrice = null;
-    var basePrice = Number(service.price);
-    var serviceId = Number(service.id);
+  };
 
-    for (var i = 0; i < discounts.length; i++) {
+  const formatDuration = (minutes) => {
+    if (!minutes) return "-";
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h${mins > 0 ? ` ${mins}m` : ""}`;
+  };
+
+  const formatPrice = (price) => {
+    if (!price) return "-";
+    return `$${Number(price).toFixed(2)}`;
+  };
+
+  const getDiscountedPrice = (service) => {
+    if (!discounts || discounts.length === 0) return null;
+    let bestPrice = null;
+    const basePrice = Number(service.price);
+    const serviceId = Number(service.id);
+
+    for (let i = 0; i < discounts.length; i++) {
       var discount = discounts[i];
-      // Check if this discount applies to services at all
-      if (!Number(discount.appliesToServices) && !Number(discount.applies_to_services)) continue;
-      
-      // Check if this discount is restricted to specific services
-      var specificServices = discount.specificServices || discount.specific_services || [];
+      if (
+        !Number(discount.appliesToServices) &&
+        !Number(discount.applies_to_services)
+      )
+        continue;
+
+      var specificServices =
+        discount.specificServices || discount.specific_services || [];
       if (specificServices.length > 0) {
         var found = false;
         for (var j = 0; j < specificServices.length; j++) {
@@ -159,129 +166,200 @@ export default function ServicesPage({ params }) {
       }
 
       var newPrice;
-      if (discount.type === 'percentage') {
+      if (discount.type === "percentage") {
         var amountOff = basePrice * (Number(discount.value) / 100);
         if (discount.maxDiscount && amountOff > Number(discount.maxDiscount)) {
           amountOff = Number(discount.maxDiscount);
         }
         newPrice = basePrice - amountOff;
       } else {
-        newPrice = Math.max(0, basePrice - Number(discount.value));
+        newPrice = basePrice - Number(discount.value);
       }
 
+      newPrice = Math.max(0, newPrice);
       if (bestPrice === null || newPrice < bestPrice) {
         bestPrice = newPrice;
       }
     }
     return bestPrice;
-  }
-  
-  function renderService(service) {
+  };
+
+  const renderServiceItem = (service) => {
     const discountedPrice = getDiscountedPrice(service);
     return (
-      <div 
+      <div
         key={service.id}
-        className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 border-b last:border-b-0"
+        className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0 bg-background"
       >
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{service.name}</p>
-          {service.description && (
-            <p className="text-sm text-muted-foreground truncate">{service.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
-          <Clock className="h-4 w-4" />
-          <span>{formatDuration(service.duration)}</span>
-        </div>
-        <div className="w-32 text-right font-medium flex flex-col justify-center items-end">
-          {discountedPrice !== null && discountedPrice < Number(service.price) ? (
-            <>
-               <span className="text-xs text-muted-foreground line-through decoration-destructive">{formatPrice(service.price)}</span>
-               <span className="text-emerald-600 font-bold">{formatPrice(discountedPrice)}</span>
-            </>
+        <div className="flex-1 min-w-0 pr-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
+              {service.name}
+            </span>
+          </div>
+          {service.description ? (
+            <p className="text-sm text-muted-foreground line-clamp-2 max-w-2xl leading-relaxed">
+              {service.description}
+            </p>
           ) : (
-            <span>{formatPrice(service.price)}</span>
+            <p className="text-sm text-muted-foreground/50 italic">
+              No description
+            </p>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={function() { handleEditService(service); }}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="text-destructive"
-              onClick={function() { setDeleteItem({ type: 'service', id: service.id, name: service.name }); }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+
+        <div className="flex items-center sm:justify-end gap-6 shrink-0 mt-2 sm:mt-0">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium bg-muted/30 px-2.5 py-1 rounded-md">
+            <Clock className="h-4 w-4 shrink-0 opacity-70" />
+            <span>{formatDuration(service.duration)}</span>
+          </div>
+
+          <div className="w-24 text-right flex flex-col items-end justify-center">
+            {discountedPrice !== null &&
+            discountedPrice < Number(service.price) ? (
+              <>
+                <span className="text-xs text-muted-foreground line-through decoration-destructive/60 font-medium">
+                  {formatPrice(service.price)}
+                </span>
+                <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 rounded">
+                  {formatPrice(discountedPrice)}
+                </span>
+              </>
+            ) : (
+              <span className="font-semibold text-foreground">
+                {formatPrice(service.price)}
+              </span>
+            )}
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 shadow-lg">
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditService(service);
+                  setSelectedCategoryId(service.category_id);
+                  setServiceFormDialogOpen(true);
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Edit Service
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-700"
+                onClick={() =>
+                  setDeleteItem({
+                    type: "service",
+                    id: service.id,
+                    name: service.name,
+                  })
+                }
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Service
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     );
-  }
-  
-  function renderCategory(category) {
-    var categoryServices = servicesByCategory[category.id] || [];
-    var isExpanded = expandedCategories[category.id] !== false;
-    
+  };
+
+  const renderCategoryBlock = (category) => {
+    const isExpanded = expandedCategories[category.id];
+    const categoryServices = services.filter(
+      (s) => s.category_id === category.id,
+    );
+
     return (
-      <Collapsible 
-        key={category.id} 
+      <Collapsible
+        key={category.id}
         open={isExpanded}
-        onOpenChange={function() { toggleCategory(category.id); }}
-        className="border rounded-lg mb-4"
+        onOpenChange={() => toggleCategory(category.id)}
+        className="rounded-xl border border-border shadow-sm bg-background overflow-hidden animate-in fade-in"
       >
         <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-accent/50">
-            <div className="text-muted-foreground">
-              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{category.name}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {categoryServices.length} service{categoryServices.length !== 1 ? 's' : ''}
-                </Badge>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors group">
+            <div className="flex items-center gap-4">
+              <div className="h-8 w-8 rounded-full bg-background border shadow-sm flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
               </div>
-              {category.description && (
-                <p className="text-sm text-muted-foreground">{category.description}</p>
-              )}
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold tracking-tight">
+                    {category.name}
+                  </h2>
+                  <Badge
+                    variant="secondary"
+                    className="bg-primary/5 text-primary hover:bg-primary/10 font-semibold text-xs border-primary/10"
+                  >
+                    {categoryServices.length}{" "}
+                    {categoryServices.length === 1 ? "service" : "services"}
+                  </Badge>
+                </div>
+                {category.description && (
+                  <p className="text-sm text-muted-foreground mt-0.5 max-w-2xl">
+                    {category.description}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2" onClick={function(e) { e.stopPropagation(); }}>
-              <Button 
-                variant="ghost" 
+
+            <div
+              className="flex items-center gap-2 pl-12 sm:pl-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                variant="outline"
                 size="sm"
-                onClick={function() { handleAddService(category.id); }}
+                className="h-8 shadow-sm"
+                onClick={() => handleAddService(category.id)}
               >
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="h-3.5 w-3.5 mr-1" />
                 Add Service
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shadow-sm border bg-background hover:bg-muted"
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={function() { handleEditCategory(category); }}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit Category
+                <DropdownMenuContent align="end" className="w-44 shadow-lg">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditCategory(category);
+                      setCategoryFormDialogOpen(true);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Category
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-destructive"
-                    onClick={function() { setDeleteItem({ type: 'category', id: category.id, name: category.name }); }}
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-700"
+                    onClick={() =>
+                      setDeleteItem({
+                        type: "category",
+                        id: category.id,
+                        name: category.name,
+                      })
+                    }
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Category
+                    <Trash2 className="mr-2 h-4 w-4" /> Remove Section
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -289,18 +367,22 @@ export default function ServicesPage({ params }) {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-t">
+          <div className="border-t border-border flex flex-col">
             {categoryServices.length > 0 ? (
-              categoryServices.map(renderService)
+              categoryServices.map(renderServiceItem)
             ) : (
-              <div className="px-4 py-6 text-center text-muted-foreground">
-                <p className="text-sm">No services in this category</p>
-                <Button 
-                  variant="link" 
+              <div className="py-8 text-center bg-background shrink-0">
+                <Scissors className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground font-medium">
+                  No services in this category.
+                </p>
+                <Button
+                  variant="link"
                   size="sm"
-                  onClick={function() { handleAddService(category.id); }}
+                  className="mt-1"
+                  onClick={() => handleAddService(category.id)}
                 >
-                  Add the first service
+                  Add your first service
                 </Button>
               </div>
             )}
@@ -308,127 +390,203 @@ export default function ServicesPage({ params }) {
         </CollapsibleContent>
       </Collapsible>
     );
-  }
-  
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-10 max-w-6xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Services</h1>
-          <p className="text-muted-foreground">
-            Manage your service menu and pricing
+          <h1 className="text-3xl font-bold tracking-tight">Services & Menu</h1>
+          <p className="text-muted-foreground mt-1">
+            Organize your offerings, durations, and pricing structure.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={function() { setCategoryFormOpen(true); setEditCategory(null); }}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            Add Category
+          <Button
+            variant="outline"
+            className="shadow-sm gap-2 bg-background"
+            onClick={() => {
+              setCategoryFormDialogOpen(true);
+              setEditCategory(null);
+            }}
+          >
+            <FolderPlus className="h-4 w-4" />
+            New Category
           </Button>
-          <Button onClick={function() { handleAddService(null); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Service
+          <Button
+            className="shadow-sm shadow-primary/20 gap-2"
+            onClick={() => handleAddService(null)}
+          >
+            <Plus className="h-4 w-4" />
+            New Service
           </Button>
         </div>
       </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Total Services</p>
-          <p className="text-2xl font-bold">{services?.length || 0}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Categories</p>
-          <p className="text-2xl font-bold">{categories?.length || 0}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Avg. Price</p>
-          <p className="text-2xl font-bold">
-            {services && services.length > 0 
-              ? 'EUR ' + (services.reduce(function(sum, s) { return sum + Number(s.price || 0); }, 0) / services.length).toFixed(2)
-              : '-'}
-          </p>
-        </div>
+
+      {/* Analytics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="shadow-sm border-border bg-gradient-to-br from-background to-muted/20">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Scissors className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Total Services
+              </p>
+              <h3 className="text-2xl font-bold tracking-tight">
+                {services?.length || 0}
+              </h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-border bg-gradient-to-br from-background to-muted/20">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+              <Tag className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Categories
+              </p>
+              <h3 className="text-2xl font-bold tracking-tight">
+                {categories?.length || 0}
+              </h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-border bg-gradient-to-br from-background to-muted/20">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+              <DollarSign className="h-6 w-6 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Average Price
+              </p>
+              <h3 className="text-2xl font-bold tracking-tight">
+                {services?.length > 0
+                  ? `$${(services.reduce((sum, s) => sum + Number(s.price || 0), 0) / services.length).toFixed(2)}`
+                  : "—"}
+              </h3>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      
-      {/* Categories & Services */}
+
       {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+        <div className="space-y-6 pt-4">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
         </div>
       ) : (
-        <div>
-          {/* Render categories */}
-          {categories && categories.map(renderCategory)}
-          
-          {/* Uncategorized services */}
+        <div className="space-y-6 pt-2">
+          {categories && categories.map(renderCategoryBlock)}
+
+          {/* Standalone Uncategorized Block */}
           {uncategorizedServices.length > 0 && (
-            <div className="border rounded-lg">
-              <div className="px-4 py-3 border-b bg-muted/50">
-                <span className="font-medium text-muted-foreground">Uncategorized</span>
+            <div className="rounded-xl border border-border shadow-sm bg-background overflow-hidden animate-in fade-in">
+              <div className="px-6 py-5 bg-muted/10 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold tracking-tight text-muted-foreground">
+                    Uncategorized Services
+                  </h2>
+                  <Badge
+                    variant="secondary"
+                    className="bg-muted text-muted-foreground font-semibold text-xs border-border"
+                  >
+                    {uncategorizedServices.length}{" "}
+                    {uncategorizedServices.length === 1
+                      ? "service"
+                      : "services"}
+                  </Badge>
+                </div>
               </div>
-              {uncategorizedServices.map(renderService)}
-            </div>
-          )}
-          
-          {/* Empty state */}
-          {(!categories || categories.length === 0) && (!services || services.length === 0) && (
-            <div className="border rounded-lg p-12 text-center">
-              <p className="text-muted-foreground mb-4">No services yet</p>
-              <div className="flex items-center justify-center gap-2">
-                <Button variant="outline" onClick={function() { setCategoryFormOpen(true); }}>
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  Create Category
-                </Button>
-                <Button onClick={function() { handleAddService(null); }}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Service
-                </Button>
+              <div className="flex flex-col">
+                {uncategorizedServices.map(renderServiceItem)}
               </div>
             </div>
           )}
+
+          {/* Empty Global State */}
+          {(!categories || categories.length === 0) &&
+            (!services || services.length === 0) && (
+              <div className="rounded-xl border border-dashed border-border p-16 flex flex-col items-center justify-center text-center bg-muted/5 shadow-sm">
+                <div className="h-20 w-20 bg-background rounded-full border shadow-sm flex items-center justify-center mb-6">
+                  <Scissors className="h-10 w-10 text-muted-foreground/40" />
+                </div>
+                <h2 className="text-xl font-bold mb-2">
+                  Build Your Service Menu
+                </h2>
+                <p className="text-muted-foreground max-w-md mb-8">
+                  Start by creating categories like &quot;Haircuts&quot; or
+                  &quot;Coloring&quot;, then add the individual services you
+                  offer under each section.
+                </p>
+                <div className="flex gap-4">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setCategoryFormDialogOpen(true)}
+                  >
+                    Create Category
+                  </Button>
+                  <Button size="lg" onClick={() => handleAddService(null)}>
+                    Add First Service
+                  </Button>
+                </div>
+              </div>
+            )}
         </div>
       )}
-      
-      {/* Service Form Dialog */}
+
+      {/* Reusable Data Forms */}
       <ServiceFormDialog
         open={serviceFormOpen}
-        onOpenChange={setServiceFormOpen}
-        service={editService}
-        categoryId={selectedCategoryId}
+        onOpenChange={setServiceFormDialogOpen}
         salonId={salonId}
-        categories={categories || []}
+        service={editService}
+        initialCategoryId={selectedCategoryId}
+        categories={categories}
       />
-      
-      {/* Category Form Dialog */}
       <CategoryFormDialog
         open={categoryFormOpen}
-        onOpenChange={setCategoryFormOpen}
-        category={editCategory}
+        onOpenChange={setCategoryFormDialogOpen}
         salonId={salonId}
+        category={editCategory}
       />
-      
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteItem} onOpenChange={function(open) { if (!open) setDeleteItem(null); }}>
-        <AlertDialogContent>
+
+      {/* Global Delete Confirm */}
+      <AlertDialog
+        open={!!deleteItem}
+        onOpenChange={(open) => !open && setDeleteItem(null)}
+      >
+        <AlertDialogContent className="shadow-xl border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteItem?.type === 'category' ? 'Category' : 'Service'}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteItem?.type === 'category' 
-                ? 'This will delete the category "' + deleteItem?.name + '" and all its services. This action cannot be undone.'
-                : 'This will permanently delete "' + deleteItem?.name + '". This action cannot be undone.'}
+            <AlertDialogTitle className="text-red-600">
+              Delete {deleteItem?.type}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-foreground">
+              Are you sure you want to permanently delete{" "}
+              <strong>{deleteItem?.name}</strong>?
+              {deleteItem?.type === "category" &&
+                " All services within this category will become uncategorized."}
+              <br />
+              <br />
+              <span className="text-muted-foreground text-sm">
+                This action cannot be reversed.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Delete {deleteItem?.type}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

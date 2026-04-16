@@ -2,15 +2,35 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { encodeId } from "@/lib/id";
+import {
+  ArrowLeft,
+  Loader2,
+  Briefcase,
+  Mail,
+  Phone,
+  Calendar,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Share,
+  CalendarClock
+} from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { useStaffMember, STAFF_ROLES } from "@/hooks/use-staff";
 import { StaffPersonalTab } from "@/components/staff/staff-personal-tab";
@@ -24,192 +44,230 @@ import { StaffCommissionsTab } from "@/components/staff/staff-commissions-tab";
 import { StaffPayRunsTab } from "@/components/staff/staff-pay-runs-tab";
 
 export default function StaffDetailPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  var staffId = resolvedParams.staffId;
-  var router = useRouter();
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+  const staffId = resolvedParams.staffId;
+  const router = useRouter();
 
-  var [activeTab, setActiveTab] = useState("personal");
-  var { data: staff, isLoading, error } = useStaffMember(staffId);
+  const [activeTab, setActiveTab] = useState("personal");
+  const { data: staff, isLoading, error } = useStaffMember(staffId);
 
-  function getInitials(firstName, lastName) {
-    var first = (firstName || "")[0] || "";
-    var last = (lastName || "")[0] || "";
+  const getInitials = (firstName, lastName) => {
+    const first = (firstName || "")[0] || "";
+    const last = (lastName || "")[0] || "";
     return (first + last).toUpperCase() || "?";
-  }
+  };
 
-  function getRoleLabel(role) {
-    var found = STAFF_ROLES.find(function (r) {
-      return r.value === role;
-    });
+  const getRoleLabel = (role) => {
+    const found = STAFF_ROLES.find((r) => r.value === role);
     return found ? found.label : role;
-  }
-
-  function getRoleBadgeColor(role) {
-    switch (role) {
-      case "owner":
-        return "bg-purple-100 text-purple-800";
-      case "manager":
-        return "bg-blue-100 text-blue-800";
-      case "receptionist":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  }
+  };
+  
+  const getRoleBadgeColor = (role) => {
+     switch(role) {
+       case "owner": return "bg-primary/10 text-primary border-primary/20";
+       case "manager": return "bg-blue-500/10 text-blue-700 border-blue-500/20";
+       case "stylist": return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+       case "receptionist": return "bg-purple-500/10 text-purple-700 border-purple-500/20";
+       default: return "bg-muted text-muted-foreground border-border";
+     }
+  };
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-8 w-64" />
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-6">
-              <Skeleton className="h-24 w-24 rounded-full" />
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-4 w-32" />
-              </div>
+      <div className="space-y-6 max-w-6xl mx-auto px-2 pt-4">
+        <div className="flex items-center gap-6">
+          <Skeleton className="h-24 w-24 rounded-full" />
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-5 w-40" />
+            <div className="flex gap-2 mt-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
             </div>
-          </CardContent>
-        </Card>
-        <Skeleton className="h-96" />
+          </div>
+        </div>
+        <Skeleton className="h-[500px] w-full rounded-xl" />
       </div>
     );
   }
 
   if (error || !staff) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground mb-4">Staff member not found</p>
-        <Button onClick={function () { router.push("/dashboard/salon/" + salonId + "/team"); }}>
-          Back to Team
+      <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in">
+        <div className="h-16 w-16 bg-muted/30 rounded-full flex items-center justify-center mb-4">
+          <Briefcase className="h-8 w-8 text-muted-foreground/50" />
+        </div>
+        <h2 className="text-xl font-semibold mb-2">Team member not found</h2>
+        <p className="text-muted-foreground mb-6">This staff member might have been removed.</p>
+        <Button variant="outline" onClick={() => router.push(`/dashboard/salon/${encodeId(salonId)}/team`)}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Team
         </Button>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          asChild
-        >
-          <Link href={"/dashboard/salon/" + salonId + "/team"}>
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Team Member Details</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage all information for this team member
-          </p>
-        </div>
-      </div>
+  const name = `${staff.first_name || ""} ${staff.last_name || ""}`.trim();
+  const bgColor = staff.color || "#09090b";
 
-      {/* Staff Profile Card */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-6">
-            <Avatar
-              className="h-24 w-24"
-              style={{ backgroundColor: staff.color || "#3B82F6" }}
-            >
-              <AvatarFallback className="text-white text-2xl font-semibold">
-                {getInitials(staff.firstName || staff.first_name, staff.lastName || staff.last_name)}
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-10">
+      {/* Navigation Breadcrumb */}
+      <Button
+        variant="ghost"
+        className="text-muted-foreground hover:text-foreground pl-0 -ml-2 hover:bg-transparent"
+        onClick={() => router.push(`/dashboard/salon/${encodeId(salonId)}/team`)}
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Directory
+      </Button>
+
+      {/* Profile Header Pane */}
+      <Card className="border-border shadow-sm overflow-hidden bg-background">
+        <div className="h-24 w-full opacity-15" style={{ backgroundColor: bgColor }} />
+        <CardContent className="p-8 -mt-16 relative">
+          <div className="flex flex-col md:flex-row gap-8 items-start md:items-end">
+            <Avatar className="h-28 w-28 border-4 border-background shadow-sm bg-background">
+              <AvatarImage src={staff.avatar_url} className="object-cover" />
+              <AvatarFallback className="text-3xl font-medium text-white" style={{ backgroundColor: bgColor }}>
+                {getInitials(staff.first_name, staff.last_name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold">
-                {(staff.firstName || staff.first_name || "") + " " + (staff.lastName || staff.last_name || "")}
-              </h2>
-              <p className="text-muted-foreground">{staff.title || "Team Member"}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <Badge className={getRoleBadgeColor(staff.role)}>
-                  {getRoleLabel(staff.role)}
-                </Badge>
-                {staff.isActive ? (
-                  <Badge className="bg-green-100 text-green-800">Active</Badge>
-                ) : (
-                  <Badge variant="outline">Inactive</Badge>
-                )}
+
+            <div className="flex-1 space-y-3 min-w-0 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-foreground truncate flex items-center gap-3">
+                    {name}
+                    {!staff.is_active && (
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-none font-normal text-sm align-middle mt-1">
+                        Inactive
+                      </Badge>
+                    )}
+                  </h1>
+                  <div className="flex items-center text-sm text-foreground/70 mt-3 gap-6 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                       <Badge variant="outline" className={`text-xs uppercase tracking-wider font-semibold px-2 py-0 border ${getRoleBadgeColor(staff.role)}`}>
+                          {getRoleLabel(staff.role)}
+                       </Badge>
+                    </div>
+                    {staff.title && (
+                      <div className="flex items-center gap-1.5 text-muted-foreground/80 font-medium">
+                        <Briefcase className="h-4 w-4 shrink-0" />
+                        {staff.title}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Actions Hub */}
+                <div className="flex shrink-0 gap-2 items-center">
+                  <Button variant="outline" className="shadow-sm">
+                    <CalendarClock className="h-4 w-4 mr-2" />
+                    View Schedule
+                  </Button>
+                  <Button className="shadow-sm shadow-primary/20">
+                    <Pencil className="h-4 w-4 mr-2" /> Edit Profile
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-3 lg:grid-cols-5 w-full">
-          <TabsTrigger value="personal">Personal</TabsTrigger>
-          <TabsTrigger value="addresses">Addresses</TabsTrigger>
-          <TabsTrigger value="emergency">Emergency</TabsTrigger>
-          <TabsTrigger value="workplace">Workplace</TabsTrigger>
-          <TabsTrigger value="pay">Pay</TabsTrigger>
+      {/* Tabs Layout Area */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full justify-start border-b border-border rounded-none h-12 bg-transparent p-0 mb-6 font-medium text-muted-foreground overflow-x-auto overflow-y-hidden whitespace-nowrap flex-nowrap">
+          <TabsTrigger 
+            value="personal" 
+            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+          >
+            Personal Details
+          </TabsTrigger>
+          <TabsTrigger 
+            value="addresses" 
+            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+          >
+            Addresses
+          </TabsTrigger>
+          <TabsTrigger 
+            value="emergency" 
+            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+          >
+            Emergency Contacts
+          </TabsTrigger>
+          <TabsTrigger 
+            value="workplace" 
+            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+          >
+            Workplace App
+          </TabsTrigger>
+          {(staff.role !== 'receptionist' && staff.role !== 'owner') && (
+            <TabsTrigger 
+              value="pay" 
+              className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+            >
+              Pay Setup
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="personal" className="space-y-4">
-          <StaffPersonalTab staff={staff} salonId={salonId} />
-        </TabsContent>
+        <div className="animate-in slide-in-from-bottom-2 fade-in duration-300">
+          <TabsContent value="personal" className="mt-0 outline-none">
+            <StaffPersonalTab staff={staff} salonId={salonId} />
+          </TabsContent>
 
-        <TabsContent value="addresses" className="space-y-4">
-          <StaffAddressesTab staffId={staffId} />
-        </TabsContent>
+          <TabsContent value="addresses" className="mt-0 outline-none">
+            <StaffAddressesTab staffId={staffId} />
+          </TabsContent>
 
-        <TabsContent value="emergency" className="space-y-4">
-          <StaffEmergencyContactsTab staffId={staffId} />
-        </TabsContent>
+          <TabsContent value="emergency" className="mt-0 outline-none">
+            <StaffEmergencyContactsTab staffId={staffId} />
+          </TabsContent>
 
-        <TabsContent value="workplace" className="space-y-4">
-          <Tabs defaultValue="services" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="services">Services</TabsTrigger>
-              <TabsTrigger value="locations">Locations</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-            </TabsList>
+          <TabsContent value="workplace" className="mt-0 outline-none">
+            <Tabs defaultValue="services" className="space-y-4">
+              <TabsList className="bg-muted/50 p-1 rounded-md">
+                <TabsTrigger value="services" className="rounded-sm">Assigned Services</TabsTrigger>
+                <TabsTrigger value="locations" className="rounded-sm">Locations</TabsTrigger>
+                <TabsTrigger value="settings" className="rounded-sm">Settings</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="services">
-              <StaffServicesTab staffId={staffId} salonId={salonId} />
-            </TabsContent>
+              <TabsContent value="services" className="outline-none pt-2">
+                <StaffServicesTab staffId={staffId} salonId={salonId} />
+              </TabsContent>
 
-            <TabsContent value="locations">
-              <StaffLocationsTab staffId={staffId} salonId={salonId} />
-            </TabsContent>
+              <TabsContent value="locations" className="outline-none pt-2">
+                <StaffLocationsTab staffId={staffId} salonId={salonId} />
+              </TabsContent>
 
-            <TabsContent value="settings">
-              <StaffSettingsTab staff={staff} staffId={staffId} salonId={salonId} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
+              <TabsContent value="settings" className="outline-none pt-2">
+                <StaffSettingsTab staff={staff} staffId={staffId} salonId={salonId} />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
 
-        <TabsContent value="pay" className="space-y-4">
-          <Tabs defaultValue="wages" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="wages">Wages & Timesheets</TabsTrigger>
-              <TabsTrigger value="commissions">Commissions</TabsTrigger>
-              <TabsTrigger value="payruns">Pay Runs</TabsTrigger>
-            </TabsList>
+          <TabsContent value="pay" className="mt-0 outline-none">
+            <Tabs defaultValue="wages" className="space-y-4">
+              <TabsList className="bg-muted/50 p-1 rounded-md">
+                <TabsTrigger value="wages" className="rounded-sm">Wages & Timesheets</TabsTrigger>
+                <TabsTrigger value="commissions" className="rounded-sm">Commissions</TabsTrigger>
+                <TabsTrigger value="payruns" className="rounded-sm">Pay Runs</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="wages">
-              <StaffWagesTab staffId={staffId} />
-            </TabsContent>
+              <TabsContent value="wages" className="outline-none pt-2">
+                <StaffWagesTab staffId={staffId} />
+              </TabsContent>
 
-            <TabsContent value="commissions">
-              <StaffCommissionsTab staffId={staffId} />
-            </TabsContent>
+              <TabsContent value="commissions" className="outline-none pt-2">
+                <StaffCommissionsTab staffId={staffId} />
+              </TabsContent>
 
-            <TabsContent value="payruns">
-              <StaffPayRunsTab staffId={staffId} salonId={salonId} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
+              <TabsContent value="payruns" className="outline-none pt-2">
+                <StaffPayRunsTab staffId={staffId} salonId={salonId} />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

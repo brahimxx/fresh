@@ -38,12 +38,14 @@ export default function MarketplaceLayout({ children }) {
   const { user, isAuthenticated, logout } = useAuth();
 
   const isOwner = user?.role === "owner";
+  const isStaff = user?.role === "staff";
+  const isBusinessUser = isOwner || isStaff;
 
-  // Only fetch salons if they are an owner to see if they've completed onboarding
+  // Only fetch salons if they are an owner or staff to see if they've completed onboarding
   const { data: salons = [] } = useQuery({
     queryKey: ["user-salons", user?.id],
     queryFn: () => api.get("/salons"),
-    enabled: !!user?.id && isOwner,
+    enabled: !!user?.id && isBusinessUser,
     select: (response) => response.data?.salons || [],
   });
 
@@ -90,26 +92,26 @@ export default function MarketplaceLayout({ children }) {
                   href="/register?type=professional"
                   className="hidden sm:block text-sm font-medium hover:text-primary"
                 >
-                  List Your Business
+                  Fresh for Business
                 </Link>
               )}
               {isAuthenticated &&
-                (!isOwner || (isOwner && salons.length === 0)) &&
+                (!isBusinessUser || (isBusinessUser && salons.length === 0)) &&
                 pathname === "/" && (
                   <Link
-                    href="/onboarding"
+                    href="/onboarding/choose"
                     className="hidden sm:block text-sm font-medium hover:text-primary"
                   >
-                    List Your Business
+                    Fresh for Business
                   </Link>
                 )}
-              {isAuthenticated && isOwner && salons.length > 0 && (
-                <Link
-                  href="/dashboard"
+              {isAuthenticated && isBusinessUser && salons.length > 0 && (
+                <button
+                  onClick={() => router.push("/dashboard")}
                   className="hidden sm:block text-sm font-medium hover:text-primary"
                 >
                   Dashboard
-                </Link>
+                </button>
               )}
 
               <ThemeToggle />
@@ -154,27 +156,30 @@ export default function MarketplaceLayout({ children }) {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {isOwner && salons.length > 0 ? (
-                      <Link href="/dashboard">
-                        <DropdownMenuItem className="cursor-pointer">
-                          <LayoutDashboard className="mr-2 h-4 w-4" />
-                          <span>Owner Dashboard</span>
-                        </DropdownMenuItem>
-                      </Link>
-                    ) : (
-                      <Link href="/bookings">
-                        <DropdownMenuItem className="cursor-pointer">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          <span>My Bookings</span>
-                        </DropdownMenuItem>
-                      </Link>
+                    {isBusinessUser && salons.length > 0 && (
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          router.push("/dashboard");
+                        }}
+                      >
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Business Dashboard</span>
+                      </DropdownMenuItem>
                     )}
-                    <Link href="/profile">
-                      <DropdownMenuItem className="cursor-pointer">
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/bookings">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        <span>My Bookings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/profile">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
-                      </DropdownMenuItem>
-                    </Link>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive cursor-pointer"
@@ -227,21 +232,21 @@ export default function MarketplaceLayout({ children }) {
               </Link>
             )}
             {isAuthenticated &&
-              (!isOwner || (isOwner && salons.length === 0)) && (
+              (!isBusinessUser || (isBusinessUser && salons.length === 0)) && (
                 <Link
-                  href="/onboarding"
+                  href="/onboarding/choose"
                   className="block text-center text-sm font-medium hover:text-primary"
                 >
                   List Your Business
                 </Link>
               )}
-            {isAuthenticated && isOwner && salons.length > 0 && (
-              <Link
-                href="/dashboard"
-                className="block text-center text-sm font-medium hover:text-primary"
+            {isAuthenticated && isBusinessUser && salons.length > 0 && (
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="w-full block text-center text-sm font-medium hover:text-primary"
               >
                 Dashboard
-              </Link>
+              </button>
             )}
           </div>
         )}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { use } from "react";
+import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -11,14 +10,21 @@ import {
   Calendar,
   Phone,
   Mail,
-  Clock,
   Briefcase,
-  Eye,
+  User,
+  Clock,
+  ArrowRight,
+  UserPlus,
+  Check,
+  X,
+  MessageSquare,
+  ChevronRight,
 } from "lucide-react";
+import { encodeId } from "@/lib/id";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -37,9 +43,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Card, CardContent } from "@/components/ui/card";
 
 import {
   useStaff,
+  useStaffRequests,
+  useAcceptStaffRequest,
+  useDeclineStaffRequest,
   useDeleteStaff,
   STAFF_COLORS,
   STAFF_ROLES,
@@ -49,321 +59,452 @@ import { StaffFormDialog } from "@/components/staff/staff-form";
 import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 
 export default function TeamPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  var router = useRouter();
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+  const router = useRouter();
 
-  var [staffFormOpen, setStaffFormOpen] = useState(false);
-  var [wizardOpen, setWizardOpen] = useState(false);
-  var [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  var [editStaff, setEditStaff] = useState(null);
-  var [scheduleStaff, setScheduleStaff] = useState(null);
-  var [deleteStaff, setDeleteStaff] = useState(null);
+  const [staffFormOpen, setStaffFormOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [editStaff, setEditStaff] = useState(null);
+  const [scheduleStaff, setScheduleStaff] = useState(null);
+  const [deleteStaff, setDeleteStaff] = useState(null);
 
-  var { data: staff, isLoading } = useStaff(salonId);
-  var deleteStaffMutation = useDeleteStaff();
+  const { data: staff, isLoading } = useStaff(salonId);
+  const { data: requests, isLoading: requestsLoading } =
+    useStaffRequests(salonId);
+  const acceptRequest = useAcceptStaffRequest();
+  const declineRequest = useDeclineStaffRequest();
+  const deleteStaffMutation = useDeleteStaff();
 
-  function getInitials(name) {
+  const getInitials = (name) => {
     if (!name) return "?";
     return name
       .split(" ")
-      .map(function (n) {
-        return n[0];
-      })
+      .map((n) => n[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  }
+  };
 
-  function getRoleLabel(role) {
-    var found = STAFF_ROLES.find(function (r) {
-      return r.value === role;
-    });
+  const getRoleLabel = (role) => {
+    const found = STAFF_ROLES.find((r) => r.value === role);
     return found ? found.label : role;
-  }
+  };
 
-  function handleAddStaff() {
-    setEditStaff(null);
-    setWizardOpen(true);
-  }
+  const getRoleBadgeColor = (role) => {
+    switch (role) {
+      case "owner":
+        return "bg-primary/10 text-primary border-primary/20";
+      case "manager":
+        return "bg-blue-500/10 text-blue-700 border-blue-500/20";
+      case "stylist":
+        return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+      case "receptionist":
+        return "bg-purple-500/10 text-purple-700 border-purple-500/20";
+      default:
+        return "bg-muted text-muted-foreground border-border";
+    }
+  };
 
-  function handleEditStaff(member) {
+  const activeStaff = staff ? staff.filter((s) => s.isActive) : [];
+  const inactiveStaff = staff ? staff.filter((s) => !s.isActive) : [];
+
+  const handleEdit = (member) => {
     setEditStaff(member);
     setStaffFormOpen(true);
-  }
+  };
 
-  function handleEditSchedule(member) {
+  const handleSchedule = (member) => {
     setScheduleStaff(member);
     setScheduleDialogOpen(true);
-  }
+  };
 
-  function handleDeleteConfirm() {
-    if (!deleteStaff) return;
+  const handleDeleteConfirm = () => {
+    if (deleteStaff) {
+      deleteStaffMutation.mutate(
+        { salonId, staffId: deleteStaff.id },
+        {
+          onSuccess: () => setDeleteStaff(null),
+        },
+      );
+    }
+  };
 
-    deleteStaffMutation.mutate(deleteStaff.id, {
-      onSuccess: function () {
-        setDeleteStaff(null);
-      },
-    });
-  }
+  const renderStaffCard = (member) => {
+    const name =
+      `${member.firstName || ""} ${member.lastName || ""}`.trim() ||
+      "Unnamed Member";
+    // Use fallback avatar logic based on existing hook setup or DB
+    const bgColor = member.color || "#09090b";
 
-  // Group staff by role
-  var staffByRole = {};
-  if (Array.isArray(staff)) {
-    staff.forEach(function (member) {
-      var role = member.role || "staff";
-      if (!staffByRole[role]) {
-        staffByRole[role] = [];
-      }
-      staffByRole[role].push(member);
-    });
-  }
+    return (
+      <Card
+        key={member.id}
+        className="group overflow-hidden border-border hover:border-primary/40 hover:shadow-md transition-all bg-background relative cursor-pointer"
+        onClick={() =>
+          router.push(
+            `/dashboard/salon/${encodeId(salonId)}/team/${encodeId(member.id)}`,
+          )
+        }
+      >
+        <CardContent className="p-0">
+          {/* Top aesthetic banner */}
+          <div
+            className="h-16 w-full opacity-10 group-hover:opacity-20 transition-opacity"
+            style={{ backgroundColor: bgColor }}
+          />
 
-  // Role order for display
-  var roleOrder = ["owner", "manager", "staff", "receptionist"];
+          <div className="px-6 pb-6 -mt-8 relative">
+            <div className="flex items-start justify-between">
+              <Avatar className="h-16 w-16 border-4 border-background shadow-sm bg-background">
+                <AvatarImage src={member.avatarUrl} />
+                <AvatarFallback
+                  className="text-xl font-medium text-white"
+                  style={{ backgroundColor: bgColor }}
+                >
+                  {getInitials(name)}
+                </AvatarFallback>
+              </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full bg-background shadow-sm border opacity-0 group-hover:opacity-100 transition-opacity mt-4 z-10 hover:bg-muted/50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 shadow-lg z-50"
+                >
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(
+                        `/dashboard/salon/${encodeId(salonId)}/team/${encodeId(member.id)}`,
+                      );
+                    }}
+                  >
+                    <User className="mr-2 h-4 w-4" /> View Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(member);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSchedule(member);
+                    }}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" /> Working Hours
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteStaff(member);
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Remove team member
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg leading-tight tracking-tight group-hover:text-primary transition-colors truncate">
+                  {name}
+                </h3>
+                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0 h-5 ${getRoleBadgeColor(member.role)}`}
+                >
+                  {getRoleLabel(member.role)}
+                </Badge>
+                {member.title && (
+                  <span className="text-sm font-medium text-muted-foreground truncate max-w-[120px]">
+                    {member.title}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-5 mt-5 border-t border-border/50 space-y-3">
+              <div
+                className="flex items-center text-sm text-foreground/80 hover:text-primary transition-colors cursor-pointer w-fit"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Phone className="h-3.5 w-3.5 text-muted-foreground mr-2.5" />
+                {member.phone || (
+                  <span className="italic opacity-50">No phone</span>
+                )}
+              </div>
+              <div
+                className="flex items-center text-sm text-foreground/80 hover:text-primary transition-colors cursor-pointer w-fit truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Mail className="h-3.5 w-3.5 text-muted-foreground mr-2.5" />
+                {member.email || (
+                  <span className="italic opacity-50">No email</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-10 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Team</h1>
-          <p className="text-muted-foreground">
-            Manage your staff members and their schedules
+          <h1 className="text-3xl font-bold tracking-tight">Team Members</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your staff, permissions, and working schedules.
           </p>
         </div>
-        <Button onClick={handleAddStaff}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Team Member
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Total Staff</p>
-          <p className="text-2xl font-bold">{staff?.length || 0}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Managers</p>
-          <p className="text-2xl font-bold">
-            {staff?.filter(function (s) {
-              return s.role === "manager" || s.role === "owner";
-            }).length || 0}
-          </p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Service Staff</p>
-          <p className="text-2xl font-bold">
-            {staff?.filter(function (s) {
-              return s.role === "staff";
-            }).length || 0}
-          </p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground">Receptionists</p>
-          <p className="text-2xl font-bold">
-            {staff?.filter(function (s) {
-              return s.role === "receptionist";
-            }).length || 0}
-          </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="hidden sm:flex shadow-sm bg-background"
+            onClick={() => setStaffFormOpen(true)}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Quick Add
+          </Button>
+          <Button
+            className="shadow-sm shadow-primary/20"
+            onClick={() => setWizardOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Staff Member
+          </Button>
         </div>
       </div>
 
-      {/* Staff List */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-[280px] rounded-xl" />
+          ))}
         </div>
-      ) : staff && staff.length > 0 ? (
-        <div className="space-y-6">
-          {roleOrder.map(function (role) {
-            var members = staffByRole[role];
-            if (!members || members.length === 0) return null;
-
-            return (
-              <div key={role}>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  {getRoleLabel(role)}s
-                  <Badge variant="secondary" className="ml-1">
-                    {members.length}
-                  </Badge>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {members.map(function (member) {
-                    var memberName = `${member.firstName} ${member.lastName}`;
-                    var memberColor = member.color || "#3B82F6";
-
-                    return (
-                      <div
-                        key={member.id}
-                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-12 w-12" style={{ backgroundColor: memberColor }}>
-                              <AvatarFallback className="text-white font-semibold">
-                                {getInitials(memberName)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-medium">{memberName}</h3>
-                              <Badge variant="outline" className="text-xs mt-1">
-                                {getRoleLabel(member.role)}
-                              </Badge>
+      ) : staff?.length > 0 ? (
+        <div className="pt-2 space-y-10">
+          {/* Pending Requests */}
+          {requests && requests.length > 0 && (
+            <div className="mb-10">
+              <h2 className="text-xl font-bold mb-4 flex items-center">
+                <UserPlus className="w-5 h-5 mr-2 text-primary" />
+                Pending Join Requests
+                <Badge
+                  variant="secondary"
+                  className="ml-2 bg-primary/10 text-primary border-0"
+                >
+                  {requests.length}
+                </Badge>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {requests.map((request) => (
+                  <Card
+                    key={request.id}
+                    className="relative overflow-hidden group border-primary/20 bg-card/50"
+                  >
+                    <div className="absolute top-0 left-0 w-1 h-full bg-primary/50" />
+                    <CardContent className="p-5 flex flex-col h-full justify-between">
+                      <div>
+                        <div className="flex items-center space-x-4 mb-4">
+                          <Avatar className="h-12 w-12 border border-border shadow-sm">
+                            <AvatarImage src={request.avatar_url || ""} />
+                            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                              {request.first_name?.[0]}
+                              {request.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-semibold text-[15px] group-hover:text-primary transition-colors flex items-center">
+                              {request.first_name} {request.last_name}
+                            </div>
+                            <div className="flex flex-col text-sm text-muted-foreground mt-0.5">
+                              <span className="flex items-center">
+                                <Mail className="w-3.5 h-3.5 mr-1" />{" "}
+                                {request.email}
+                              </span>
                             </div>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={function () {
-                                  router.push("/dashboard/salon/" + salonId + "/team/" + member.id);
-                                }}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={function () {
-                                  handleEditStaff(member);
-                                }}
-                              >
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Quick Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={function () {
-                                  handleEditSchedule(member);
-                                }}
-                              >
-                                <Calendar className="h-4 w-4 mr-2" />
-                                Edit Schedule
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={function () {
-                                  setDeleteStaff(member);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </div>
 
-                        <div className="space-y-2 text-sm text-muted-foreground">
-                          {member.email && (
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4" />
-                              <span className="truncate">{member.email}</span>
-                            </div>
-                          )}
-                          {member.phone && (
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4" />
-                              <span>{member.phone}</span>
-                            </div>
-                          )}
-                          {member.title && (
-                            <div className="flex items-center gap-2">
-                              <Briefcase className="h-4 w-4" />
-                              <span>{member.title}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span>View Schedule</span>
+                        {/* Display Message */}
+                        {request.message && (
+                          <div className="mb-4 bg-muted/50 p-3 rounded-lg border border-border/50 text-sm">
+                            <p className="flex items-center text-xs font-semibold text-muted-foreground mb-1">
+                              <MessageSquare className="w-3.5 h-3.5 mr-1" />{" "}
+                              Note to Salon
+                            </p>
+                            <p className="text-foreground italic">
+                              "{request.message}"
+                            </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={function () {
-                              handleEditSchedule(member);
-                            }}
-                          >
-                            Edit Hours
-                          </Button>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border/50">
+                        <Button
+                          onClick={() =>
+                            acceptRequest.mutate({
+                              salonId,
+                              requestId: request.id,
+                            })
+                          }
+                          disabled={
+                            acceptRequest.isPending || declineRequest.isPending
+                          }
+                          className="flex-1 bg-green-500 hover:bg-green-600 text-white border-0 shadow-sm"
+                          size="sm"
+                        >
+                          <Check className="w-4 h-4 mr-1.5" />
+                          Accept
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            declineRequest.mutate({
+                              salonId,
+                              requestId: request.id,
+                            })
+                          }
+                          disabled={
+                            acceptRequest.isPending || declineRequest.isPending
+                          }
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200"
+                        >
+                          <X className="w-4 h-4 mr-1.5" />
+                          Decline
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {/* Active Staff Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeStaff.map(renderStaffCard)}
+          </div>
+
+          {/* Inactive Staff Grid */}
+          {inactiveStaff.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="text-lg font-semibold text-muted-foreground flex items-center gap-2">
+                  Inactive Accounts
+                  <Badge variant="secondary" className="font-normal text-xs">
+                    {inactiveStaff.length}
+                  </Badge>
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60 hover:opacity-100 transition-opacity">
+                {inactiveStaff.map(renderStaffCard)}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="border rounded-lg p-12 text-center">
-          <p className="text-muted-foreground mb-4">No team members yet</p>
-          <Button onClick={handleAddStaff}>
-            <Plus className="h-4 w-4 mr-2" />
+        <div className="rounded-xl border border-dashed border-border p-16 flex flex-col items-center justify-center text-center bg-muted/5 shadow-sm mt-4">
+          <div className="h-20 w-20 bg-background rounded-full border shadow-sm flex items-center justify-center mb-6">
+            <Briefcase className="h-10 w-10 text-muted-foreground/40" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Build Your Dream Team</h2>
+          <p className="text-muted-foreground max-w-md mb-8">
+            Add staff members to assign services, manage their working hours,
+            and let clients book them directly online.
+          </p>
+          <Button size="lg" onClick={() => setWizardOpen(true)}>
             Add First Team Member
           </Button>
         </div>
       )}
 
-      {/* Staff Creation Wizard */}
+      {/* Abstracted Components Retained to Prevent Regression */}
       <StaffCreationWizard
         open={wizardOpen}
         onOpenChange={setWizardOpen}
         salonId={salonId}
       />
 
-      {/* Staff Form Dialog */}
       <StaffFormDialog
         open={staffFormOpen}
-        onOpenChange={setStaffFormOpen}
-        staff={editStaff}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditStaff(null);
+          }
+          setStaffFormOpen(open);
+        }}
         salonId={salonId}
+        staffMember={editStaff}
       />
 
-      {/* Schedule Dialog */}
-      <StaffScheduleDialog
-        open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
-        staff={scheduleStaff}
-        salonId={salonId}
-      />
+      {scheduleStaff && (
+        <StaffScheduleDialog
+          open={scheduleDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setScheduleStaff(null);
+            }
+            setScheduleDialogOpen(open);
+          }}
+          staffId={scheduleStaff.id}
+          salonId={salonId}
+          staffName={`${scheduleStaff.firstName || ""} ${scheduleStaff.lastName || ""}`.trim()}
+        />
+      )}
 
-      {/* Delete Confirmation */}
       <AlertDialog
         open={!!deleteStaff}
-        onOpenChange={function (open) {
-          if (!open) setDeleteStaff(null);
-        }}
+        onOpenChange={(open) => !open && setDeleteStaff(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="shadow-xl border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Team Member?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove &quot;{deleteStaff?.name}&quot; from your team. Their
-              future appointments will need to be reassigned.
+            <AlertDialogTitle className="text-red-600">
+              Remove Team Member?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-foreground mt-2">
+              Are you sure you want to permanently remove{" "}
+              <strong>
+                {deleteStaff?.firstName} {deleteStaff?.lastName}
+              </strong>
+              ?
+              <br />
+              <br />
+              All their future assigned bookings must be reassigned. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Remove
+              Remove Staff
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

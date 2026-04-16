@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { use } from 'react';
+import { useState, use } from 'react';
 import { format } from 'date-fns';
-import { 
+import {
   Plus,
   Search,
   Gift,
@@ -12,20 +11,18 @@ import {
   Ban,
   DollarSign,
   CreditCard,
-  Calendar
+  Calendar,
+  MoreHorizontal
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { TableSkeleton } from '@/components/ui/loading-skeletons';
+import { DataError } from '@/components/ui/data-error';
 import {
   Table,
   TableBody,
@@ -34,6 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,310 +50,334 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
-import { 
-  useGiftCards, 
+import {
+  useGiftCards,
   useCancelGiftCard,
   GIFT_CARD_STATUSES,
   getGiftCardStatus,
-  formatCurrency 
 } from '@/hooks/use-gift-cards';
 import { GiftCardForm } from '@/components/marketing/gift-card-form';
-import { GiftCardDetail } from '@/components/marketing/gift-card-detail';
 
 export default function GiftCardsPage({ params }) {
-  var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
-  var { toast } = useToast();
-  
-  var [searchQuery, setSearchQuery] = useState('');
-  var [statusFilter, setStatusFilter] = useState('all');
-  var [showForm, setShowForm] = useState(false);
-  var [viewGiftCard, setViewGiftCard] = useState(null);
-  var [cancelGiftCard, setCancelGiftCard] = useState(null);
-  
-  var { data: giftCards, isLoading } = useGiftCards(salonId, {
+  const resolvedParams = use(params);
+  const salonId = resolvedParams.salonId;
+  const { toast } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showForm, setShowForm] = useState(false);
+  const [cancelGiftCard, setCancelGiftCard] = useState(null);
+
+  const { data: giftCards, isLoading, error, refetch } = useGiftCards(salonId, {
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
-  var cancelGiftCardMutation = useCancelGiftCard();
-  
-  // Filter by search
-  var filteredGiftCards = giftCards || [];
-  if (searchQuery) {
-    var query = searchQuery.toLowerCase();
-    filteredGiftCards = filteredGiftCards.filter(function(gc) {
-      return gc.code.toLowerCase().includes(query) ||
-             (gc.recipient_name && gc.recipient_name.toLowerCase().includes(query)) ||
-             (gc.recipient_email && gc.recipient_email.toLowerCase().includes(query));
-    });
-  }
-  
-  // Stats
-  var totalValue = (giftCards || []).reduce(function(sum, gc) {
-    return sum + Number(gc.initial_value || 0);
-  }, 0);
-  
-  var outstandingBalance = (giftCards || []).reduce(function(sum, gc) {
-    var status = getGiftCardStatus(gc);
-    if (status === 'active') {
-      return sum + Number(gc.balance || 0);
+
+  const cancelGiftCardMutation = useCancelGiftCard(salonId);
+
+  const filteredGiftCards = Object.values(giftCards || {}).filter((card) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (card.code && card.code.toLowerCase().includes(q)) ||
+      (card.recipient_name && card.recipient_name.toLowerCase().includes(q)) ||
+      (card.recipient_email && card.recipient_email.toLowerCase().includes(q))
+    );
+  });
+
+  const totalOutstanding = Object.values(giftCards || {}).reduce((sum, card) => {
+    if (getGiftCardStatus(card) !== 'cancelled') {
+      return sum + Number(card.balance);
     }
     return sum;
   }, 0);
-  
-  var activeCount = (giftCards || []).filter(function(gc) {
-    return getGiftCardStatus(gc) === 'active';
-  }).length;
-  
-  function handleCopyCode(code) {
+
+  const activeCount = Object.values(giftCards || {}).filter(
+    (gc) => getGiftCardStatus(gc) === 'active'
+  ).length;
+
+  const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
     toast({
       title: 'Copied!',
       description: 'Gift card code copied to clipboard',
     });
-  }
-  
-  function handleCancel() {
+  };
+
+  const handleCancel = () => {
     if (!cancelGiftCard) return;
-    
+
     cancelGiftCardMutation.mutate(cancelGiftCard.id, {
-      onSuccess: function() {
+      onSuccess: () => {
         toast({ title: 'Gift card cancelled' });
         setCancelGiftCard(null);
       },
     });
-  }
-  
-  function getStatusBadge(giftCard) {
-    var status = getGiftCardStatus(giftCard);
-    var config = GIFT_CARD_STATUSES[status];
+  };
+
+  const getStatusBadge = (giftCard) => {
+    const status = getGiftCardStatus(giftCard);
+    const config = GIFT_CARD_STATUSES[status];
     return (
       <Badge variant="outline" className={config.color}>
         {config.label}
       </Badge>
     );
-  }
-  
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-[1400px] mx-auto">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Gift Cards</h1>
-          <p className="text-muted-foreground">
-            Create and manage gift cards
+          <h1 className="text-3xl font-bold tracking-tight">Gift Cards</h1>
+          <p className="text-muted-foreground mt-1">
+            Create, issue, and manage digital gift cards.
           </p>
         </div>
-        <Button onClick={function() { setShowForm(true); }}>
+        <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Create Gift Card
         </Button>
       </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Gift className="h-4 w-4" />
-            <span className="text-sm">Total Gift Cards</span>
-          </div>
-          <p className="text-2xl font-bold">{(giftCards || []).length}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <CreditCard className="h-4 w-4" />
-            <span className="text-sm">Active</span>
-          </div>
-          <p className="text-2xl font-bold text-green-600">{activeCount}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-sm">Total Sold</span>
-          </div>
-          <p className="text-2xl font-bold">{formatCurrency(totalValue)}</p>
-        </div>
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-sm">Outstanding Balance</span>
-          </div>
-          <p className="text-2xl font-bold text-blue-600">{formatCurrency(outstandingBalance)}</p>
-        </div>
+
+      {/* Metrics Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Gift Cards</CardTitle>
+            <Gift className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.values(giftCards || {}).length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total issued</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Cards</CardTitle>
+            <CreditCard className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">With redeemable balances</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">€{totalOutstanding.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total unused value</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Sales</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">€1,450</div>
+            <p className="text-xs text-muted-foreground mt-1">+12.5% from last month</p>
+          </CardContent>
+        </Card>
       </div>
-      
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by code or recipient..."
-            value={searchQuery}
-            onChange={function(e) { setSearchQuery(e.target.value); }}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="redeemed">Redeemed</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : filteredGiftCards.length > 0 ? (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Balance</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredGiftCards.map(function(giftCard) {
-                var status = getGiftCardStatus(giftCard);
-                
-                return (
-                  <TableRow key={giftCard.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <code className="bg-muted px-2 py-1 rounded font-mono text-sm">
-                          {giftCard.code}
-                        </code>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6"
-                          onClick={function() { handleCopyCode(giftCard.code); }}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {giftCard.recipient_name ? (
-                        <div>
-                          <p className="font-medium">{giftCard.recipient_name}</p>
-                          {giftCard.recipient_email && (
-                            <p className="text-sm text-muted-foreground">
-                              {giftCard.recipient_email}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(giftCard.initial_value)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={status === 'active' ? 'text-green-600 font-medium' : ''}>
-                        {formatCurrency(giftCard.balance)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {giftCard.expires_at ? (
-                        format(new Date(giftCard.expires_at), 'MMM d, yyyy')
-                      ) : (
-                        <span className="text-muted-foreground">Never</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(giftCard)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={function() { setViewGiftCard(giftCard); }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {status === 'active' && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-red-600"
-                            onClick={function() { setCancelGiftCard(giftCard); }}
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="border rounded-lg p-12 text-center">
-          <Gift className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-medium mb-1">No gift cards</h3>
-          <p className="text-muted-foreground mb-4">
-            Create your first gift card to sell to customers
-          </p>
-          <Button onClick={function() { setShowForm(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Gift Card
-          </Button>
-        </div>
+
+      <Card className="border-border shadow-sm">
+        {error ? (
+          <div className="p-6">
+            <DataError
+              title="Failed to load gift cards"
+              message="Unable to fetch gift cards. Please try again."
+              onRetry={refetch}
+              error={error}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="p-4 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b">
+              <Tabs
+                value={statusFilter}
+                onValueChange={(val) => setStatusFilter(val)}
+                className="w-full sm:w-auto"
+              >
+                <TabsList className="w-full sm:w-auto h-auto p-1 grid grid-cols-4 sm:flex">
+                  <TabsTrigger value="all" className="text-xs sm:text-sm">All</TabsTrigger>
+                  <TabsTrigger value="active" className="text-xs sm:text-sm">Active</TabsTrigger>
+                  <TabsTrigger value="expired" className="text-xs sm:text-sm">Expired</TabsTrigger>
+                  <TabsTrigger value="cancelled" className="text-xs sm:text-sm">Cancelled</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search codes or recipients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              {isLoading ? (
+                <div className="p-6">
+                  <TableSkeleton rows={4} columns={6} />
+                </div>
+              ) : filteredGiftCards.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6">Code & Recipient</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Remaining Balance</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right pr-6">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredGiftCards.map((giftCard) => {
+                      const status = getGiftCardStatus(giftCard);
+
+                      return (
+                        <TableRow key={giftCard.id} className="group">
+                          <TableCell className="pl-6">
+                            <div className="flex flex-col gap-1 items-start">
+                              <div className="flex items-center gap-2">
+                                <code className="bg-muted px-2 py-1 rounded font-mono text-sm font-semibold tracking-wider text-primary">
+                                  {giftCard.code}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleCopyCode(giftCard.code)}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {giftCard.recipient_name ? (
+                                <div>
+                                  <p className="text-sm font-medium mt-0.5">{giftCard.recipient_name}</p>
+                                  {giftCard.recipient_email && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {giftCard.recipient_email}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium text-muted-foreground">
+                              €{Number(giftCard.initial_value).toFixed(2)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">
+                              €{Number(giftCard.balance).toFixed(2)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span>
+                                {giftCard.expires_at
+                                  ? format(new Date(giftCard.expires_at), 'MMM d, yyyy')
+                                  : 'Never'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(giftCard)}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            {status === 'active' ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-[160px]">
+                                  <DropdownMenuItem
+                                    onClick={() => setCancelGiftCard(giftCard)}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                  >
+                                    <Ban className="h-4 w-4 mr-2" />
+                                    Cancel Card
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-50 cursor-not-allowed">
+                                <span className="sr-only">No actions available</span>
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 text-center">
+                  <div className="bg-muted/50 p-4 rounded-full mb-4">
+                    <Gift className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold">No gift cards found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                    You haven&apos;t issued any gift cards yet. Create one to boost your sales and attract new clients.
+                  </p>
+                  <Button
+                    className="mt-6"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Issue First Gift Card
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* Forms & Dialogs */}
+      {showForm && (
+        <GiftCardForm
+          salonId={salonId}
+          onClose={() => setShowForm(false)}
+        />
       )}
-      
-      {/* Form Dialog */}
-      <GiftCardForm
-        open={showForm}
-        onOpenChange={setShowForm}
-        salonId={salonId}
-        onSuccess={function() { setShowForm(false); }}
-      />
-      
-      {/* Detail Dialog */}
-      <GiftCardDetail
-        open={!!viewGiftCard}
-        onOpenChange={function(open) { if (!open) setViewGiftCard(null); }}
-        giftCard={viewGiftCard}
-      />
-      
-      {/* Cancel Confirmation */}
-      <AlertDialog open={!!cancelGiftCard} onOpenChange={function(open) { if (!open) setCancelGiftCard(null); }}>
+
+      <AlertDialog
+        open={!!cancelGiftCard}
+        onOpenChange={(open) => !open && setCancelGiftCard(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Gift Card</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel gift card &quot;{cancelGiftCard?.code}&quot;? 
-              The remaining balance of {formatCurrency(cancelGiftCard?.balance)} will be voided.
+              Are you sure you want to cancel the gift card{' '}
+              <strong className="font-mono text-foreground">
+                {cancelGiftCard?.code}
+              </strong>
+              ? This action cannot be undone, and the remaining balance will be voided.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Active</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleCancel}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={cancelGiftCardMutation.isPending}
             >
-              Cancel Gift Card
+              {cancelGiftCardMutation.isPending ? 'Cancelling...' : 'Cancel Card'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

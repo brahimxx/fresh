@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { encodeId } from '@/lib/id';
+import { encodeId } from "@/lib/id";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -522,7 +522,7 @@ export default function OnboardingPage() {
       {/* ─── Top Navigation ────────────────────────────── */}
       <div className="max-w-7xl mx-auto w-full flex items-center justify-between px-4 sm:px-6 lg:px-8 py-5">
         <div>
-          {currentStep > 1 && currentStep < STEPS.length && (
+          {currentStep > 1 && currentStep < STEPS.length ? (
             <button
               onClick={handleBack}
               className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
@@ -530,7 +530,15 @@ export default function OnboardingPage() {
               <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
               Back
             </button>
-          )}
+          ) : currentStep === 1 ? (
+            <button
+              onClick={() => router.push("/onboarding/choose")}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
+            >
+              <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+              Back to Options
+            </button>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3">

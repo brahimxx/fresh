@@ -39,7 +39,8 @@ export async function GET(request) {
         s.latitude, s.longitude,
         AVG(r.rating)        AS rating,
         COUNT(DISTINCT r.id) AS review_count,
-        svc.services_preview
+        svc.services_preview,
+        (SELECT image_url FROM salon_photos sp WHERE sp.salon_id = s.id ORDER BY is_cover DESC, id ASC LIMIT 1) AS gallery_cover
       FROM salons s
       LEFT JOIN reviews r ON r.salon_id = s.id AND r.status = 'approved'
       LEFT JOIN salon_categories sc_primary ON sc_primary.salon_id = s.id AND sc_primary.is_primary = 1
@@ -171,7 +172,7 @@ export async function GET(request) {
       name:             salon.name,
       description:      salon.description,
       logo_url:         salon.logo_url,
-      cover_image_url:  salon.cover_image_url,
+      cover_image_url:  salon.gallery_cover || salon.cover_image_url,
       address:          salon.address,
       city:             salon.city,
       state:            salon.state,

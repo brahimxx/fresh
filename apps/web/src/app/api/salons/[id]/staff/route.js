@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -20,7 +20,7 @@ async function checkSalonAccess(salonId, userId, role) {
   // Check if user is a manager at this salon
   const staff = await getOne(
     "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
-    [salonId, userId]
+    [salonId, userId],
   );
   return !!staff;
 }
@@ -30,9 +30,9 @@ export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
     const { id: rawId } = await params;
-  const id = decodeId(rawId);
+    const id = decodeId(rawId);
     const { searchParams } = new URL(request.url);
-    const includeInactive = searchParams.get('includeInactive') === 'true';
+    const includeInactive = searchParams.get("includeInactive") === "true";
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
@@ -44,7 +44,7 @@ export async function GET(request, { params }) {
               u.first_name, u.last_name, u.email, u.phone
        FROM staff st
        JOIN users u ON u.id = st.user_id
-       WHERE st.salon_id = ? ${includeInactive ? '' : 'AND st.is_active = 1'}
+       WHERE st.salon_id = ? ${includeInactive ? "" : "AND st.is_active = 1"}
        ORDER BY st.role DESC, COALESCE(st.first_name, u.first_name)`;
 
     const staff = await query(queryStr, [id]);
@@ -54,7 +54,7 @@ export async function GET(request, { params }) {
       staff.map(async (s) => {
         const serviceIds = await query(
           `SELECT service_id FROM service_staff WHERE staff_id = ?`,
-          [s.id]
+          [s.id],
         );
 
         return {
@@ -69,7 +69,7 @@ export async function GET(request, { params }) {
           color: s.color,
           service_ids: serviceIds.map((sid) => sid.service_id),
         };
-      })
+      }),
     );
 
     return success({
@@ -86,7 +86,7 @@ export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
     const { id: rawId } = await params;
-  const id = decodeId(rawId);
+    const id = decodeId(rawId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
@@ -103,7 +103,7 @@ export async function POST(request, { params }) {
     // Check if user exists
     const user = await getOne(
       "SELECT id, first_name, last_name FROM users WHERE id = ?",
-      [userId]
+      [userId],
     );
     if (!user) {
       return notFound("User not found");
@@ -112,7 +112,7 @@ export async function POST(request, { params }) {
     // Check if already staff at this salon
     const existingStaff = await getOne(
       "SELECT id FROM staff WHERE salon_id = ? AND user_id = ?",
-      [id, userId]
+      [id, userId],
     );
     if (existingStaff) {
       return error("User is already staff at this salon", 409);
@@ -120,7 +120,13 @@ export async function POST(request, { params }) {
 
     const result = await query(
       "INSERT INTO staff (salon_id, user_id, role, is_active) VALUES (?, ?, ?, 1)",
-      [id, userId, role]
+      [id, userId, role],
+    );
+
+    // Update global role to staff if they are just a client
+    await query(
+      "UPDATE users SET role = 'staff' WHERE id = ? AND role = 'client'",
+      [userId],
     );
 
     return created({

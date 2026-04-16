@@ -6,7 +6,7 @@ import {
   Clock, 
   Search, 
   Bell, 
-  Calendar, 
+  Calendar, Users, 
   User, 
   MoreHorizontal,
   CheckCircle,

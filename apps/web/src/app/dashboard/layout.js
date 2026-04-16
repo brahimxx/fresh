@@ -41,8 +41,8 @@ export default function DashboardLayout({ children }) {
       !isAdmin &&
       salons?.length === 0
     ) {
-      // Strict guard: If they have 0 salons (even if role is owner from old token), redirect them to home instead of forcing onboarding
-      router.replace("/");
+      // If they have 0 salons (e.g. newly registered owner), redirect them to onboarding
+      router.replace("/onboarding");
     } else if (
       !loading &&
       !salonsLoading &&

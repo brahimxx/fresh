@@ -1,4 +1,6 @@
 import fs from 'fs';
-let lines = fs.readFileSync('src/app/dashboard/page.js', 'utf8').split('\n');
-lines.splice(84, 0, '          </div>\n      );\n    }');
-fs.writeFileSync('src/app/dashboard/page.js', lines.join('\n'));
+
+const PATH = 'src/app/dashboard/salon/[salonId]/bookings/page.js';
+let content = fs.readFileSync(PATH, 'utf8');
+
+// The file will be completely rewritten to standard Shadcn style tabs and stats.

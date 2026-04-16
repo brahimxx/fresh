@@ -27,11 +27,22 @@ export async function GET(request) {
 
     // If authenticated, return user's salons instead of marketplace
     if (session?.userId) {
-      // Simple query for user salons (embed LIMIT/OFFSET; MySQL doesn't allow binding them)
-      const userSql = `SELECT * FROM salons WHERE owner_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
-      const userSalons = await query(userSql, [Number(session.userId)]);
-
-      // Get stats and cover images separately
+      // Simple query for user salons (owner or staff)
+      const userSql = `
+          SELECT s.* 
+          FROM salons s
+          LEFT JOIN staff st ON st.salon_id = s.id AND st.user_id = ?
+          WHERE (s.owner_id = ? OR st.user_id = ?) 
+          AND s.deleted_at IS NULL
+          GROUP BY s.id
+          ORDER BY s.created_at DESC 
+          LIMIT ${Number(limit)} OFFSET ${Number(offset)}
+        `;
+      const userSalons = await query(userSql, [
+        Number(session.userId),
+        Number(session.userId),
+        Number(session.userId),
+      ]);
       for (const salon of userSalons) {
         // Get rating and review count
         const [stats] = await query(
@@ -207,7 +218,7 @@ export async function POST(request) {
       isMarketplaceEnabled = true,
       is_physical,
       is_mobile,
-      is_virtual
+      is_virtual,
     } = body;
 
     if (!name) {
@@ -215,13 +226,23 @@ export async function POST(request) {
     }
 
     // Determine hybrid flags: If client didn't supply them, try to infer from 'address' workaround
-    let finalPhysical = is_physical !== undefined ? is_physical : (address !== "Mobile or Virtual Provider");
-    let finalMobile = is_mobile !== undefined ? is_mobile : (address === "Mobile or Virtual Provider");
-    let finalVirtual = is_virtual !== undefined ? is_virtual : (address === "Mobile or Virtual Provider");
+    let finalPhysical =
+      is_physical !== undefined
+        ? is_physical
+        : address !== "Mobile or Virtual Provider";
+    let finalMobile =
+      is_mobile !== undefined
+        ? is_mobile
+        : address === "Mobile or Virtual Provider";
+    let finalVirtual =
+      is_virtual !== undefined
+        ? is_virtual
+        : address === "Mobile or Virtual Provider";
 
     const finalCity = city === "N/A" ? null : city;
     const finalCountry = country === "N/A" ? null : country;
-    const finalAddress = address === "Mobile or Virtual Provider" ? null : address;
+    const finalAddress =
+      address === "Mobile or Virtual Provider" ? null : address;
 
     const result = await query(
       `INSERT INTO salons (
@@ -254,7 +275,7 @@ export async function POST(request) {
       for (let i = 0; i < categories.length; i++) {
         await query(
           `INSERT INTO salon_categories (salon_id, category_name, is_primary) VALUES (?, ?, ?)`,
-          [result.insertId, categories[i], i === 0 ? 1 : 0]
+          [result.insertId, categories[i], i === 0 ? 1 : 0],
         );
       }
     }

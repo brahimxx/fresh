@@ -88,7 +88,7 @@ function BookingsContent() {
         if (bookings.length > 0 && !selectedBookingId) {
             setSelectedBookingId(bookings[0].id);
         }
-    }, [bookings]);
+    }, [bookings, selectedBookingId]);
 
     // Reset selection when tab changes
     useEffect(function () {
@@ -393,7 +393,7 @@ function BookingsContent() {
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Cancel Appointment</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            Are you sure you want to cancel this booking? Depending on the salon's cancellation policy, cancelling too close to the scheduled start time may incur a fee. 
+                                                            Are you sure you want to cancel this booking? Depending on the salon&apos;s cancellation policy, cancelling too close to the scheduled start time may incur a fee. 
                                                             <br /><br />
                                                             This action cannot be undone.
                                                         </AlertDialogDescription>

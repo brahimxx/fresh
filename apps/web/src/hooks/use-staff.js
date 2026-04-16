@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 export var staffKeys = {
   all: ['staff'],
+  requests: function(salonId) { return [...staffKeys.all, 'requests', salonId]; },
   lists: function() { return [...staffKeys.all, 'list']; },
   list: function(salonId) { return [...staffKeys.lists(), salonId]; },
   detail: function(id) { return [...staffKeys.all, 'detail', id]; },
@@ -63,7 +64,49 @@ export function useAvailability(salonId, params, options) {
   });
 }
 
+
+export function useStaffRequests(salonId, options) {
+  var resolvedOptions = options ?? {};
+  return useQuery({
+    queryKey: staffKeys.requests(salonId),
+    queryFn: function() { return api.get('/salons/' + salonId + '/staff-requests'); },
+    enabled: !!salonId,
+    select: function(response) { return response.data?.requests || []; },
+    ...resolvedOptions,
+  });
+}
+
 // ============ STAFF MUTATIONS ============
+
+
+export function useAcceptStaffRequest() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { return api.post('/salons/' + params.salonId + '/staff-requests/' + params.requestId + '/accept'); },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: staffKeys.requests(variables.salonId) });
+      toast.success('Join request accepted');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to accept request');
+    },
+  });
+}
+
+export function useDeclineStaffRequest() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { return api.post('/salons/' + params.salonId + '/staff-requests/' + params.requestId + '/decline'); },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.requests(variables.salonId) });
+      toast.success('Join request declined');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to decline request');
+    },
+  });
+}
 
 export function useCreateStaff() {
   var queryClient = useQueryClient();

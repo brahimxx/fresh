@@ -1,63 +1,91 @@
-'use client';
+"use client";
 
-import { useState, useContext } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useContext } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Bell, Check, CheckCheck, Trash2, Mail, MessageSquare,
-  Smartphone, Loader2, Inbox, Sparkles, ExternalLink
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+  Bell,
+  Check,
+  CheckCheck,
+  Trash2,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  Loader2,
+  Inbox,
+  Sparkles,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
-} from '@/components/ui/tooltip';
-import { useNotifications, useMarkNotificationsRead, useDeleteNotifications } from '@/hooks/use-notifications';
-import { useAuth } from '@/providers/auth-provider';
-import { SalonContext } from '@/providers/salon-provider';
-import { cn } from '@/lib/utils';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  useNotifications,
+  useMarkNotificationsRead,
+  useDeleteNotifications,
+} from "@/hooks/use-notifications";
+import { useAuth } from "@/providers/auth-provider";
+import { SalonContext } from "@/providers/salon-provider";
+import { cn } from "@/lib/utils";
 
 function getTimeAgo(dateStr) {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   var date = new Date(dateStr);
   var now = new Date();
   var diff = Math.floor((now - date) / 1000);
 
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function stripHtml(html) {
-  if (!html) return '';
+  if (!html) return "";
   // Replace common block tags with spaces to maintain spacing
-  var formatted = String(html).replace(/<br\s*\/?>/gi, ' ');
-  formatted = formatted.replace(/<\/p>|<\/div>|<\/li>|<\/h[1-6]>/gi, ' ');
+  var formatted = String(html).replace(/<br\s*\/?>/gi, " ");
+  formatted = formatted.replace(/<\/p>|<\/div>|<\/li>|<\/h[1-6]>/gi, " ");
   // Strip all remaining HTML tags
-  formatted = formatted.replace(/<[^>]*>?/gm, '');
+  formatted = formatted.replace(/<[^>]*>?/gm, "");
   // Collapse multiple spaces
-  formatted = formatted.replace(/\s+/g, ' ').trim();
+  formatted = formatted.replace(/\s+/g, " ").trim();
   return formatted;
 }
 
 function getTypeIcon(type) {
   switch (type) {
-    case 'email': return Mail;
-    case 'sms': return MessageSquare;
-    case 'push': return Smartphone;
-    default: return Bell;
+    case "email":
+      return Mail;
+    case "sms":
+      return MessageSquare;
+    case "push":
+      return Smartphone;
+    default:
+      return Bell;
   }
 }
 
 function getTypeColor(type) {
   switch (type) {
-    case 'email': return 'text-blue-500 bg-blue-500/10';
-    case 'sms': return 'text-emerald-500 bg-emerald-500/10';
-    case 'push': return 'text-violet-500 bg-violet-500/10';
-    default: return 'text-primary bg-primary/10';
+    case "email":
+      return "text-blue-500 bg-blue-500/10";
+    case "sms":
+      return "text-emerald-500 bg-emerald-500/10";
+    case "push":
+      return "text-violet-500 bg-violet-500/10";
+    default:
+      return "text-primary bg-primary/10";
   }
 }
 
@@ -71,17 +99,17 @@ function resolveNotificationLink(notification, userRole, salonId) {
 
   // Booking-related notifications (created, confirmed, cancelled, reminder)
   if (data.bookingId) {
-    if (data.event === 'review_prompt') {
-      return '/bookings/' + data.bookingId + '/review';
+    if (data.event === "review_prompt") {
+      return "/bookings/" + data.bookingId + "/review";
     }
-    if (userRole === 'client') {
-      return '/bookings';
+    if (userRole === "client") {
+      return "/bookings";
     }
     // Owner/manager/staff/admin → dashboard bookings
     if (salonId) {
-      return '/dashboard/salon/' + salonId + '/bookings';
+      return "/dashboard/salon/" + salonId + "/bookings";
     }
-    return '/dashboard';
+    return "/dashboard";
   }
 
   // Campaign notifications
@@ -91,12 +119,27 @@ function resolveNotificationLink(notification, userRole, salonId) {
 
   // Refund notifications
   if (data.paymentId) {
-    if (userRole === 'client') {
-      return '/bookings';
+    if (userRole === "client") {
+      return "/bookings";
     }
     if (salonId) {
-      return '/dashboard/salon/' + salonId + '/bookings';
+      return "/dashboard/salon/" + salonId + "/bookings";
     }
+  }
+
+  // Staff request notifications
+  if (data.action === "STAFF_JOIN_REQUEST" && data.salonId) {
+    return "/dashboard/salon/" + data.salonId + "/team";
+  }
+
+  // Accepted staff request notification
+  if (data.action === "STAFF_REQUEST_ACCEPTED" && data.salonId) {
+    return "/dashboard/salon/" + data.salonId;
+  }
+
+  // Declined staff request notification
+  if (data.action === "STAFF_REQUEST_DECLINED") {
+    return "/onboarding/join";
   }
 
   return null;
@@ -104,7 +147,7 @@ function resolveNotificationLink(notification, userRole, salonId) {
 
 export function NotificationPopover() {
   var [open, setOpen] = useState(false);
-  var [tab, setTab] = useState('all');
+  var [tab, setTab] = useState("all");
   var router = useRouter();
   var { data, isLoading } = useNotifications({ limit: 20 });
   var markRead = useMarkNotificationsRead();
@@ -115,16 +158,19 @@ export function NotificationPopover() {
   // Salon context is only available inside dashboard layouts — returns null on marketplace
   var salonCtx = useContext(SalonContext);
 
-  var userRole = user?.role || 'client';
+  var userRole = user?.role || "client";
   var salonId = salonCtx?.salonId || null;
 
   var allNotifications = data?.notifications || [];
   var unreadCount = data?.unreadCount || 0;
 
   // Filter based on tab
-  var notifications = tab === 'unread'
-    ? allNotifications.filter(function(n) { return !n.isRead; })
-    : allNotifications;
+  var notifications =
+    tab === "unread"
+      ? allNotifications.filter(function (n) {
+          return !n.isRead;
+        })
+      : allNotifications;
 
   function handleMarkAllRead() {
     markRead.mutate([]);
@@ -162,7 +208,7 @@ export function NotificationPopover() {
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background">
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </Button>
@@ -178,7 +224,10 @@ export function NotificationPopover() {
             <div className="flex items-center gap-2.5">
               <h4 className="text-base font-semibold">Notifications</h4>
               {unreadCount > 0 && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold tabular-nums rounded-md">
+                <Badge
+                  variant="secondary"
+                  className="h-5 px-1.5 text-[10px] font-semibold tabular-nums rounded-md"
+                >
                   {unreadCount} new
                 </Badge>
               )}
@@ -212,11 +261,17 @@ export function NotificationPopover() {
           {/* Tabs */}
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="w-full h-9 bg-muted/50 p-0.5">
-              <TabsTrigger value="all" className="flex-1 h-full text-xs font-medium">
+              <TabsTrigger
+                value="all"
+                className="flex-1 h-full text-xs font-medium"
+              >
                 All
               </TabsTrigger>
-              <TabsTrigger value="unread" className="flex-1 h-full text-xs font-medium">
-                Unread{unreadCount > 0 ? ' (' + unreadCount + ')' : ''}
+              <TabsTrigger
+                value="unread"
+                className="flex-1 h-full text-xs font-medium"
+              >
+                Unread{unreadCount > 0 ? " (" + unreadCount + ")" : ""}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -234,40 +289,47 @@ export function NotificationPopover() {
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
               <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-3">
-                {tab === 'unread' ? (
+                {tab === "unread" ? (
                   <Sparkles className="h-6 w-6 text-muted-foreground/50" />
                 ) : (
                   <Inbox className="h-6 w-6 text-muted-foreground/50" />
                 )}
               </div>
               <p className="text-sm font-medium text-muted-foreground">
-                {tab === 'unread' ? 'All caught up!' : 'No notifications yet'}
+                {tab === "unread" ? "All caught up!" : "No notifications yet"}
               </p>
               <p className="text-xs text-muted-foreground/60 mt-1 max-w-48">
-                {tab === 'unread'
-                  ? 'You have no unread notifications'
-                  : 'When you receive notifications, they\'ll show up here'}
+                {tab === "unread"
+                  ? "You have no unread notifications"
+                  : "When you receive notifications, they'll show up here"}
               </p>
             </div>
           ) : (
             <div>
-              {notifications.map(function(notification, idx) {
+              {notifications.map(function (notification, idx) {
                 var TypeIcon = getTypeIcon(notification.type);
                 var typeColor = getTypeColor(notification.type);
                 var isUnread = !notification.isRead;
-                var link = resolveNotificationLink(notification, userRole, salonId);
+                var link = resolveNotificationLink(
+                  notification,
+                  userRole,
+                  salonId,
+                );
                 var isClickable = !!link;
                 return (
                   <div
                     key={notification.id}
-                    onClick={function() { handleNotificationClick(notification); }}
+                    onClick={function () {
+                      handleNotificationClick(notification);
+                    }}
                     className={cn(
                       "relative flex items-start gap-3 px-4 py-3.5 transition-all duration-150 group",
                       isUnread && "bg-primary/3",
                       isClickable
                         ? "cursor-pointer hover:bg-muted/50 active:bg-muted/70"
                         : "cursor-default hover:bg-muted/40",
-                      idx !== notifications.length - 1 && "border-b border-border/40"
+                      idx !== notifications.length - 1 &&
+                        "border-b border-border/40",
                     )}
                   >
                     {/* Unread indicator dot */}
@@ -276,20 +338,26 @@ export function NotificationPopover() {
                     )}
 
                     {/* Icon */}
-                    <div className={cn(
-                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                      isUnread ? typeColor : "bg-muted text-muted-foreground"
-                    )}>
+                    <div
+                      className={cn(
+                        "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        isUnread ? typeColor : "bg-muted text-muted-foreground",
+                      )}
+                    >
                       <TypeIcon className="h-4 w-4" />
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className={cn(
-                          "text-sm leading-snug",
-                          isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/80"
-                        )}>
+                        <p
+                          className={cn(
+                            "text-sm leading-snug",
+                            isUnread
+                              ? "font-semibold text-foreground"
+                              : "font-normal text-foreground/80",
+                          )}
+                        >
                           {notification.title}
                         </p>
                         {isClickable && (
@@ -314,7 +382,9 @@ export function NotificationPopover() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-lg"
-                                onClick={function(e) { handleMarkOneRead(notification.id, e); }}
+                                onClick={function (e) {
+                                  handleMarkOneRead(notification.id, e);
+                                }}
                               >
                                 <Check className="h-3.5 w-3.5" />
                               </Button>
@@ -332,7 +402,9 @@ export function NotificationPopover() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={function(e) { handleDelete(notification.id, e); }}
+                              onClick={function (e) {
+                                handleDelete(notification.id, e);
+                              }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

@@ -5,7 +5,8 @@ import { success, error, forbidden } from "@/lib/response";
 export async function POST(request) {
   try {
     const session = await requireAuth();
-    if (!session) return forbidden("You must be logged in to accept invitations");
+    if (!session)
+      return forbidden("You must be logged in to accept invitations");
 
     const body = await request.json();
     const token = body.token;
@@ -17,7 +18,7 @@ export async function POST(request) {
       `SELECT i.* FROM staff_invitations i 
        JOIN salons s ON i.salon_id = s.id 
        WHERE i.token = ? AND i.status = 'pending' AND s.deleted_at IS NULL`,
-      [token]
+      [token],
     );
 
     if (!invite) {
@@ -31,42 +32,66 @@ export async function POST(request) {
     // Double check email matching user's currently authenticated session
     // Because maybe the user logged into a different account but the page let them click (client side bypassed)
     // Actually, I need to fetch the session user's email to make sure they match!
-    const user = await getOne("SELECT email, first_name, last_name FROM users WHERE id = ?", [session.userId]);
-    
+    const user = await getOne(
+      "SELECT email, first_name, last_name FROM users WHERE id = ?",
+      [session.userId],
+    );
+
     if (!user || user.email !== invite.email) {
-      return error(`Account mismatch. Invitation is for ${invite.email}, you are logged in as ${user?.email}`, 403);
+      return error(
+        `Account mismatch. Invitation is for ${invite.email}, you are logged in as ${user?.email}`,
+        403,
+      );
     }
 
     // 1. Transactionally check if user is already a staff member in that salon
     const existing = await getOne(
       "SELECT id FROM staff WHERE user_id = ? AND salon_id = ?",
-      [session.userId, invite.salon_id]
+      [session.userId, invite.salon_id],
     );
 
     if (existing) {
       // User is already staff. Just mark invite as accepted
-      await query("UPDATE staff_invitations SET status = 'accepted' WHERE id = ?", [invite.id]);
-      return success({ message: "You are already a staff member at this salon", salonId: invite.salon_id });
+      await query(
+        "UPDATE staff_invitations SET status = 'accepted' WHERE id = ?",
+        [invite.id],
+      );
+      return success({
+        message: "You are already a staff member at this salon",
+        salonId: invite.salon_id,
+      });
     }
 
     // 2. Add user to `staff` table
-    await query(`
+    await query(
+      `
       INSERT INTO staff (salon_id, user_id, first_name, last_name, role, is_active)
       VALUES (?, ?, ?, ?, ?, 1)
-    `, [
-      invite.salon_id, 
-      session.userId, 
-      user.first_name || '', 
-      user.last_name || '', 
-      invite.role
-    ]);
+    `,
+      [
+        invite.salon_id,
+        session.userId,
+        user.first_name || "",
+        user.last_name || "",
+        invite.role,
+      ],
+    );
+
+    // Update global user role to staff if they are currently just a client
+    await query(
+      "UPDATE users SET role = 'staff' WHERE id = ? AND role = 'client'",
+      [session.userId],
+    );
 
     // 3. Mark invite as accepted
-    await query("UPDATE staff_invitations SET status = 'accepted' WHERE id = ?", [invite.id]);
+    await query(
+      "UPDATE staff_invitations SET status = 'accepted' WHERE id = ?",
+      [invite.id],
+    );
 
-    return success({ 
+    return success({
       message: "Invitation accepted",
-      salonId: invite.salon_id
+      salonId: invite.salon_id,
     });
   } catch (err) {
     if (err.message === "Unauthorized") return forbidden("Not authenticated");
