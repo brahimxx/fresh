@@ -71,14 +71,30 @@ export async function POST(request) {
     const {
       salon_id,
       category_id,
+      categoryId,
       name,
       description,
       duration,
+      duration_minutes,
       price,
       buffer_time,
+      bufferTime,
+      buffer_before,
+      buffer_after,
       display_order,
+      displayOrder,
       staff_ids,
+      staffIds,
     } = body;
+    
+    const finalCategory = category_id !== undefined ? category_id : categoryId;
+    const finalDuration = duration !== undefined ? duration : duration_minutes;
+    let finalBuffer = buffer_time !== undefined ? buffer_time : bufferTime;
+    if (finalBuffer === undefined && (buffer_before !== undefined || buffer_after !== undefined)) {
+       finalBuffer = (Number(buffer_before) || 0) + (Number(buffer_after) || 0);
+    }
+    const finalDisplay = display_order !== undefined ? display_order : displayOrder;
+    const finalStaff = staff_ids || staffIds;
 
     if (!salon_id) {
       return error("salon_id is required", 400);
@@ -112,13 +128,13 @@ export async function POST(request) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         salon_id,
-        category_id || null,
+        finalCategory || null,
         name,
         description || null,
-        duration || 60,
+        finalDuration || 60,
         price || 0,
-        buffer_time || 0,
-        display_order || 0,
+        finalBuffer || 0,
+        finalDisplay || 0,
       ],
     );
 
@@ -131,19 +147,19 @@ export async function POST(request) {
     );
 
     // Assign staff members if provided
-    if (Array.isArray(staff_ids) && staff_ids.length > 0) {
+    if (Array.isArray(finalStaff) && finalStaff.length > 0) {
       // Verify every staff member belongs to the same salon
       const validStaff = await query(
-        `SELECT id FROM staff WHERE salon_id = ? AND id IN (${staff_ids.map(() => "?").join(",")}) AND is_active = 1`,
-        [salon_id, ...staff_ids],
+        `SELECT id FROM staff WHERE salon_id = ? AND id IN (${finalStaff.map(() => "?").join(",")}) AND is_active = 1`,
+        [salon_id, ...finalStaff],
       );
-      if (validStaff.length !== staff_ids.length) {
+      if (validStaff.length !== finalStaff.length) {
         return error(
           "One or more staff members do not belong to this salon",
           400,
         );
       }
-      const values = staff_ids.map((sid) => [result.insertId, sid]);
+      const values = finalStaff.map((sid) => [result.insertId, sid]);
       await query(
         "INSERT IGNORE INTO service_staff (service_id, staff_id) VALUES ?",
         [values],

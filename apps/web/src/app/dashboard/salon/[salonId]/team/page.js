@@ -122,12 +122,9 @@ export default function TeamPage({ params }) {
 
   const handleDeleteConfirm = () => {
     if (deleteStaff) {
-      deleteStaffMutation.mutate(
-        { salonId, staffId: deleteStaff.id },
-        {
-          onSuccess: () => setDeleteStaff(null),
-        },
-      );
+      deleteStaffMutation.mutate(encodeId(deleteStaff.id), {
+        onSuccess: () => setDeleteStaff(null),
+      });
     }
   };
 
@@ -141,7 +138,7 @@ export default function TeamPage({ params }) {
     return (
       <Card
         key={member.id}
-        className="group overflow-hidden border-border hover:border-primary/40 hover:shadow-md transition-all bg-background relative cursor-pointer"
+        className="group overflow-hidden border-border hover:border-primary/40 hover:shadow-md transition-all bg-background relative cursor-pointer pt-0"
         onClick={() =>
           router.push(
             `/dashboard/salon/${encodeId(salonId)}/team/${encodeId(member.id)}`,

@@ -111,17 +111,29 @@ export async function POST(request, { params }) {
 
     // Check if already staff at this salon
     const existingStaff = await getOne(
-      "SELECT id FROM staff WHERE salon_id = ? AND user_id = ?",
+      "SELECT id, is_active FROM staff WHERE salon_id = ? AND user_id = ?",
       [id, userId],
     );
+    
+    let newStaffId;
     if (existingStaff) {
-      return error("User is already staff at this salon", 409);
+      if (existingStaff.is_active === 1) {
+        return error("User is already staff at this salon", 409);
+      }
+      
+      // Reactivate existing staff
+      await query(
+        "UPDATE staff SET is_active = 1, role = ? WHERE id = ?",
+        [role, existingStaff.id]
+      );
+      newStaffId = existingStaff.id;
+    } else {
+      const result = await query(
+        "INSERT INTO staff (salon_id, user_id, role, is_active) VALUES (?, ?, ?, 1)",
+        [id, userId, role],
+      );
+      newStaffId = result.insertId;
     }
-
-    const result = await query(
-      "INSERT INTO staff (salon_id, user_id, role, is_active) VALUES (?, ?, ?, 1)",
-      [id, userId, role],
-    );
 
     // Update global role to staff if they are just a client
     await query(
@@ -130,7 +142,7 @@ export async function POST(request, { params }) {
     );
 
     return created({
-      id: result.insertId,
+      id: newStaffId,
       userId,
       firstName: user.first_name,
       lastName: user.last_name,

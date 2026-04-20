@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api-client";
 import Link from "next/link";
+import { useAuth } from "@/providers/auth-provider";
 
 export default function AcceptInviteForm({
   token,
@@ -18,12 +19,14 @@ export default function AcceptInviteForm({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { checkAuth } = useAuth();
 
   const handleAccept = async () => {
     setIsLoading(true);
     try {
       const res = await api.post("/invitations/accept", { token });
       toast.success("Invitation accepted successfully!");
+      if (checkAuth) await checkAuth();
       if (res.salonId) {
         router.push(`/dashboard/salon/${encodeId(res.salonId)}`);
       } else {

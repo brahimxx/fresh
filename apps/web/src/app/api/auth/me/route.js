@@ -2,6 +2,8 @@ import { query, getOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { success, error, unauthorized } from "@/lib/response";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/auth/me - Get current user (expanded for profile page)
 export async function GET() {
   try {
@@ -29,6 +31,20 @@ export async function GET() {
         [session.userId],
       );
       if (activeSalons?.count === 0) {
+        await query("UPDATE users SET role = 'client' WHERE id = ?", [
+          session.userId,
+        ]);
+        user.role = "client";
+      }
+    }
+
+    // Self-healing: if a user has 'staff' role but 0 active staff records, downgrade them to 'client'
+    if (user.role === "staff") {
+      const activeStaffDb = await getOne(
+        "SELECT COUNT(*) as count FROM staff WHERE user_id = ? AND is_active = 1",
+        [session.userId]
+      );
+      if (activeStaffDb?.count === 0) {
         await query("UPDATE users SET role = 'client' WHERE id = ?", [
           session.userId,
         ]);

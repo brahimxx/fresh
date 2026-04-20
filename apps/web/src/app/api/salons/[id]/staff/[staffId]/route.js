@@ -1,4 +1,5 @@
 import { query, getOne } from '@/lib/db';
+import { decodeId } from '@/lib/id';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
 
@@ -17,10 +18,12 @@ async function checkSalonAccess(salonId, userId, role) {
 // GET /api/salons/[id]/staff/[staffId] - Get specific staff member
 export async function GET(request, { params }) {
   try {
-    const { id, staffId } = await params;
+    const rawParams = await params;
+    const id = decodeId(rawParams.id);
+    const staffId = decodeId(rawParams.staffId);
 
     const staff = await getOne(
-      `SELECT st.*, u.first_name, u.last_name, u.email, u.phone
+      `SELECT st.*, st.first_name as st_first_name, st.last_name as st_last_name, u.first_name, u.last_name, u.email, u.phone
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.id = ? AND st.salon_id = ?`,
@@ -55,8 +58,8 @@ export async function GET(request, { params }) {
     return success({
       id: staff.id,
       userId: staff.user_id,
-      firstName: staff.first_name,
-      lastName: staff.last_name,
+      firstName: staff.st_first_name || staff.first_name,
+      lastName: staff.st_last_name || staff.last_name,
       email: staff.email,
       phone: staff.phone,
       role: staff.role,
@@ -90,7 +93,9 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id, staffId } = await params;
+    const rawParams = await params;
+    const id = decodeId(rawParams.id);
+    const staffId = decodeId(rawParams.staffId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
@@ -108,7 +113,7 @@ export async function PUT(request, { params }) {
     ]);
 
     const staff = await getOne(
-      `SELECT st.*, u.first_name, u.last_name
+      `SELECT st.*, st.first_name as st_first_name, st.last_name as st_last_name, u.first_name, u.last_name
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.id = ?`,
@@ -118,8 +123,8 @@ export async function PUT(request, { params }) {
     return success({
       id: staff.id,
       userId: staff.user_id,
-      firstName: staff.first_name,
-      lastName: staff.last_name,
+      firstName: staff.st_first_name || staff.first_name,
+      lastName: staff.st_last_name || staff.last_name,
       role: staff.role,
       isActive: staff.is_active,
     });
@@ -134,7 +139,9 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id, staffId } = await params;
+    const rawParams = await params;
+    const id = decodeId(rawParams.id);
+    const staffId = decodeId(rawParams.staffId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {

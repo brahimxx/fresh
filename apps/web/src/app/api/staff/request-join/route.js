@@ -36,7 +36,11 @@ export async function POST(request) {
     );
 
     if (existingStaff) {
-      return error("You are already associated with this business.", 400);
+      if (existingStaff.is_active === 1) {
+        return error("You are already associated with this business.", 400);
+      } else {
+        return error("Your previous association with this business was deactivated. Please contact the business owner directly to restore your access.", 403);
+      }
     }
 
     // Check if invitation already exists

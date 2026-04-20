@@ -22,7 +22,7 @@ export async function GET(request, { params }) {
   const id = decodeId(rawId);
 
     const categories = await query(
-      'SELECT id, name FROM service_categories WHERE salon_id = ? ORDER BY name',
+      'SELECT id, name, display_order FROM service_categories WHERE salon_id = ? ORDER BY display_order ASC, name ASC',
       [id]
     );
 
@@ -30,6 +30,7 @@ export async function GET(request, { params }) {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
+        displayOrder: c.display_order,
       })),
     });
   } catch (err) {

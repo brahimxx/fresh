@@ -47,19 +47,31 @@ export async function POST(request, { params }) {
         404,
       );
 
-    // Create staff member
-    await query(
-      `INSERT INTO staff (salon_id, user_id, first_name, last_name, avatar_url, role, is_active, display_order)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 0)`,
-      [
-        salonId,
-        user.id,
-        user.first_name,
-        user.last_name,
-        user.avatar_url,
-        invite.role,
-      ],
+    // Create staff member or reactivate existing one
+    const existingStaff = await getOne(
+      "SELECT id FROM staff WHERE salon_id = ? AND user_id = ?",
+      [salonId, user.id]
     );
+
+    if (existingStaff) {
+      await query(
+        "UPDATE staff SET is_active = 1, role = ? WHERE id = ?",
+        [invite.role, existingStaff.id]
+      );
+    } else {
+      await query(
+        `INSERT INTO staff (salon_id, user_id, first_name, last_name, avatar_url, role, is_active, display_order)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 0)`,
+        [
+          salonId,
+          user.id,
+          user.first_name,
+          user.last_name,
+          user.avatar_url,
+          invite.role,
+        ],
+      );
+    }
 
     // Update the user's global role to staff if they are just a client
     await query(

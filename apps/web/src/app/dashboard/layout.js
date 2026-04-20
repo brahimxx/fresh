@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { decodeId, encodeId } from "@/lib/id";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -12,8 +12,25 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api-client";
 
 export default function DashboardLayout({ children }) {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated, checkAuth } = useAuth();
   const router = useRouter();
+  const [verifying, setVerifying] = useState(false);
+  const [hasVerified, setHasVerified] = useState(false);
+
+  // Re-verify client just in case their request was accepted in the background
+  useEffect(() => {
+    if (!loading && isAuthenticated && user?.role === "client" && !verifying && !hasVerified) {
+      let mounted = true;
+      setVerifying(true);
+      checkAuth().finally(() => {
+        if (mounted) {
+          setVerifying(false);
+          setHasVerified(true);
+        }
+      });
+      return () => { mounted = false; };
+    }
+  }, [user, loading, isAuthenticated, verifying, hasVerified, checkAuth]);
   const params = useParams();
 
   const rawSalonId = params?.salonId;
@@ -29,22 +46,27 @@ export default function DashboardLayout({ children }) {
   });
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (loading || verifying) return;
+    if (!isAuthenticated) {
       router.push("/login");
-    } else if (!loading && isAuthenticated && user?.role === "client") {
+    } else if (isAuthenticated && user?.role === "client") {
       // Clients should not be in the management dashboard
       router.push("/");
     } else if (
-      !loading &&
       !salonsLoading &&
       isAuthenticated &&
       !isAdmin &&
       salons?.length === 0
     ) {
-      // If they have 0 salons (e.g. newly registered owner), redirect them to onboarding
-      router.replace("/onboarding");
+      // If they have 0 salons (e.g. newly registered owner), redirect them to onboarding.
+      // But if they are 'staff' with 0 salons, they were likely removed. Send home.
+      if (user?.role === "staff") {
+        checkAuth(); // Kick off a re-verification to downgrade them to client
+        router.replace("/");
+      } else {
+        router.replace("/onboarding");
+      }
     } else if (
-      !loading &&
       !salonsLoading &&
       isAuthenticated &&
       !isAdmin &&
@@ -66,10 +88,11 @@ export default function DashboardLayout({ children }) {
     salonsLoading,
     isAdmin,
     decodedSalonId,
+    verifying,
   ]);
 
   if (
-    loading ||
+    loading || verifying ||
     (isAuthenticated && !isAdmin && user?.role !== "client" && salonsLoading)
   ) {
     return (

@@ -24,7 +24,7 @@ export async function GET(request, { params }) {
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
     // Get categories
-    const categories = await query('SELECT id, name FROM service_categories WHERE salon_id = ? ORDER BY name', [id]);
+    const categories = await query('SELECT id, name, display_order FROM service_categories WHERE salon_id = ? ORDER BY display_order ASC, name ASC', [id]);
 
     // Get services for each category
     let serviceSql = `
@@ -45,13 +45,18 @@ export async function GET(request, { params }) {
 
     const mapService = (s) => ({
       id: s.id,
+      categoryId: s.category_id,
       name: s.name,
+      description: s.description || "",
       duration: s.duration_minutes,
       durationMinutes: s.duration_minutes,
       price: s.price,
       bufferTime: s.buffer_time_minutes || 0,
       bufferTimeMinutes: s.buffer_time_minutes || 0,
       isActive: s.is_active,
+      isPopular: s.is_popular,
+      offeringType: s.offering_type || "hybrid",
+      displayOrder: s.display_order || 0,
       staffIds: s.staff_ids ? s.staff_ids.split(',').map(Number) : [],
     });
 
@@ -93,15 +98,15 @@ export async function POST(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, categoryId, duration, price, isActive = true, staffIds = [] } = body;
+    const { name, categoryId, duration, price, isActive = true, staffIds = [], description = null, bufferTime = 0, isPopular = false, offeringType = 'hybrid' } = body;
 
     if (!name || !duration || price === undefined) {
       return error('Name, duration, and price are required');
     }
 
     const result = await query(
-      'INSERT INTO services (salon_id, category_id, name, duration_minutes, price, is_active) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, categoryId || null, name, duration, price, isActive]
+      'INSERT INTO services (salon_id, category_id, name, duration_minutes, price, is_active, description, buffer_time_minutes, is_popular, offering_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, categoryId || null, name, duration, price, isActive, description, bufferTime, isPopular, offeringType]
     );
 
     // Assign staff to this service

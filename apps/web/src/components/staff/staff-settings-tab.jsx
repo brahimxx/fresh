@@ -6,7 +6,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import api from "@/lib/api-client";
+
 export function StaffSettingsTab({ staff, staffId, salonId }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleUpdate = async (field, value) => {
+    try {
+      setIsUpdating(true);
+      await api.put(`/staff/${staffId}`, { [field]: value });
+      toast.success("Settings updated successfully");
+      queryClient.invalidateQueries(["staff", staffId]);
+      queryClient.invalidateQueries(["salon-staff", salonId]);
+    } catch (err) {
+      toast.error(err.message || "Failed to update settings");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -22,7 +44,11 @@ export function StaffSettingsTab({ staff, staffId, salonId }) {
                 Whether this staff member is currently active
               </p>
             </div>
-            <Switch checked={staff.isActive || staff.is_active} />
+            <Switch 
+              checked={staff.isActive || staff.is_active} 
+              disabled={isUpdating}
+              onCheckedChange={(checked) => handleUpdate('isActive', checked)}
+            />
           </div>
 
           <div className="flex items-center justify-between">
@@ -32,7 +58,11 @@ export function StaffSettingsTab({ staff, staffId, salonId }) {
                 Show this staff member to clients when booking
               </p>
             </div>
-            <Switch checked={staff.isVisible || staff.is_visible} />
+            <Switch 
+              checked={staff.isVisible || staff.is_visible} 
+              disabled={isUpdating}
+              onCheckedChange={(checked) => handleUpdate('isVisible', checked)}
+            />
           </div>
 
           <div className="flex items-center justify-between">

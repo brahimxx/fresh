@@ -75,7 +75,7 @@ export async function POST(request, context) {
     }
     // ========================================
 
-    // Check if staff is already joined to this salon
+    // Check if staff is already literally joined to this salon
     const existingStaff = await getOne(
       `
       SELECT s.* FROM staff s 
@@ -85,8 +85,8 @@ export async function POST(request, context) {
       [salonId, email],
     );
 
-    if (existingStaff) {
-      return error("This user is already a staff member at this salon.", 409);
+    if (existingStaff && existingStaff.is_active === 1) {
+      return error("This user is already an active staff member at this salon.", 409);
     }
 
     // Check if an invitation already exists and is pending

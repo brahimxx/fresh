@@ -46,36 +46,44 @@ export async function POST(request) {
 
     // 1. Transactionally check if user is already a staff member in that salon
     const existing = await getOne(
-      "SELECT id FROM staff WHERE user_id = ? AND salon_id = ?",
+      "SELECT id, is_active FROM staff WHERE user_id = ? AND salon_id = ?",
       [session.userId, invite.salon_id],
     );
 
     if (existing) {
-      // User is already staff. Just mark invite as accepted
+      if (existing.is_active === 1) {
+        // User is already active staff. Just mark invite as accepted
+        await query(
+          "UPDATE staff_invitations SET status = 'accepted' WHERE id = ?",
+          [invite.id],
+        );
+        return success({
+          message: "You are already a staff member at this salon",
+          salonId: invite.salon_id,
+        });
+      } else {
+        // User was removed previously. Reactivate them instead of inserting Duplicate Key
+        await query(
+          "UPDATE staff SET is_active = 1, role = ? WHERE id = ?",
+          [invite.role, existing.id]
+        );
+      }
+    } else {
+      // 2. Add user to `staff` table
       await query(
-        "UPDATE staff_invitations SET status = 'accepted' WHERE id = ?",
-        [invite.id],
+        `
+        INSERT INTO staff (salon_id, user_id, first_name, last_name, role, is_active)
+        VALUES (?, ?, ?, ?, ?, 1)
+      `,
+        [
+          invite.salon_id,
+          session.userId,
+          user.first_name || "",
+          user.last_name || "",
+          invite.role,
+        ],
       );
-      return success({
-        message: "You are already a staff member at this salon",
-        salonId: invite.salon_id,
-      });
     }
-
-    // 2. Add user to `staff` table
-    await query(
-      `
-      INSERT INTO staff (salon_id, user_id, first_name, last_name, role, is_active)
-      VALUES (?, ?, ?, ?, ?, 1)
-    `,
-      [
-        invite.salon_id,
-        session.userId,
-        user.first_name || "",
-        user.last_name || "",
-        invite.role,
-      ],
-    );
 
     // Update global user role to staff if they are currently just a client
     await query(

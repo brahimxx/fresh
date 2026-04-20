@@ -50,8 +50,8 @@ import {
   useDeleteCategory,
 } from "@/hooks/use-services";
 import { useDiscounts } from "@/hooks/use-discounts";
-import { ServiceFormDialogDialog } from "@/components/services/service-form";
-import { CategoryFormDialogDialog } from "@/components/services/category-form";
+import { ServiceFormDialog } from "@/components/services/service-form";
+import { CategoryFormDialog } from "@/components/services/category-form";
 
 export default function ServicesPage({ params }) {
   const resolvedParams = use(params);
@@ -77,11 +77,8 @@ export default function ServicesPage({ params }) {
   const deleteService = useDeleteService();
   const deleteCategory = useDeleteCategory();
 
-  const services = useMemo(() => servicesData?.data || [], [servicesData]);
-  const categories = useMemo(
-    () => categoriesData?.data || [],
-    [categoriesData],
-  );
+  const services = useMemo(() => Array.isArray(servicesData) ? servicesData : (servicesData?.data || []), [servicesData]);
+  const categories = useMemo(() => Array.isArray(categoriesData) ? categoriesData : (categoriesData?.data || []), [categoriesData]);
   const discounts = useMemo(() => discountsData?.data || [], [discountsData]);
 
   const uncategorizedServices = services.filter((s) => !s.category_id);

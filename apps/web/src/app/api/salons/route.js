@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { query, getOne } from "@/lib/db";
 import { getSession, requireAuth } from "@/lib/auth";
 import {
@@ -31,7 +32,7 @@ export async function GET(request) {
       const userSql = `
           SELECT s.* 
           FROM salons s
-          LEFT JOIN staff st ON st.salon_id = s.id AND st.user_id = ?
+          LEFT JOIN staff st ON st.salon_id = s.id AND st.user_id = ? AND st.is_active = 1
           WHERE (s.owner_id = ? OR st.user_id = ?) 
           AND s.deleted_at IS NULL
           GROUP BY s.id

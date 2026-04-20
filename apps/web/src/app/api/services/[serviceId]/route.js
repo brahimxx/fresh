@@ -60,9 +60,13 @@ export async function GET(request, { params }) {
       categoryId: service.category_id,
       categoryName: service.category_name,
       name: service.name,
+      description: service.description,
       duration: service.duration_minutes,
+      bufferTime: service.buffer_time_minutes,
       price: service.price,
       isActive: service.is_active,
+      isPopular: service.is_popular,
+      offeringType: service.offering_type,
       staff: staff.map((s) => ({
         id: s.id,
         firstName: s.first_name,
@@ -91,7 +95,18 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, categoryId, duration, price, isActive, staffIds } = body;
+    const { name, categoryId, category_id, duration, duration_minutes, price, isActive, is_active, staffIds, staff_ids, description, bufferTime, buffer_time, buffer_before, buffer_after, isPopular, offeringType, displayOrder } = body;
+
+    // Normalize payload
+    const finalCategory = categoryId !== undefined ? categoryId : category_id;
+    const finalDuration = duration !== undefined ? duration : duration_minutes;
+    const finalActive = isActive !== undefined ? isActive : is_active;
+    const finalStaff = staffIds || staff_ids;
+    // Calculate buffer
+    let finalBuffer = bufferTime !== undefined ? bufferTime : buffer_time;
+    if (finalBuffer === undefined && (buffer_before !== undefined || buffer_after !== undefined)) {
+       finalBuffer = (Number(buffer_before) || 0) + (Number(buffer_after) || 0);
+    }
 
     if (duration !== undefined && duration !== null && Number(duration) <= 0) {
       return error("Duration must be greater than 0", 400);
@@ -101,19 +116,29 @@ export async function PUT(request, { params }) {
       return error("Price cannot be negative", 400);
     }
 
-    await query(
-      `UPDATE services SET
-        name = COALESCE(?, name),
-        category_id = COALESCE(?, category_id),
-        duration_minutes = COALESCE(?, duration_minutes),
-        price = COALESCE(?, price),
-        is_active = COALESCE(?, is_active)
-       WHERE id = ?`,
-      [name, categoryId, duration, price, isActive, serviceId],
-    );
+    // Prepare dynamic update array
+    const updates = [];
+    const values = [];
+
+    if (name !== undefined) { updates.push('name = ?'); values.push(name); }
+    if (finalCategory !== undefined) { updates.push('category_id = ?'); values.push(finalCategory || null); }
+    if (finalDuration !== undefined) { updates.push('duration_minutes = ?'); values.push(finalDuration); }
+    if (price !== undefined) { updates.push('price = ?'); values.push(price); }
+    if (finalActive !== undefined) { updates.push('is_active = ?'); values.push(finalActive); }
+    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
+    if (finalBuffer !== undefined) { updates.push('buffer_time_minutes = ?'); values.push(finalBuffer); }
+    if (isPopular !== undefined) { updates.push('is_popular = ?'); values.push(isPopular); }
+    if (offeringType !== undefined) { updates.push('offering_type = ?'); values.push(offeringType); }
+    if (displayOrder !== undefined) { updates.push('display_order = ?'); values.push(displayOrder); }
+
+    if (updates.length > 0) {
+        values.push(serviceId);
+        await query(`UPDATE services SET ${updates.join(', ')} WHERE id = ?`, values);
+    }
 
     // Update staff assignments if provided
-    if (staffIds !== undefined) {
+    if (finalStaff !== undefined) {
+      const staffIds = finalStaff;
       // Resolve the salon this service belongs to
       const svc = await getOne("SELECT salon_id FROM services WHERE id = ?", [
         serviceId,
