@@ -19,7 +19,7 @@ async function checkSalonAccess(salonId, userId, role) {
   if (salon && salon.owner_id === userId) return true;
   // Check if user is a manager at this salon
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [salonId, userId],
   );
   return !!staff;
@@ -41,7 +41,7 @@ export async function GET(request, { params }) {
 
     let queryStr = `SELECT st.id, st.role, st.is_active, st.user_id, st.color,
               st.first_name as staff_first_name, st.last_name as staff_last_name,
-              u.first_name, u.last_name, u.email, u.phone
+              u.first_name, u.last_name, u.email, u.phone, COALESCE(NULLIF(st.avatar_url, ''), u.avatar_url) as avatar_url
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? ${includeInactive ? "" : "AND st.is_active = 1"}
@@ -67,6 +67,7 @@ export async function GET(request, { params }) {
           role: s.role,
           isActive: s.is_active,
           color: s.color,
+          avatarUrl: s.avatar_url,
           service_ids: serviceIds.map((sid) => sid.service_id),
         };
       }),

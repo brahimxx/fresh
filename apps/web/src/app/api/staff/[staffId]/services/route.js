@@ -19,7 +19,7 @@ async function checkStaffAccess(staffId, userId, role) {
 
   // Manager has access
   const isManager = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [staff.salon_id, userId]
   );
   if (isManager) return staff;

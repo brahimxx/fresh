@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSalon } from '@/providers/salon-provider';
 import api from '@/lib/api-client';
+import { canSeeFinancials, canSeeAllBookings, canAccessPage } from '@/lib/permissions';
 
 function StatCard({ title, value, description, icon: Icon, trend }) {
   return (
@@ -92,23 +93,31 @@ function BookingItem({ booking, salonId }) {
 }
 
 export default function SalonDashboardPage() {
-  const { salon, salonId, isLoading: salonLoading } = useSalon();
+  const { salon, salonId, isLoading: salonLoading, staffRole, staffId, customPermissions } = useSalon();
+
+  const showFinancials = canSeeFinancials(staffRole, customPermissions);
+  const showAllBookings = canSeeAllBookings(staffRole, customPermissions);
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['salon-stats', salonId],
     queryFn: function () { return api.get('/reports/overview', { salonId: salonId }); },
-    enabled: !!salonId,
+    enabled: !!salonId && showFinancials,
     select: function (response) { return response.data || {}; },
   });
 
   const { data: upcomingBookings, isLoading: bookingsLoading } = useQuery({
-    queryKey: ['upcoming-bookings', salonId],
+    queryKey: ['upcoming-bookings', salonId, showAllBookings ? 'all' : staffId],
     queryFn: function () {
-      return api.get('/bookings', {
+      var params = {
         salonId: salonId,
         status: 'confirmed,pending',
         limit: 5
-      });
+      };
+      // Staff members only see their own bookings
+      if (!showAllBookings && staffId) {
+        params.staffId = staffId;
+      }
+      return api.get('/bookings', params);
     },
     enabled: !!salonId,
     select: function (response) { return response.data || []; },
@@ -123,7 +132,7 @@ export default function SalonDashboardPage() {
 
   const today = format(new Date(), 'EEEE, MMMM d, yyyy');
 
-  if (salonLoading || statsLoading) {
+  if (salonLoading || (statsLoading && showFinancials)) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
@@ -147,6 +156,13 @@ export default function SalonDashboardPage() {
   var reportsUrl = '/dashboard/salon/' + salonId + '/reports';
   var servicesUrl = '/dashboard/salon/' + salonId + '/services';
 
+  // Role-specific greeting
+  var greetingText = staffRole === 'owner'
+    ? 'Manage your ' + (salon?.salonCategories?.find(c => c.isPrimary)?.name || salon?.category || 'Salon')
+    : staffRole === 'manager'
+      ? 'Manage ' + (salon?.name || 'Salon')
+      : 'Welcome back';
+
   return (
     <div className="space-y-6">
       {banners && banners.length > 0 && (
@@ -166,7 +182,7 @@ export default function SalonDashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Manage your {salon?.salonCategories?.find(c => c.isPrimary)?.name || salon?.category || 'Salon'}
+            {greetingText}
           </h1>
           <p className="text-muted-foreground">{today}</p>
         </div>
@@ -180,40 +196,62 @@ export default function SalonDashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Today's Appointments"
-          value={dashboardStats.todayBookings}
-          icon={Calendar}
-          description="scheduled for today"
-        />
-        <StatCard
-          title="Today's Revenue"
-          value={'EUR ' + Number(dashboardStats.todayRevenue).toFixed(2)}
-          icon={CreditCard}
-          trend={12}
-          description="from yesterday"
-        />
-        <StatCard
-          title="New Clients"
-          value={dashboardStats.newClients}
-          icon={Users}
-          description="this week"
-        />
-        <StatCard
-          title="Pending Bookings"
-          value={dashboardStats.pendingBookings}
-          icon={Clock}
-          description="awaiting confirmation"
-        />
-      </div>
+      {/* Stat cards — full for owner/manager, limited for staff/receptionist */}
+      {showFinancials ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Today's Appointments"
+            value={dashboardStats.todayBookings}
+            icon={Calendar}
+            description="scheduled for today"
+          />
+          <StatCard
+            title="Today's Revenue"
+            value={'EUR ' + Number(dashboardStats.todayRevenue).toFixed(2)}
+            icon={CreditCard}
+            trend={12}
+            description="from yesterday"
+          />
+          <StatCard
+            title="New Clients"
+            value={dashboardStats.newClients}
+            icon={Users}
+            description="this week"
+          />
+          <StatCard
+            title="Pending Bookings"
+            value={dashboardStats.pendingBookings}
+            icon={Clock}
+            description="awaiting confirmation"
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          <StatCard
+            title="My Upcoming Appointments"
+            value={upcomingBookings?.length || 0}
+            icon={Calendar}
+            description="scheduled ahead"
+          />
+          <StatCard
+            title="Today"
+            value={format(new Date(), 'EEEE')}
+            icon={Clock}
+            description={format(new Date(), 'MMMM d, yyyy')}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Upcoming Appointments</CardTitle>
-              <CardDescription>Your next scheduled bookings</CardDescription>
+              <CardTitle>
+                {showAllBookings ? 'Upcoming Appointments' : 'My Upcoming Appointments'}
+              </CardTitle>
+              <CardDescription>
+                {showAllBookings ? 'Your next scheduled bookings' : 'Your personal schedule'}
+              </CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link href={bookingsUrl}>
@@ -249,24 +287,30 @@ export default function SalonDashboardPage() {
                 Open Calendar
               </Link>
             </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href={clientsUrl}>
-                <Users className="mr-2 h-4 w-4" />
-                View Clients
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href={reportsUrl}>
-                <TrendingUp className="mr-2 h-4 w-4" />
-                View Reports
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href={servicesUrl}>
-                <Plus className="mr-2 h-4 w-4" />
-                Manage Services
-              </Link>
-            </Button>
+            {canAccessPage(staffRole, 'clients', customPermissions) && (
+              <Button variant="outline" className="justify-start" asChild>
+                <Link href={clientsUrl}>
+                  <Users className="mr-2 h-4 w-4" />
+                  View Clients
+                </Link>
+              </Button>
+            )}
+            {canAccessPage(staffRole, 'reports', customPermissions) && (
+              <Button variant="outline" className="justify-start" asChild>
+                <Link href={reportsUrl}>
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  View Reports
+                </Link>
+              </Button>
+            )}
+            {canAccessPage(staffRole, 'services', customPermissions) && (
+              <Button variant="outline" className="justify-start" asChild>
+                <Link href={servicesUrl}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Manage Services
+                </Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

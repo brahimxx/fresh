@@ -1,6 +1,7 @@
 import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { canSeeAllBookings } from "@/lib/permissions";
 import {
   success,
   error,
@@ -60,9 +61,35 @@ export async function GET(request) {
       sql += " AND s.owner_id = ?";
       params.push(session.userId);
     } else if (session.role === "staff") {
-      // Staff can see bookings assigned to them
-      sql += " AND st.user_id = ?";
-      params.push(session.userId);
+      // "staff" in users.role includes managers and receptionists too.
+      // Check the staff table to see if this user is a manager/receptionist at the requested salon.
+      if (salonId) {
+        const staffRecord = await getOne(
+          "SELECT role, permissions FROM staff WHERE user_id = ? AND salon_id = ? AND is_active = 1",
+          [session.userId, salonId]
+        );
+        
+        let shouldFilterToOwn = true;
+        if (staffRecord) {
+          const parsedPerms = staffRecord.permissions 
+            ? (typeof staffRecord.permissions === 'string' ? JSON.parse(staffRecord.permissions) : staffRecord.permissions) 
+            : null;
+            
+          // If the permissions engine grants "View all bookings" via role or custom override, don't filter.
+          if (canSeeAllBookings(staffRecord.role, parsedPerms)) {
+            shouldFilterToOwn = false;
+          }
+        }
+        
+        if (shouldFilterToOwn) {
+          sql += " AND st.user_id = ?";
+          params.push(session.userId);
+        }
+      } else {
+        // No salon specified — staff can only see their own bookings across all salons
+        sql += " AND st.user_id = ?";
+        params.push(session.userId);
+      }
     }
 
     if (salonId) {

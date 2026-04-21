@@ -15,7 +15,7 @@ async function checkCategoryAccess(categoryId, userId, role) {
   if (!category) return false;
   if (category.owner_id === userId) return true;
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [category.salon_id, userId]
   );
   return !!staff;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
+import api from '@/lib/api-client';
 import {
   useMyProfile,
   useUpdateProfile,
@@ -33,7 +34,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import {
   User, Mail, Phone, MapPin, Calendar, Star, Gift, Package,
   ChevronLeft, ChevronRight, Pencil, Save, X, AlertCircle, Home, Briefcase, Heart, Building, Plus, Trash,
-  Shield, Lock, Camera
+  Shield, Lock, Camera, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -107,10 +108,11 @@ function SkeletonCard() {
 // ═══════════════════════════════════════════════════════════════════════════
 // PERSONAL INFO TAB
 // ═══════════════════════════════════════════════════════════════════════════
-function PersonalInfoTab({ profile, isLoading }) {
+function PersonalInfoTab({ profile, isLoading, checkAuth }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const updateProfile = useUpdateProfile();
 
   const startEditing = () => {
@@ -134,6 +136,7 @@ function PersonalInfoTab({ profile, isLoading }) {
     setErrorMsg('');
     try {
       await updateProfile.mutateAsync(formData);
+      checkAuth(); // Instantiate global refresh safely
       setIsEditing(false);
     } catch (err) {
       setErrorMsg(err.message);
@@ -161,8 +164,28 @@ function PersonalInfoTab({ profile, isLoading }) {
     { key: 'country', label: 'Country', icon: MapPin, type: 'text' },
   ];
 
-  const handleAvatarUpload = () => {
-    toast.info("Avatar upload integration coming soon. Ensure S3 or Supabase bucket is configured.");
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      const payload = new FormData();
+      payload.append('file', file);
+      payload.append('type', 'avatars');
+      
+      const response = await api.postFormData('/upload', payload);
+      const newUrl = response.data?.url || response.url;
+      
+      // Silently patch the profile avatar dynamically
+      await updateProfile.mutateAsync({ avatarUrl: newUrl });
+      checkAuth(); // Force context update to instantly propagate new user telemetry globally
+      toast.success("Profile picture updated!");
+    } catch (err) {
+      toast.error(err.message || "Failed to upload image. Please ensure it's under 5MB.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   return (
@@ -178,13 +201,30 @@ function PersonalInfoTab({ profile, isLoading }) {
                   {profile?.firstName?.charAt(0)}{profile?.lastName?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
+              
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                id="profile-avatar-upload"
+                onChange={handleAvatarUpload}
+                disabled={isUploadingAvatar}
+              />
+              
               <button 
-                onClick={handleAvatarUpload}
-                className="absolute inset-0 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer"
+                onClick={() => document.getElementById('profile-avatar-upload').click()}
+                disabled={isUploadingAvatar}
+                className={`absolute inset-0 bg-black/40 text-white rounded-full transition-opacity flex flex-col items-center justify-center cursor-pointer ${isUploadingAvatar ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                 title="Change Photo"
               >
-                <Camera className="h-6 w-6" />
-                <span className="text-[10px] mt-1 font-semibold">Change</span>
+                {isUploadingAvatar ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <>
+                    <Camera className="h-6 w-6" />
+                    <span className="text-[10px] mt-1 font-semibold">Change</span>
+                  </>
+                )}
               </button>
             </div>
             <div className="flex-1 min-w-0 mt-1">
@@ -831,7 +871,7 @@ const SecurityTab = () => {
 // ═══════════════════════════════════════════════════════════════════════════
 export default function ProfilePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, checkAuth } = useAuth();
   const { data: profile, isLoading } = useMyProfile();
 
   // Redirect unauthenticated users
@@ -887,7 +927,7 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="profile">
-          <PersonalInfoTab profile={profile} isLoading={isLoading} />
+          <PersonalInfoTab profile={profile} isLoading={isLoading} checkAuth={checkAuth} />
         </TabsContent>
 
         <TabsContent value="security">

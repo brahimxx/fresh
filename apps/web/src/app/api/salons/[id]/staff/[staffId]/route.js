@@ -2,6 +2,7 @@ import { query, getOne } from '@/lib/db';
 import { decodeId } from '@/lib/id';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
+import { PERMISSION_KEYS } from '@/lib/permissions';
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
@@ -9,7 +10,7 @@ async function checkSalonAccess(salonId, userId, role) {
   const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
   if (salon && salon.owner_id === userId) return true;
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [salonId, userId]
   );
   return !!staff;
@@ -55,6 +56,11 @@ export async function GET(request, { params }) {
       [staffId]
     );
 
+    // Parse permissions JSON
+    const parsedPermissions = staff.permissions
+      ? (typeof staff.permissions === 'string' ? JSON.parse(staff.permissions) : staff.permissions)
+      : null;
+
     return success({
       id: staff.id,
       userId: staff.user_id,
@@ -64,6 +70,7 @@ export async function GET(request, { params }) {
       phone: staff.phone,
       role: staff.role,
       isActive: staff.is_active,
+      permissions: parsedPermissions,
       workingHours: workingHours.map((wh) => ({
         id: wh.id,
         dayOfWeek: wh.day_of_week,
@@ -103,14 +110,56 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { role, isActive } = body;
+    const { role, isActive, permissions } = body;
 
-    await query('UPDATE staff SET role = COALESCE(?, role), is_active = COALESCE(?, is_active) WHERE id = ? AND salon_id = ?', [
-      role,
-      isActive,
-      staffId,
-      id,
-    ]);
+    // If permissions are being set, only the salon owner can do this
+    if (permissions !== undefined) {
+      const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [id]);
+      if (!salon || salon.owner_id !== session.userId) {
+        // Admins can also set permissions
+        if (session.role !== 'admin') {
+          return forbidden('Only the salon owner can edit staff permissions');
+        }
+      }
+
+      // Validate permission keys
+      if (permissions !== null && typeof permissions === 'object') {
+        const validKeys = Object.keys(PERMISSION_KEYS);
+        for (const key of Object.keys(permissions)) {
+          if (!validKeys.includes(key)) {
+            return error(`Invalid permission key: ${key}`, 400);
+          }
+          if (typeof permissions[key] !== 'boolean') {
+            return error(`Permission value must be boolean for key: ${key}`, 400);
+          }
+        }
+      }
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const updateParams = [];
+
+    if (role !== undefined) {
+      updates.push('role = ?');
+      updateParams.push(role);
+    }
+    if (isActive !== undefined) {
+      updates.push('is_active = ?');
+      updateParams.push(isActive);
+    }
+    if (permissions !== undefined) {
+      updates.push('permissions = ?');
+      updateParams.push(permissions === null ? null : JSON.stringify(permissions));
+    }
+
+    if (updates.length > 0) {
+      updateParams.push(staffId, id);
+      await query(
+        `UPDATE staff SET ${updates.join(', ')} WHERE id = ? AND salon_id = ?`,
+        updateParams
+      );
+    }
 
     const staff = await getOne(
       `SELECT st.*, st.first_name as st_first_name, st.last_name as st_last_name, u.first_name, u.last_name
@@ -120,6 +169,10 @@ export async function PUT(request, { params }) {
       [staffId]
     );
 
+    const parsedPerms = staff.permissions
+      ? (typeof staff.permissions === 'string' ? JSON.parse(staff.permissions) : staff.permissions)
+      : null;
+
     return success({
       id: staff.id,
       userId: staff.user_id,
@@ -127,6 +180,7 @@ export async function PUT(request, { params }) {
       lastName: staff.st_last_name || staff.last_name,
       role: staff.role,
       isActive: staff.is_active,
+      permissions: parsedPerms,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();

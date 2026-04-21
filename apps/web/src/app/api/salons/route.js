@@ -281,9 +281,9 @@ export async function POST(request) {
       }
     }
 
-    // Promote user to owner if they are currently a client
+    // Promote user to owner if they are currently a client or staff
     await query(
-      "UPDATE users SET role = 'owner' WHERE id = ? AND role = 'client'",
+      "UPDATE users SET role = 'owner' WHERE id = ? AND role IN ('client', 'staff')",
       [session.userId],
     );
 

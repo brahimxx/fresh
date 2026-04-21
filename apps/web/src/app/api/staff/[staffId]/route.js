@@ -44,7 +44,7 @@ export async function GET(request, { params }) {
 
     // Get user details
     const user = await getOne(
-      `SELECT first_name, last_name, email, phone 
+      `SELECT first_name, last_name, email, phone, avatar_url 
        FROM users WHERE id = ?`,
       [staff.user_id]
     );
@@ -61,7 +61,7 @@ export async function GET(request, { params }) {
       role: staff.role,
       title: staff.title,
       bio: staff.bio,
-      avatarUrl: staff.avatar_url,
+      avatarUrl: staff.avatar_url || user?.avatar_url,
       color: staff.color,
       displayOrder: staff.display_order,
       country: staff.country,
@@ -188,7 +188,7 @@ export async function PUT(request, { params }) {
     // Get updated staff member
     const updatedStaff = await getOne(
       `SELECT s.*, u.first_name as user_first_name, u.last_name as user_last_name, 
-              u.email, u.phone 
+              u.email, u.phone, u.avatar_url as user_avatar_url 
        FROM staff s
        JOIN users u ON u.id = s.user_id
        WHERE s.id = ?`,
@@ -207,7 +207,7 @@ export async function PUT(request, { params }) {
       role: updatedStaff.role,
       title: updatedStaff.title,
       bio: updatedStaff.bio,
-      avatarUrl: updatedStaff.avatar_url,
+      avatarUrl: updatedStaff.avatar_url || updatedStaff.user_avatar_url,
       color: updatedStaff.color,
       displayOrder: updatedStaff.display_order,
       country: updatedStaff.country,

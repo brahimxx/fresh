@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { RequirePermission } from '@/components/layout/require-permission';
 import { use } from 'react';
 import { 
   Plus, 
@@ -57,6 +58,14 @@ import { ProductFormDialog } from '@/components/products/product-form';
 import { StockUpdateDialog } from '@/components/products/stock-update';
 
 export default function ProductsPage({ params }) {
+  return (
+    <RequirePermission page="products">
+      <ProductsContent params={params} />
+    </RequirePermission>
+  );
+}
+
+function ProductsContent({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
   

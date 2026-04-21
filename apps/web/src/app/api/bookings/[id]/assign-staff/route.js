@@ -26,7 +26,7 @@ export async function PUT(request, { params }) {
     let isManager = false;
     if (!isOwner && !isAdmin) {
       const staff = await getOne(
-        "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+        "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
         [booking.salon_id, session.userId]
       );
       isManager = !!staff;

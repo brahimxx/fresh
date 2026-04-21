@@ -45,6 +45,7 @@ export function useUpdateProfile() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['my-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
     },
   });
 }

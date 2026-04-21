@@ -22,10 +22,11 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api-client";
 import { useRouter } from "next/navigation";
+import { canAddLocation } from "@/lib/permissions";
 
 export function Header() {
   const { user, logout } = useAuth();
-  const { salon, salonId } = useSalon();
+  const { salon, salonId, staffRole, customPermissions } = useSalon();
   const router = useRouter();
 
   // Fetch all user's salons for the switcher
@@ -37,8 +38,8 @@ export function Header() {
   });
 
   const initials = user
-    ? `${user.first_name?.[0] || ""}${
-        user.last_name?.[0] || ""
+    ? `${user.firstName?.[0] || ""}${
+        user.lastName?.[0] || ""
       }`.toUpperCase() || "U"
     : "U";
 
@@ -88,10 +89,14 @@ export function Header() {
                   )}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/locations/new">+ Add New Location</Link>
-              </DropdownMenuItem>
+              {canAddLocation(staffRole, customPermissions) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/locations/new">+ Add New Location</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -107,11 +112,11 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatar_url} alt={user?.first_name} />
+                <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
               <span className="hidden md:inline-block">
-                {user?.first_name} {user?.last_name}
+                {user?.firstName} {user?.lastName}
               </span>
               <ChevronDown className="h-4 w-4" />
             </Button>
@@ -120,7 +125,7 @@ export function Header() {
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span>
-                  {user?.first_name} {user?.last_name}
+                  {user?.firstName} {user?.lastName}
                 </span>
                 <span className="text-xs text-muted-foreground font-normal">
                   {user?.email}

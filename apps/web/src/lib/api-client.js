@@ -7,10 +7,10 @@ const API_BASE = "/api";
 
 class ApiClient {
   async request(endpoint, options = {}) {
-    const headers = {
-      "Content-Type": "application/json",
-      ...options.headers,
-    };
+    const headers = { ...options.headers };
+    if (!options.isFormData) {
+      headers["Content-Type"] = "application/json";
+    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -64,6 +64,14 @@ class ApiClient {
     return this.request(endpoint, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  postFormData(endpoint, formData) {
+    return this.request(endpoint, {
+      method: "POST",
+      body: formData,
+      isFormData: true,
     });
   }
 

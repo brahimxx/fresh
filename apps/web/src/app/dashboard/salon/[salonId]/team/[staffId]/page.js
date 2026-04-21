@@ -39,15 +39,18 @@ import { StaffEmergencyContactsTab } from "@/components/staff/staff-emergency-co
 import { StaffServicesTab } from "@/components/staff/staff-services-tab";
 import { StaffLocationsTab } from "@/components/staff/staff-locations-tab";
 import { StaffSettingsTab } from "@/components/staff/staff-settings-tab";
+import { StaffPermissionsTab } from "@/components/staff/staff-permissions-tab";
 import { StaffWagesTab } from "@/components/staff/staff-wages-tab";
 import { StaffCommissionsTab } from "@/components/staff/staff-commissions-tab";
 import { StaffPayRunsTab } from "@/components/staff/staff-pay-runs-tab";
+import { useSalon } from "@/providers/salon-provider";
 
 export default function StaffDetailPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const staffId = resolvedParams.staffId;
   const router = useRouter();
+  const { staffRole: currentUserRole } = useSalon();
 
   const [activeTab, setActiveTab] = useState("personal");
   const { data: staff, isLoading, error } = useStaffMember(staffId);
@@ -235,6 +238,14 @@ export default function StaffDetailPage({ params }) {
               Pay Setup
             </TabsTrigger>
           )}
+          {currentUserRole === "owner" && (
+            <TabsTrigger
+              value="permissions"
+              className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none rounded-none px-6 h-full"
+            >
+              Permissions
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <div className="animate-in slide-in-from-bottom-2 fade-in duration-300">
@@ -309,6 +320,12 @@ export default function StaffDetailPage({ params }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
+
+          {currentUserRole === "owner" && (
+            <TabsContent value="permissions" className="mt-0 outline-none">
+              <StaffPermissionsTab staff={staff} staffId={staffId} salonId={salonId} />
+            </TabsContent>
+          )}
         </div>
       </Tabs>
     </div>

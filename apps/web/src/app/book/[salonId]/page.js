@@ -557,7 +557,7 @@ export default function BookingPage({ params }) {
               salonId={salonId}
               selected={selectedServices}
               onSelect={setSelectedServices}
-              currency={salon?.country || "US"}
+              currency={salon?.currency || "EUR"}
             />
           )}
 

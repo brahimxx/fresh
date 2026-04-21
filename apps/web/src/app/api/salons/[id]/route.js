@@ -73,9 +73,9 @@ export async function GET(request, { params }) {
       [id],
     );
 
-    // Get staff
+    // Get staff (include user_id and permissions for frontend role derivation)
     const staff = await query(
-      `SELECT st.id, st.role, st.is_active, u.first_name, u.last_name
+      `SELECT st.id, st.user_id, st.role, st.is_active, st.permissions, u.first_name, u.last_name
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? AND st.is_active = 1`,
@@ -159,10 +159,12 @@ export async function GET(request, { params }) {
       })),
       staff: staff.map((s) => ({
         id: s.id,
+        userId: s.user_id,
         firstName: s.first_name,
         lastName: s.last_name,
         role: s.role,
         isActive: s.is_active,
+        permissions: s.permissions ? (typeof s.permissions === 'string' ? JSON.parse(s.permissions) : s.permissions) : null,
       })),
     });
   } catch (err) {
@@ -252,6 +254,8 @@ export async function PUT(request, { params }) {
         travel_fee_type,
         travel_fee_amount,
         min_booking_amount,
+        travel_buffer_time,
+        covered_zip_codes,
         virtual_meeting_link,
         id,
       ],

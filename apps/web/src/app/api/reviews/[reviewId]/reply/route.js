@@ -34,7 +34,13 @@ export async function POST(request, { params }) {
     }
 
     if (review.owner_id !== session.userId) {
-      return errorResponse('Unauthorized', 403);
+      const activeStaff = await query(
+        `SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1`,
+        [review.salon_id, session.userId]
+      );
+      if (!activeStaff || activeStaff.length === 0) {
+        return errorResponse('Unauthorized', 403);
+      }
     }
 
     // Update review with reply

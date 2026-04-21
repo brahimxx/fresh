@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { RequirePermission } from '@/components/layout/require-permission';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -103,6 +104,14 @@ function MiniChart({ data, label }) {
 }
 
 export default function ReportsOverviewPage() {
+  return (
+    <RequirePermission page="reports">
+      <ReportsContent />
+    </RequirePermission>
+  );
+}
+
+function ReportsContent() {
   var params = useParams();
   var [rangeType, setRangeType] = useState('last_30_days');
   var dateRange = useMemo(function() {

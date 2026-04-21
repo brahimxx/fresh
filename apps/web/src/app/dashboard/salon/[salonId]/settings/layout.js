@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Building2,
@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useSalon } from '@/providers/salon-provider';
+import { getVisibleSettingsItems } from '@/lib/permissions';
+import { useEffect, useMemo } from 'react';
 
 var settingsNav = [
   {
@@ -51,8 +54,33 @@ var settingsNav = [
 export default function SettingsLayout({ children }) {
   var params = useParams();
   var pathname = usePathname();
+  var router = useRouter();
   var basePath = '/dashboard/salon/' + params.salonId + '/settings';
-  
+
+  // Get staff role to filter visible settings pages
+  const { staffRole, customPermissions } = useSalon();
+
+  // Filter settings navigation based on role + custom permissions
+  const filteredNav = useMemo(
+    () => getVisibleSettingsItems(settingsNav, staffRole, customPermissions),
+    [staffRole, customPermissions]
+  );
+
+  // Collect all allowed hrefs for redirect logic
+  const allowedHrefs = useMemo(
+    () => filteredNav.flatMap((section) => section.items.map((item) => item.href)),
+    [filteredNav]
+  );
+
+  // If the user is on a settings page they don't have access to, redirect to account
+  useEffect(() => {
+    if (!staffRole || allowedHrefs.length === 0) return;
+    const currentSub = pathname.replace(basePath + '/', '').split('/')[0];
+    if (currentSub && currentSub !== 'settings' && !allowedHrefs.includes(currentSub)) {
+      router.replace(basePath + '/account');
+    }
+  }, [pathname, allowedHrefs, basePath, staffRole, router]);
+
   function isActive(href) {
     var fullPath = basePath + '/' + href;
     return pathname === fullPath || pathname === basePath && href === 'general';
@@ -65,7 +93,7 @@ export default function SettingsLayout({ children }) {
         <h1 className="text-lg font-semibold mb-6">Settings</h1>
         
         <nav className="space-y-6">
-          {settingsNav.map(function(section) {
+          {filteredNav.map(function(section) {
             return (
               <div key={section.title}>
                 <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">

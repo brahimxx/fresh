@@ -21,7 +21,7 @@ async function checkPaymentAccess(paymentId, userId, role) {
   if (payment.client_id === userId) return { access: true, payment };
 
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [payment.salon_id, userId]
   );
   if (staff) return { access: true, payment };

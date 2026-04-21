@@ -17,7 +17,7 @@ async function canManageStaff(staffId, userId, role) {
   if (staff.owner_id === userId) return true;
   if (staff.user_id === userId) return true;
   const manager = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [staff.salon_id, userId]
   );
   return !!manager;

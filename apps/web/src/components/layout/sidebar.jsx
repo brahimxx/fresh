@@ -31,6 +31,9 @@ import {
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
+import { useSalon } from '@/providers/salon-provider';
+import { getVisibleSidebarItems } from '@/lib/permissions';
+import { Badge } from '@/components/ui/badge';
 
 const navigation = [
   { name: 'Dashboard', href: '', icon: LayoutDashboard },
@@ -63,11 +66,30 @@ const adminNavigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+// Role display labels and colors
+const ROLE_BADGES = {
+  owner: null, // don't show badge for owner (it's implied)
+  manager: { label: 'Manager', className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
+  receptionist: { label: 'Receptionist', className: 'bg-purple-500/10 text-purple-600 border-purple-500/20' },
+  staff: { label: 'Staff', className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const params = useParams();
   const [collapsed, setCollapsed] = useState(false);
   const { logout, user } = useAuth();
+
+  // Get staff role from SalonProvider
+  let staffRole = null;
+  let customPermissions = null;
+  try {
+    const salonCtx = useSalon();
+    staffRole = salonCtx?.staffRole;
+    customPermissions = salonCtx?.customPermissions;
+  } catch {
+    // Not inside SalonProvider (e.g. admin panel) — that's fine
+  }
 
   const isAdmin = user?.role === 'admin';
   const salonId = params?.salonId;
@@ -78,12 +100,19 @@ export function Sidebar() {
       : '/dashboard';
   const hasSalon = !!salonId;
 
-  // Determine which navigation items to show
-  const navItems = isAdmin
+  // Filter navigation items based on role
+  const allNavItems = isAdmin
     ? adminNavigation
     : hasSalon
       ? navigation
       : navigation.filter(n => ['Dashboard', 'Settings'].includes(n.name));
+
+  const navItems = isAdmin
+    ? allNavItems
+    : getVisibleSidebarItems(allNavItems, staffRole, customPermissions);
+
+  // Role badge for non-owners
+  const roleBadge = !isAdmin && staffRole && ROLE_BADGES[staffRole];
 
   return (
     <aside
@@ -111,6 +140,15 @@ export function Sidebar() {
             <Shield className="h-3 w-3" />
             Admin Panel
           </div>
+        </div>
+      )}
+
+      {/* Staff Role Badge */}
+      {roleBadge && !collapsed && (
+        <div className="px-4 py-2 border-b border-border/50">
+          <Badge variant="outline" className={cn('text-xs font-medium', roleBadge.className)}>
+            {roleBadge.label}
+          </Badge>
         </div>
       )}
 

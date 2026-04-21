@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, use } from "react";
+import { RequirePermission } from '@/components/layout/require-permission';
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -59,6 +60,14 @@ import { StaffFormDialog } from "@/components/staff/staff-form";
 import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 
 export default function TeamPage({ params }) {
+  return (
+    <RequirePermission page="team">
+      <TeamContent params={params} />
+    </RequirePermission>
+  );
+}
+
+function TeamContent({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const router = useRouter();

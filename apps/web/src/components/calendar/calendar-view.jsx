@@ -686,8 +686,8 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                       className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold mb-1.5 ring-2 ring-offset-2 ring-offset-background"
                       style={{ backgroundColor: color, "--tw-ring-color": color }}
                     >
-                      {member.profileImage ? (
-                        <img src={member.profileImage} alt={member.firstName} className="w-full h-full rounded-full object-cover" />
+                      {member.avatarUrl ? (
+                        <img src={member.avatarUrl} alt={member.firstName} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         initials.toUpperCase()
                       )}

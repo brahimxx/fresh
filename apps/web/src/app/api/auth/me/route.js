@@ -31,10 +31,32 @@ export async function GET() {
         [session.userId],
       );
       if (activeSalons?.count === 0) {
-        await query("UPDATE users SET role = 'client' WHERE id = ?", [
+        // They are no longer an owner. Check if they are still a staff member somewhere.
+        const activeStaffDb = await getOne(
+          "SELECT COUNT(*) as count FROM staff WHERE user_id = ? AND is_active = 1",
+          [session.userId]
+        );
+        const newRole = activeStaffDb?.count > 0 ? 'staff' : 'client';
+        
+        await query("UPDATE users SET role = ? WHERE id = ?", [
+          newRole,
           session.userId,
         ]);
-        user.role = "client";
+        user.role = newRole;
+      }
+    }
+
+    // Self-healing: if a user is a 'client' but has active staff records, upgrade them to 'staff'
+    if (user.role === "client") {
+      const activeStaffDb = await getOne(
+        "SELECT COUNT(*) as count FROM staff WHERE user_id = ? AND is_active = 1",
+        [session.userId]
+      );
+      if (activeStaffDb?.count > 0) {
+        await query("UPDATE users SET role = 'staff' WHERE id = ?", [
+          session.userId,
+        ]);
+        user.role = "staff";
       }
     }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { RequirePermission } from '@/components/layout/require-permission';
 import { use } from 'react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { 
@@ -49,6 +50,14 @@ import { PaymentDetailDialog } from '@/components/sales/payment-detail';
 import { RefundDialog } from '@/components/sales/refund-dialog';
 
 export default function SalesPage({ params }) {
+  return (
+    <RequirePermission page="sales">
+      <SalesContent params={params} />
+    </RequirePermission>
+  );
+}
+
+function SalesContent({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
   

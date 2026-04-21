@@ -9,7 +9,7 @@ async function checkSalonAccess(salonId, userId, role) {
   const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
   if (salon && salon.owner_id === userId) return true;
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [salonId, userId]
   );
   return !!staff;

@@ -21,7 +21,7 @@ async function checkServiceAccess(serviceId, userId, role) {
   if (!service) return false;
   if (service.owner_id === userId) return true;
   const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1",
+    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
     [service.salon_id, userId],
   );
   return !!staff;
