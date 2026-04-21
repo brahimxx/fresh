@@ -131,7 +131,11 @@ export default function DashboardLayout({ children }) {
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-8 pb-24">
+              {children}
+            </div>
+          </main>
         </div>
       </div>
     </SalonProvider>

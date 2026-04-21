@@ -27,7 +27,7 @@ export default function BillingSettingsPage() {
   const [isUpgrading, setIsUpgrading] = useState(false);
 
   return (
-    <div className="p-4 sm:p-8 max-w-[1200px] mx-auto space-y-8 pb-24">
+    <div className="space-y-8">
       {/* Page Header */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}

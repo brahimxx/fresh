@@ -15,12 +15,15 @@ import {
   Download,
   MapPin,
   Clock,
-  ArrowUpDown
+  ArrowUpDown,
+  Users,
+  Contact2
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { encodeId } from "@/lib/id";
 import { useClients, useDeleteClient } from "@/hooks/use-clients";
-import { ClientFormDialogDialog } from "@/components/clients/client-form";
+import { ClientFormDialog } from "@/components/clients/client-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +47,20 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataError } from "@/components/ui/data-error";
 import { EmptyClients } from "@/components/ui/empty-states";
+import { cn } from "@/lib/utils";
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+};
 
 export default function ClientsPage({ params }) {
   const resolvedParams = use(params);
@@ -76,126 +93,154 @@ export default function ClientsPage({ params }) {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500 pb-8">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your client list, booking history, and preferences.
+    <div className="space-y-8">
+      {/* Decorative Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 flex flex-col md:flex-row md:items-end justify-between gap-6 group"
+      >
+        <div className="absolute top-0 right-10 p-8 opacity-5 pointer-events-none transition-transform duration-1000 group-hover:scale-125 group-hover:rotate-12 translate-y-[-20%]">
+          <Contact2 className="w-64 h-64 text-primary" strokeWidth={1} />
+        </div>
+        
+        <div className="relative z-10 flex flex-col gap-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
+            <Users className="w-3.5 h-3.5" />
+            <span>CRM & Profiling</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight max-w-2xl">
+            Client Directory
+          </h1>
+          <p className="text-muted-foreground text-lg font-medium max-w-xl">
+            Unify your client relationships. Track contact information, booking history, and platform metrics across the business.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="hidden sm:flex gap-2 shadow-sm">
-            <Download className="h-4 w-4" />
-            Export
+
+        <div className="relative z-10 flex flex-col sm:flex-row gap-3 shrink-0">
+          <Button
+            variant="outline"
+            className="flex-1 sm:flex-none h-12 px-6 rounded-xl border-border/50 bg-background/50 backdrop-blur-md hover:bg-background shadow-sm text-[15px]"
+          >
+            <Download className="h-5 w-5 mr-2 text-muted-foreground" />
+             Export Data
           </Button>
-          <Button onClick={() => setCreateOpen(true)} className="gap-2 shadow-sm">
-            <Plus className="h-4 w-4" />
-            Add New Client
+          <Button
+            className="flex-1 sm:flex-none h-12 px-6 rounded-xl shadow-md text-[15px]"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            New Client
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {error ? (
         <DataError
-          title="Failed to load clients"
-          message="Unable to fetch your client list. Please try again."
+          title="Failed to load client matrix"
+          message="Unable to fetch your relationship list. Please try again."
           onRetry={refetch}
           error={error}
         />
       ) : (
-        <>
-          {/* Main Content Area */}
-          <div className="bg-background rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden">
-            {/* Toolbar */}
-            <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-4 bg-muted/20">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="bg-background/60 backdrop-blur-xl rounded-3xl border border-border/50 shadow-sm flex flex-col overflow-hidden"
+        >
+          {/* Toolbar */}
+          <div className="p-5 sm:px-8 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/5">
+             <div className="relative w-full sm:max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                 <Input
-                  placeholder="Search by name, email, or phone..."
-                  className="pl-9 bg-background border-muted shadow-sm hover:border-primary/50 transition-colors"
+                  placeholder="Search by identity, email, or digital contact..."
+                  className="pl-10 h-11 bg-background rounded-xl border-border/50 focus-visible:ring-primary/50 shadow-sm font-medium"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-9 gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  Filters
-                </Button>
-                <div className="h-4 w-[1px] bg-border mx-1"></div>
-                <div className="text-sm text-muted-foreground px-2">
-                  <span className="font-medium text-foreground">{clients.length}</span> clients total
-                </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="text-[13px] font-bold text-muted-foreground px-2 bg-muted/30 py-1.5 rounded-lg border border-border/50">
+                <span className="text-foreground">{clients.length}</span> recorded profiles
               </div>
+              <Button variant="outline" className="h-11 rounded-xl shadow-sm border-border/50">
+                <Filter className="h-4 w-4 mr-2" />
+                Segment
+              </Button>
             </div>
+          </div>
 
-            {/* Table Area */}
-            <div className="flex-1 overflow-auto">
-              {isLoading ? (
-                <div className="p-6 space-y-4">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 border-b pb-4">
-                      <Skeleton className="h-12 w-12 rounded-full" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-[250px]" />
-                        <Skeleton className="h-4 w-[200px]" />
-                      </div>
+          {/* Table Area */}
+          <div className="overflow-x-auto">
+             {isLoading ? (
+                <div className="p-6 space-y-3">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+                      <Skeleton className="h-4 flex-1 rounded-xl" />
+                      <Skeleton className="h-4 w-32 rounded-xl" />
+                      <Skeleton className="h-4 w-24 rounded-xl" />
+                      <Skeleton className="h-4 w-20 rounded-xl" />
                     </div>
                   ))}
                 </div>
               ) : clients.length === 0 ? (
-                <div className="p-12">
+                <div className="p-16">
                   <EmptyClients onCreate={() => setCreateOpen(true)} />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-sm">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[300px]">Client Details</TableHead>
-                      <TableHead>Contact Information</TableHead>
-                      <TableHead>Latest Booking</TableHead>
-                      <TableHead className="text-right">Metrics</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clients.map((client) => {
+              <Table className="px-4">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border/50 [&_th]:h-14">
+                    <TableHead className="pl-8 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[300px]">Client Identity</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Digital Comms</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Booking History</TableHead>
+                    <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Lifetime Value</TableHead>
+                    <TableHead className="w-[80px] pr-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                   <AnimatePresence>
+                    {clients.map((client, i) => {
                       const clientName = `${client.first_name} ${client.last_name || ""}`.trim();
                       const lastBooking = client.last_booking_date ? new Date(client.last_booking_date) : null;
 
                       return (
-                        <TableRow
+                        <motion.tr
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.05 }}
                           key={client.id}
-                          className="cursor-pointer group hover:bg-muted/40 transition-colors"
+                          className="cursor-pointer group hover:bg-muted/5 border-border/50 transition-colors [&_td]:py-5"
                           onClick={() => handleViewClient(client)}
                         >
-                          <TableCell className="align-top py-4">
+                          <TableCell className="align-top pl-8">
                             <div className="flex items-start gap-4">
-                              <Avatar className="h-10 w-10 border border-border shadow-sm mt-0.5">
+                              <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
                                 <AvatarImage src={client.avatar_url} />
-                                <AvatarFallback className="bg-primary/5 text-primary text-xs font-medium">
+                                <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold font-mono">
                                   {getInitials(clientName)}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                <p className="font-bold text-[15px] leading-none text-foreground group-hover:text-primary transition-colors">
                                   {clientName}
                                 </p>
-                                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                                  <CalendarIcon className="h-3 w-3" />
-                                  <span>Added {format(new Date(client.created_at || new Date()), "MMM yyyy")}</span>
+                                <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-muted-foreground">
+                                  <CalendarIcon className="h-3.5 w-3.5 opacity-50" />
+                                  <span>Acquired {format(new Date(client.created_at || new Date()), "MMM yyyy")}</span>
                                 </div>
                                 {client.tags?.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                  <div className="flex flex-wrap gap-1.5 mt-3">
                                     {client.tags.slice(0, 3).map((tag) => (
-                                      <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 font-medium">
+                                      <Badge key={tag} variant="secondary" className="text-[10px] px-2 py-0 border-0 h-5 bg-primary/10 text-primary font-bold uppercase tracking-wider">
                                         {tag}
                                       </Badge>
                                     ))}
                                     {client.tags.length > 3 && (
-                                      <span className="text-[10px] text-muted-foreground flex items-center">+{client.tags.length - 3}</span>
+                                      <span className="text-[10px] font-bold text-muted-foreground flex items-center">+{client.tags.length - 3}</span>
                                     )}
                                   </div>
                                 )}
@@ -203,105 +248,113 @@ export default function ClientsPage({ params }) {
                             </div>
                           </TableCell>
                           
-                          <TableCell className="align-top py-4">
-                            <div className="space-y-2.5">
+                          <TableCell className="align-top">
+                            <div className="space-y-3 mt-1">
                               {client.phone ? (
-                                <div className="flex items-center gap-2 text-sm text-foreground">
-                                  <Phone className="h-3.5 w-3.5 text-muted-foreground mr-0.5" />
-                                  <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:underline hover:text-primary">
+                                <div className="flex items-center gap-2.5 text-[14px] font-semibold text-foreground">
+                                  <Phone className="h-4 w-4 text-muted-foreground opacity-50" />
+                                  <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors">
                                     {client.phone}
                                   </a>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground/60 italic">
-                                  <Phone className="h-3.5 w-3.5 mr-0.5" />
-                                  No phone
+                                <div className="flex items-center gap-2.5 text-[14px] text-muted-foreground/50 italic font-medium">
+                                  <Phone className="h-4 w-4 opacity-50" />
+                                  Unrecorded
                                 </div>
                               )}
                               
                               {client.email ? (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Mail className="h-3.5 w-3.5 mr-0.5" />
-                                  <a href={`mailto:${client.email}`} onClick={(e) => e.stopPropagation()} className="truncate max-w-[200px] hover:underline hover:text-primary">
+                                <div className="flex items-center gap-2.5 text-sm font-medium text-muted-foreground">
+                                  <Mail className="h-4 w-4 opacity-50" />
+                                  <a href={`mailto:${client.email}`} onClick={(e) => e.stopPropagation()} className="truncate max-w-[200px] hover:text-primary transition-colors">
                                     {client.email}
                                   </a>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground/60 italic">
-                                  <Mail className="h-3.5 w-3.5 mr-0.5" />
-                                  No email
+                                <div className="flex items-center gap-2.5 text-sm text-muted-foreground/50 italic font-medium">
+                                  <Mail className="h-4 w-4 opacity-50" />
+                                  Unrecorded
                                 </div>
                               )}
                             </div>
                           </TableCell>
 
-                          <TableCell className="align-top py-4">
+                          <TableCell className="align-top">
                             {lastBooking ? (
-                              <div className="space-y-1.5">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                  <Clock className="h-3.5 w-3.5 text-primary" />
+                              <div className="space-y-1.5 mt-1">
+                                <div className="flex items-center gap-2 text-[14px] font-bold text-primary">
+                                  <Clock className="h-4 w-4" />
                                   {format(lastBooking, "MMM d, yyyy")}
                                 </div>
-                                <span className="text-xs text-muted-foreground block ml-5.5">
-                                  {client.last_service_name || "Service visit"}
+                                <span className="text-xs font-semibold text-muted-foreground block ml-6 truncate max-w-[150px]">
+                                  {client.last_service_name || "Standard Service"}
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-sm text-muted-foreground/70 flex items-center justify-center p-2 rounded-md bg-muted/20 border border-border/50 max-w-fit italic">
-                                No previous bookings
-                              </span>
+                              <div className="mt-1">
+                                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center p-1.5 px-2.5 rounded-lg bg-muted/30 border border-border/50 max-w-fit">
+                                   No booking history
+                                 </span>
+                              </div>
                             )}
                           </TableCell>
                           
-                          <TableCell className="text-right align-top py-4">
-                            <div className="space-y-1 inline-flex flex-col items-end">
-                              <span className="text-sm font-semibold">
-                                {client.total_bookings || 0} visits
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                ${(client.total_revenue || 0).toLocaleString()} value
-                              </span>
-                            </div>
+                          <TableCell className="text-right align-top">
+                             <div className="space-y-1 mt-1 flex flex-col items-end">
+                                <span className="text-[15px] font-extrabold text-foreground">
+                                  {client.total_bookings || 0} visits
+                                </span>
+                                <span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                  €{(client.total_revenue || 0).toLocaleString()} volume
+                                </span>
+                             </div>
                           </TableCell>
                           
-                          <TableCell className="align-top py-4">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48 shadow-lg">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewClient(client); }}>
-                                  View Profile
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditClient(client); }}>
-                                  Edit Details
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  className="text-red-600 focus:text-red-700"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm("Remove this client?")) {
-                                      deleteClientMutation.mutate({ salonId, clientId: client.id });
-                                    }
-                                  }}
-                                >
-                                  Delete Client
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                          <TableCell className="align-top text-right pr-8">
+                             <div className="mt-1 inline-flex">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-9 w-9 p-0 rounded-xl bg-muted/30 hover:bg-muted text-muted-foreground opacity-50 group-hover:opacity-100 transition-all data-[state=open]:opacity-100"
+                                    >
+                                      <span className="sr-only">Open menu</span>
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-[180px] rounded-2xl" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenuItem onClick={() => handleViewClient(client)} className="font-medium gap-2">
+                                     <User className="h-4 w-4 text-primary" />
+                                    Launch Profile
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setEditClient(client)} className="font-medium gap-2">
+                                     Edit Framework
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="font-medium gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                                    onClick={() => {
+                                      if (confirm("Remove this client from the database?")) {
+                                        deleteClientMutation.mutate({ salonId, clientId: client.id });
+                                      }
+                                    }}
+                                  >
+                                    Terminate Client
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                             </div>
                           </TableCell>
-                        </TableRow>
+                        </motion.tr>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+            )}
           </div>
-        </>
+        </motion.div>
       )}
 
       {/* Forms Map To Existing Abstracted Components */}

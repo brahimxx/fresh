@@ -125,7 +125,7 @@ export default function GiftCardsPage({ params }) {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gift Cards</h1>

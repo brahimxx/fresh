@@ -119,7 +119,7 @@ export default function WidgetPage() {
   
   if (isLoading) {
     return (
-      <div className="p-8 max-w-[1400px] mx-auto space-y-8 animate-pulse">
+      <div className="space-y-8 animate-pulse">
         <div className="h-12 w-64 bg-muted rounded-xl" />
         <div className="grid lg:grid-cols-12 gap-8 mt-8">
           <div className="lg:col-span-7 space-y-6">
@@ -135,7 +135,7 @@ export default function WidgetPage() {
   }
   
   return (
-    <div className="p-4 sm:p-8 max-w-[1400px] mx-auto pb-24">
+    <div className="">
       {/* Decorative Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

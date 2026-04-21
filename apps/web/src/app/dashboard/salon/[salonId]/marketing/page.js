@@ -100,7 +100,7 @@ function MarketingContent({ params }) {
   const basePath = `/dashboard/salon/${salonId}/marketing/`;
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto pb-12">
+    <div className="space-y-8">
       {/* Decorative Hero Section */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-transparent border border-primary/10 p-8 sm:p-12 transition-all duration-500 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 group">
         <div className="absolute top-0 right-0 p-8 opacity-20 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6">

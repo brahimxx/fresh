@@ -12,10 +12,12 @@ import {
   Send,
   Filter,
   TrendingUp,
+  Info,
+  CornerDownRight
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function ReviewsPage() {
   var params = useParams();
@@ -106,9 +109,9 @@ export default function ReviewsPage() {
           return (
             <Star
               key={star}
-              className={'h-4 w-4 ' + (star <= rating 
+              className={cn('h-4 w-4', star <= rating 
                 ? 'fill-yellow-400 text-yellow-400' 
-                : 'text-gray-300')}
+                : 'text-muted/30')}
             />
           );
         })}
@@ -143,7 +146,7 @@ export default function ReviewsPage() {
       comment: 'Great haircut, friendly staff. Only minor issue was the wait time was a bit longer than expected.',
       service: 'Men\'s Haircut',
       created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      reply: 'Thank you for your feedback, John! We\'re working on reducing wait times.',
+      reply: 'Thank you for your feedback, John! We\'re working on reducing wait times. Looking forward to seeing you again soon!',
       reply_date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
     },
     {
@@ -159,252 +162,306 @@ export default function ReviewsPage() {
   
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 bg-muted rounded" />
-          <div className="grid gap-4 md:grid-cols-4">
-            {[1, 2, 3, 4].map(function(i) {
-              return <div key={i} className="h-24 bg-muted rounded-lg" />;
-            })}
-          </div>
-          <div className="h-96 bg-muted rounded" />
+      <div className="space-y-8 animate-pulse">
+        <div className="h-48 w-full bg-muted/60 rounded-3xl" />
+        <div className="grid grid-cols-4 gap-4">
+           <div className="h-32 bg-muted/40 rounded-3xl" />
+           <div className="h-32 bg-muted/40 rounded-3xl" />
+           <div className="h-32 bg-muted/40 rounded-3xl" />
+           <div className="h-32 bg-muted/40 rounded-3xl" />
         </div>
+        <div className="h-64 bg-muted/40 rounded-3xl" />
       </div>
     );
   }
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+  };
   
   return (
-    <div className="p-6 max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Reviews</h1>
-        <p className="text-muted-foreground">
-          Manage and respond to client reviews
-        </p>
-      </div>
+    <div className="">
+      {/* Decorative Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 mb-8 group"
+      >
+        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6">
+          <Star className="w-48 h-48 sm:w-64 sm:h-64 text-primary" strokeWidth={1} />
+        </div>
+        
+        <div className="relative z-10 flex flex-col gap-3 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
+            <Info className="w-3.5 h-3.5" />
+            <span>Reputation Management</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Client Reviews</h1>
+          <p className="text-muted-foreground text-lg leading-relaxed max-w-xl">
+            Monitor feedback, respond to clients, and track your overall marketplace reputation in real-time.
+          </p>
+        </div>
+      </motion.div>
       
-      {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Star className="h-8 w-8 fill-yellow-400 text-yellow-400" />
-              <div>
-                <div className="text-2xl font-bold">{stats.averageRating}</div>
-                <p className="text-xs text-muted-foreground">Average rating</p>
-              </div>
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="space-y-8"
+      >
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center group hover:bg-background transition-colors">
+            <div className="w-12 h-12 rounded-full bg-yellow-400/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Star className="w-6 h-6 fill-yellow-400 text-yellow-400" />
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-8 w-8 text-blue-500" />
-              <div>
-                <div className="text-2xl font-bold">{stats.totalReviews}</div>
-                <p className="text-xs text-muted-foreground">Total reviews</p>
-              </div>
+            <div className="text-3xl font-extrabold tracking-tighter">{stats.averageRating}</div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Avg Rating</p>
+          </motion.div>
+          
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center group hover:bg-background transition-colors">
+            <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <MessageSquare className="w-6 h-6 fill-blue-500 text-blue-500" />
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ThumbsUp className="h-8 w-8 text-green-500" />
-              <div>
-                <div className="text-2xl font-bold">{stats.responseRate}%</div>
-                <p className="text-xs text-muted-foreground">Response rate</p>
-              </div>
+            <div className="text-3xl font-extrabold tracking-tighter">{stats.totalReviews}</div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Total Verified</p>
+          </motion.div>
+          
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center group hover:bg-background transition-colors">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <ThumbsUp className="w-6 h-6 fill-emerald-500 text-emerald-500" />
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-8 w-8 text-purple-500" />
-              <div>
-                <div className="text-2xl font-bold">{stats.avgResponseTime}</div>
-                <p className="text-xs text-muted-foreground">Avg. response</p>
-              </div>
+            <div className="text-3xl font-extrabold tracking-tighter">{stats.responseRate}%</div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Response Rate</p>
+          </motion.div>
+          
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center group hover:bg-background transition-colors">
+             <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-6 h-6 text-purple-500" />
             </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Rating Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Rating Distribution</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[5, 4, 3, 2, 1].map(function(rating) {
-              var count = stats.distribution[rating];
-              var percentage = (count / stats.totalReviews) * 100;
-              return (
-                <div key={rating} className="flex items-center gap-2">
-                  <span className="w-3 text-sm">{rating}</span>
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-400 rounded-full"
-                      style={{ width: percentage + '%' }}
-                    />
-                  </div>
-                  <span className="w-12 text-sm text-muted-foreground text-right">
-                    {count}
-                  </span>
+            <div className="text-3xl font-extrabold tracking-tighter">{stats.avgResponseTime}</div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Avg Action Time</p>
+          </motion.div>
+        </div>
+
+        <div className="grid lg:grid-cols-12 gap-8">
+          {/* Distribution Column */}
+          <div className="lg:col-span-4">
+             <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm h-full">
+              <h2 className="text-xl font-bold tracking-tight mb-1">Rating Distribution</h2>
+              <p className="text-sm text-muted-foreground mb-8">Breakdown of all your scores</p>
+              
+              <div className="space-y-4">
+                {[5, 4, 3, 2, 1].map(function(rating, idx) {
+                  var count = stats.distribution[rating] || 0;
+                  var percentage = (count / stats.totalReviews) * 100 || 0;
+                  return (
+                    <div key={rating} className="flex items-center gap-3">
+                      <span className="w-4 font-bold text-sm text-right">{rating}</span>
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 shrink-0" />
+                      <div className="flex-1 h-3 bg-muted/40 rounded-full overflow-hidden shadow-inner">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percentage}%` }}
+                          transition={{ duration: 1, delay: idx * 0.1, ease: "easeOut" }}
+                          className="h-full bg-yellow-400 rounded-full"
+                        />
+                      </div>
+                      <span className="w-8 text-sm font-semibold text-muted-foreground text-right">
+                        {count}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Feed Column */}
+          <div className="lg:col-span-8">
+            <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl shadow-sm overflow-hidden flex flex-col h-full">
+              <div className="p-6 sm:px-8 sm:pt-8 bg-muted/5 border-b border-border/50 flex flex-col sm:flex-row gap-4 justify-between sm:items-center">
+                <div>
+                  <h2 className="text-xl font-bold tracking-tight">Review Inbox</h2>
+                  <p className="text-sm text-muted-foreground">Respond to latest feedback</p>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Reviews List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>All Reviews</CardTitle>
-              <CardDescription>Respond to reviews to show you care</CardDescription>
-            </div>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-40">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All ratings</SelectItem>
-                <SelectItem value="5">5 stars</SelectItem>
-                <SelectItem value="4">4 stars</SelectItem>
-                <SelectItem value="3">3 stars</SelectItem>
-                <SelectItem value="2">2 stars</SelectItem>
-                <SelectItem value="1">1 star</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {reviews.map(function(review) {
-              return (
-                <div key={review.id} className="border-b pb-6 last:border-0">
-                  <div className="flex items-start justify-between">
-                    <div className="flex gap-3">
-                      <Avatar>
-                        <AvatarFallback>
-                          {review.client_name?.charAt(0) || 'C'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{review.client_name}</span>
-                          {renderStars(review.rating)}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="secondary" className="text-xs">
-                            {review.service}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(review.created_at), 'MMM d, yyyy')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={function() { setReplyingTo(review.id); }}>
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Reply
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={function() { reportMutation.mutate(review.id); }}
-                          className="text-red-600"
-                        >
-                          <Flag className="h-4 w-4 mr-2" />
-                          Report
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  
-                  <p className="mt-3 text-sm">{review.comment}</p>
-                  
-                  {/* Existing Reply */}
-                  {review.reply && (
-                    <div className="mt-3 ml-6 p-3 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                        <Badge variant="outline" className="text-xs">Owner</Badge>
-                        <span>{format(new Date(review.reply_date), 'MMM d, yyyy')}</span>
-                      </div>
-                      <p className="text-sm">{review.reply}</p>
-                    </div>
-                  )}
-                  
-                  {/* Reply Form */}
-                  {replyingTo === review.id && !review.reply && (
-                    <div className="mt-3 ml-6 space-y-2">
-                      <Textarea
-                        value={replyText}
-                        onChange={function(e) { setReplyText(e.target.value); }}
-                        placeholder="Write a professional response..."
-                        rows={3}
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={function() { setReplyingTo(null); setReplyText(''); }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={function() { handleReply(review.id); }}
-                          disabled={replyMutation.isPending || !replyText.trim()}
-                        >
-                          <Send className="h-4 w-4 mr-1" />
-                          Send Reply
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Reply Button */}
-                  {!review.reply && replyingTo !== review.id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="mt-2 ml-6"
-                      onClick={function() { setReplyingTo(review.id); }}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Reply
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-            
-            {reviews.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No reviews yet</p>
-                <p className="text-sm">Reviews will appear here as clients leave feedback</p>
+                <Select value={filter} onValueChange={setFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px] h-10 bg-background rounded-xl border-border/50 font-medium">
+                    <Filter className="h-4 w-4 mr-2 opacity-50" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="all">All ratings</SelectItem>
+                    <SelectItem value="5">5 stars</SelectItem>
+                    <SelectItem value="4">4 stars</SelectItem>
+                    <SelectItem value="3">3 stars</SelectItem>
+                    <SelectItem value="2">2 stars</SelectItem>
+                    <SelectItem value="1">1 star</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              
+              <div className="divide-y divide-border/50">
+                <AnimatePresence mode="popLayout">
+                  {reviews.map(function(review) {
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        key={review.id} 
+                        className="p-6 sm:p-8 hover:bg-muted/5 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex gap-4">
+                            <Avatar className="w-12 h-12 border-2 border-background shadow-sm">
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold font-mono">
+                                {review.client_name?.charAt(0) || 'C'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[15px]">{review.client_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {renderStars(review.rating)}
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {format(new Date(review.created_at), 'MMM d, yyyy')}
+                                </span>
+                              </div>
+                              <div className="mt-1.5">
+                                <Badge variant="secondary" className="text-[10px] bg-muted uppercase tracking-wider font-bold">
+                                  {review.service}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="rounded-full w-8 h-8 opacity-50 hover:opacity-100">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl min-w-[150px]">
+                              {!review.reply && (
+                                <DropdownMenuItem onClick={function() { setReplyingTo(review.id); }} className="gap-2 cursor-pointer font-medium">
+                                  <MessageSquare className="h-4 w-4 text-primary" />
+                                  Reply
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem 
+                                onClick={function() { reportMutation.mutate(review.id); }}
+                                className="text-red-500 focus:text-red-600 gap-2 cursor-pointer font-medium"
+                              >
+                                <Flag className="h-4 w-4" />
+                                Report Review
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        
+                        <p className="mt-4 text-[15px] leading-relaxed text-foreground/90">
+                          "{review.comment}"
+                        </p>
+                        
+                        {/* Existing Reply */}
+                        {review.reply && (
+                          <div className="mt-5 ml-6 sm:ml-16 p-4 bg-primary/5 border border-primary/10 rounded-2xl relative">
+                            <CornerDownRight className="absolute -left-6 top-4 w-4 h-4 text-primary/40 hidden sm:block" />
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className="text-[10px] bg-primary text-primary-foreground uppercase tracking-wider font-bold">Owner</Badge>
+                              <span className="text-xs font-semibold text-muted-foreground">{format(new Date(review.reply_date), 'MMM d, yyyy')}</span>
+                            </div>
+                            <p className="text-sm font-medium leading-relaxed">{review.reply}</p>
+                          </div>
+                        )}
+                        
+                        {/* Reply Form */}
+                        <AnimatePresence>
+                          {replyingTo === review.id && !review.reply && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                              animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
+                              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                              className="ml-0 sm:ml-16 overflow-hidden"
+                            >
+                              <div className="p-4 bg-muted/20 border border-border/50 rounded-2xl relative">
+                                <CornerDownRight className="absolute -left-6 top-4 w-4 h-4 text-muted-foreground/40 hidden sm:block" />
+                                <Textarea
+                                  value={replyText}
+                                  onChange={function(e) { setReplyText(e.target.value); }}
+                                  placeholder="Write a professional, public response..."
+                                  className="bg-background rounded-xl border-border/50 focus-visible:ring-primary/50 min-h-[100px] text-sm"
+                                />
+                                <div className="flex gap-2 justify-end mt-3">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={function() { setReplyingTo(null); setReplyText(''); }}
+                                    className="font-semibold rounded-lg"
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={function() { handleReply(review.id); }}
+                                    disabled={replyMutation.isPending || !replyText.trim()}
+                                    className="rounded-lg font-semibold gap-1.5 shadow-sm"
+                                  >
+                                    <Send className="h-3.5 w-3.5" />
+                                    Post Reply
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        
+                        {/* Inline Reply Trigger */}
+                        {!review.reply && replyingTo !== review.id && (
+                          <div className="mt-4 ml-0 sm:ml-16">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-primary hover:text-primary hover:bg-primary/10 rounded-lg gap-1.5 font-bold h-8 px-3"
+                              onClick={function() { setReplyingTo(review.id); }}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 fill-primary/20" />
+                              Write Reply
+                            </Button>
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                
+                {reviews.length === 0 && (
+                  <div className="flex flex-col items-center justify-center p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground opacity-50" />
+                    </div>
+                    <p className="font-bold text-lg">No reviews found</p>
+                    <p className="text-sm text-muted-foreground max-w-[250px] mt-1">Verified reviews will appear here once clients start leaving feedback.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
     </div>
   );
 }

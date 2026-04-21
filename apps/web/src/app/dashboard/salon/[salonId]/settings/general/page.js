@@ -5,20 +5,16 @@ import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Upload, X, ImageIcon, AlertTriangle, Trash2 } from "lucide-react";
+import { 
+  Upload, X, AlertTriangle, Trash2, Info, Building2,
+  Mail, Phone, Globe, MapPin, Camera, DollarSign, ImagePlus
+} from "lucide-react";
+import { motion } from "framer-motion";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -58,6 +54,7 @@ import {
 
 var generalSchema = z.object({
   name: z.string().min(1, "Salon name is required"),
+  currency: z.string().optional(),
   description: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional(),
@@ -103,6 +100,7 @@ export default function GeneralSettingsPage() {
     resolver: zodResolver(generalSchema),
     defaultValues: {
       name: "",
+      currency: "EUR",
       description: "",
       email: "",
       phone: "",
@@ -131,6 +129,7 @@ export default function GeneralSettingsPage() {
       if (salon) {
         form.reset({
           name: salon.name || "",
+          currency: salon.currency || "EUR",
           description: salon.description || "",
           email: salon.email || "",
           phone: salon.phone || "",
@@ -258,96 +257,86 @@ export default function GeneralSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-96 bg-muted rounded" />
+      <div className="space-y-8 animate-pulse">
+        <div className="h-48 w-full bg-muted/60 rounded-3xl" />
+        <div className="space-y-6">
+           <div className="h-64 bg-muted/40 rounded-3xl" />
+           <div className="h-64 bg-muted/40 rounded-3xl" />
         </div>
       </div>
     );
   }
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+  };
+
   return (
-    <div className="p-6 max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">General Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your salon&apos;s basic information
-        </p>
-      </div>
+    <div className="">
+      {/* Decorative Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 mb-8 group"
+      >
+        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+          <Building2 className="w-48 h-48 sm:w-64 sm:h-64 text-primary" strokeWidth={1} />
+        </div>
+        
+        <div className="relative z-10 flex flex-col gap-3 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
+            <Info className="w-3.5 h-3.5" />
+            <span>General Configuration</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Business Profile</h1>
+          <p className="text-muted-foreground text-lg leading-relaxed max-w-xl">
+            Manage your core salon details, contact information, and operating address visible to your clients.
+          </p>
+        </div>
+      </motion.div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <motion.form 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          onSubmit={form.handleSubmit(onSubmit)} 
+          className="space-y-8"
+        >
           {/* Basic Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                This information will be displayed to your clients
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel>Salon Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Your Salon Name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="Tell clients about your salon..."
-                          rows={4}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        A brief description that appears on your booking page
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Contact Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Basic Information</h2>
+                <p className="text-sm text-muted-foreground">Public details displayed to clients</p>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="name"
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Salon Name</FormLabel>
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="email"
-                            placeholder="contact@salon.com"
-                          />
+                          <Input className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50" {...field} placeholder="Your Salon Name" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -357,14 +346,32 @@ export default function GeneralSettingsPage() {
 
                 <FormField
                   control={form.control}
-                  name="phone"
+                  name="currency"
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="+1 234 567 8900" />
-                        </FormControl>
+                        <FormLabel className="flex items-center gap-2 text-sm font-semibold">
+                          <DollarSign className="w-4 h-4 text-muted-foreground" />
+                          Currency
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || "EUR"}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 focus:ring-primary/50 text-base">
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                            <SelectItem value="CAD">CAD ($)</SelectItem>
+                            <SelectItem value="AUD">AUD ($)</SelectItem>
+                            <SelectItem value="DZD">DZD (DA)</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     );
@@ -374,37 +381,140 @@ export default function GeneralSettingsPage() {
 
               <FormField
                 control={form.control}
-                name="website"
+                name="description"
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel>Website</FormLabel>
+                      <FormLabel className="text-sm font-semibold">Description</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="https://yoursalon.com" />
+                        <Textarea
+                          className="min-h-[120px] rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50 resize-y"
+                          {...field}
+                          placeholder="Tell clients about your salon..."
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        A brief description that appears on your booking page and public listing.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+            </div>
+          </motion.div>
+
+          {/* Contact Info */}
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Phone className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Contact Details</h2>
+                <p className="text-sm text-muted-foreground">How clients can reach out to you</p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="email"
+                render={function ({ field }) {
+                  return (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 text-sm font-semibold">
+                        <Mail className="w-4 h-4 text-muted-foreground" />
+                        Email Address
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          {...field}
+                          type="email"
+                          placeholder="contact@salon.com"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   );
                 }}
               />
-            </CardContent>
-          </Card>
 
-          {/* Address */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Location</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="phone"
+                render={function ({ field }) {
+                  return (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 text-sm font-semibold">
+                        <Phone className="w-4 h-4 text-muted-foreground" />
+                        Phone Number
+                      </FormLabel>
+                      <FormControl>
+                        <Input 
+                          className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          {...field} 
+                          placeholder="+1 234 567 8900" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+
+              <FormField
+                control={form.control}
+                name="website"
+                render={function ({ field }) {
+                  return (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel className="flex items-center gap-2 text-sm font-semibold">
+                        <Globe className="w-4 h-4 text-muted-foreground" />
+                        Website Target
+                      </FormLabel>
+                      <FormControl>
+                        <Input 
+                          className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          {...field} 
+                          placeholder="https://yoursalon.com" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+            </div>
+          </motion.div>
+
+          {/* Location Info */}
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Location</h2>
+                <p className="text-sm text-muted-foreground">Physical address for clients navigating to you</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
               <FormField
                 control={form.control}
                 name="address"
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel>Street Address</FormLabel>
+                      <FormLabel className="text-sm font-semibold">Street Address</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="123 Main Street" />
+                        <Input 
+                          className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          {...field} 
+                          placeholder="123 Main Street" 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -412,16 +522,20 @@ export default function GeneralSettingsPage() {
                 }}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="city"
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>City</FormLabel>
+                        <FormLabel className="text-sm font-semibold">City</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="City" />
+                          <Input 
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            {...field} 
+                            placeholder="City" 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -435,9 +549,13 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>State / Province</FormLabel>
+                        <FormLabel className="text-sm font-semibold">State / Province</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="State" />
+                          <Input 
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            {...field} 
+                            placeholder="State" 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -446,16 +564,20 @@ export default function GeneralSettingsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="zip_code"
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>ZIP / Postal Code</FormLabel>
+                        <FormLabel className="text-sm font-semibold">ZIP / Postal Code</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="12345" />
+                          <Input 
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            {...field} 
+                            placeholder="12345" 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -469,9 +591,13 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Country</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Country</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Country" />
+                          <Input 
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            {...field} 
+                            placeholder="Country" 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -479,88 +605,109 @@ export default function GeneralSettingsPage() {
                   }}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </motion.div>
 
           {/* Photos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Photos</CardTitle>
-              <CardDescription>
-                Add photos to showcase your salon
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-4">
-                {(salon?.photos || []).map(function (photo) {
-                  return (
-                    <div
-                      key={photo.id}
-                      className="relative group aspect-square rounded-lg overflow-hidden bg-muted"
-                    >
-                      <img
-                        src={photo.url}
-                        alt="Salon photo"
-                        className="w-full h-full object-cover"
-                      />
+          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+             <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Camera className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Salon Gallery</h2>
+                <p className="text-sm text-muted-foreground">Add photos to showcase your space and work</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {(salon?.photos || []).map(function (photo) {
+                return (
+                  <motion.div
+                    key={photo.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="relative group aspect-square rounded-2xl overflow-hidden shadow-sm border border-border/50"
+                  >
+                    <img
+                      src={photo.url}
+                      alt="Salon photo"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <button
                         type="button"
                         onClick={function () {
                           handleDeletePhoto(photo.id);
                         }}
-                        className="absolute top-2 right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-10 w-10 bg-destructive/90 text-white rounded-full flex items-center justify-center hover:bg-destructive hover:scale-110 transition-all shadow-lg"
                       >
-                        <X className="h-4 w-4" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
-                  );
-                })}
+                  </motion.div>
+                );
+              })}
 
-                {/* Upload Button */}
-                <label className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 cursor-pointer flex flex-col items-center justify-center gap-2 transition-colors">
-                  <Upload className="h-6 w-6 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Upload</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoUpload}
-                  />
-                </label>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Upload Button */}
+              <label className="aspect-square rounded-2xl border-2 border-dashed border-primary/30 hover:border-primary bg-primary/5 hover:bg-primary/10 cursor-pointer flex flex-col items-center justify-center gap-3 transition-all">
+                <div className="w-12 h-12 rounded-full bg-background flex items-center justify-center shadow-sm border border-border/50">
+                  <ImagePlus className="h-5 w-5 text-primary" />
+                </div>
+                <span className="text-sm font-semibold text-primary">Add Photo</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                />
+              </label>
+            </div>
+          </motion.div>
 
-          {/* Submit */}
-          <div className="flex justify-end">
-            <Button type="submit" disabled={updateSettings.isPending}>
-              {updateSettings.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </form>
+          {/* Sticky Submit Bar */}
+          <motion.div 
+            variants={itemVariants}
+            className="sticky bottom-6 z-20"
+          >
+            <div className="flex items-center justify-between p-4 sm:p-6 bg-background/80 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl shadow-black/5">
+              <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">Modifications map globally in real-time.</span>
+              <Button 
+                type="submit" 
+                disabled={updateSettings.isPending}
+                size="lg"
+                className="rounded-xl px-8 shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
+              >
+                {updateSettings.isPending ? "Syncing..." : "Publish Application Changes"}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.form>
       </Form>
 
       {/* Danger Zone */}
-      <Separator className="my-8" />
-
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            Danger Zone
-          </CardTitle>
-          <CardDescription>
-            Irreversible and destructive actions
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        className="mt-16 bg-destructive/5 border border-destructive/20 rounded-3xl overflow-hidden"
+      >
+        <div className="p-6 sm:p-8">
+           <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-destructive" />
+            </div>
             <div>
-              <h4 className="font-medium">Delete this salon</h4>
-              <p className="text-sm text-muted-foreground">
-                Once deleted, all data associated with this salon will be
-                permanently removed.
+              <h2 className="text-xl font-bold tracking-tight text-destructive">Danger Zone</h2>
+              <p className="text-sm text-destructive/80">Irreversible and destructive actions</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-6 bg-background rounded-2xl border border-destructive/20 shadow-sm gap-6">
+            <div className="space-y-1">
+              <h4 className="font-bold text-base">Delete this salon</h4>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Once deleted, all data associated with this salon including bookings, staff, and configurations will be permanently removed.
               </p>
             </div>
             <AlertDialog
@@ -574,60 +721,55 @@ export default function GeneralSettingsPage() {
               }}
             >
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Salon
+                <Button variant="destructive" size="lg" className="rounded-xl shrink-0 w-full md:w-auto">
+                  <Trash2 className="mr-2 h-5 w-5" />
+                  Delete Business
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="max-w-md">
+              <AlertDialogContent className="max-w-md rounded-3xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-destructive" />
-                    Delete Salon
+                  <AlertDialogTitle className="flex items-center gap-2 text-xl">
+                    <AlertTriangle className="h-6 w-6 text-destructive" />
+                    Confirm Deletion
                   </AlertDialogTitle>
                   <AlertDialogDescription asChild>
-                    <div className="space-y-4">
+                    <div className="space-y-4 text-base pt-2">
                       {deleteBlockers && deleteBlockers.length > 0 ? (
-                        <div className="space-y-3">
-                          <p className="font-medium text-destructive">
-                            Cannot delete salon. Please resolve the following
-                            issues:
+                        <div className="space-y-4">
+                          <p className="font-semibold text-destructive">
+                            Cannot delete salon. Please resolve the following issues:
                           </p>
-                          <ul className="space-y-2">
+                          <ul className="space-y-2 bg-destructive/5 p-4 rounded-xl border border-destructive/10">
                             {deleteBlockers.map(function (blocker, index) {
                               return (
                                 <li
                                   key={index}
-                                  className="flex items-start gap-2 text-sm"
+                                  className="flex items-start gap-3"
                                 >
-                                  <span className="text-destructive">•</span>
-                                  <span>{blocker.message}</span>
+                                  <span className="text-destructive mt-0.5">•</span>
+                                  <span className="text-sm font-medium">{blocker.message}</span>
                                 </li>
                               );
                             })}
                           </ul>
-                          <p className="text-sm">
-                            You can force delete by clicking &quot;Force
-                            Delete&quot; below, which will cancel pending
-                            bookings automatically.
+                          <p className="text-sm text-muted-foreground">
+                            You can force delete by clicking <strong className="text-foreground">Force Delete</strong> below, which will cancel pending bookings automatically.
                           </p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           <p>
-                            Are you sure you want to delete{" "}
-                            <strong>{salon?.name}</strong>? This action cannot
-                            be undone.
+                            Are you sure you want to delete <strong className="text-foreground">{salon?.name}</strong>? This action cannot be undone.
                           </p>
-                          <p className="text-sm">
-                            All bookings, services, staff records, and other
-                            data associated with this salon will be removed.
+                          <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-xl">
+                            All bookings, services, staff records, and other data associated with this salon will be removed.
                           </p>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium">
-                              Type &quot;{salon?.name}&quot; to confirm:
+                          <div className="space-y-2 pt-2">
+                            <label className="text-sm font-bold text-foreground">
+                              Type <span className="text-primary bg-primary/10 px-2 py-0.5 rounded-md select-all font-mono">{salon?.name}</span> to confirm:
                             </label>
                             <Input
+                              className="h-12 rounded-xl text-base focus-visible:ring-destructive/50"
                               value={confirmDeleteText}
                               onChange={function (e) {
                                 setConfirmDeleteText(e.target.value);
@@ -640,21 +782,23 @@ export default function GeneralSettingsPage() {
                     </div>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogFooter className="mt-6 gap-3">
+                  <AlertDialogCancel className="rounded-xl h-12 w-full sm:w-auto">Cancel</AlertDialogCancel>
                   {deleteBlockers && deleteBlockers.length > 0 ? (
                     <Button
                       variant="destructive"
+                      className="rounded-xl h-12 w-full sm:w-auto"
                       onClick={function () {
                         handleDeleteSalon(true);
                       }}
                       disabled={deleteSalon.isPending}
                     >
-                      {deleteSalon.isPending ? "Deleting..." : "Force Delete"}
+                      {deleteSalon.isPending ? "Processing..." : "Force Delete"}
                     </Button>
                   ) : (
                     <Button
                       variant="destructive"
+                      className="rounded-xl h-12 w-full sm:w-auto"
                       onClick={function () {
                         handleDeleteSalon(false);
                       }}
@@ -663,15 +807,15 @@ export default function GeneralSettingsPage() {
                         deleteSalon.isPending
                       }
                     >
-                      {deleteSalon.isPending ? "Deleting..." : "Delete Salon"}
+                      {deleteSalon.isPending ? "Processing..." : "Delete Salon"}
                     </Button>
                   )}
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
     </div>
   );
 }
