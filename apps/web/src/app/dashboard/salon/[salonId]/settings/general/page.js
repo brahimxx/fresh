@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { 
-  Upload, X, AlertTriangle, Trash2, Info, Building2,
-  Mail, Phone, Globe, MapPin, Camera, DollarSign, ImagePlus
+import {
+  Upload,
+  X,
+  AlertTriangle,
+  Trash2,
+  Info,
+  Building2,
+  Mail,
+  Phone,
+  Globe,
+  MapPin,
+  Camera,
+  DollarSign,
+  ImagePlus,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -15,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -31,6 +43,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { CircleF, GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +66,14 @@ import {
   useDeleteSalon,
 } from "@/hooks/use-settings";
 
+const MAP_OPTIONS = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  scrollwheel: false,
+  clickableIcons: false,
+  gestureHandling: "greedy",
+};
+
 var generalSchema = z.object({
   name: z.string().min(1, "Salon name is required"),
   currency: z.string().optional(),
@@ -67,6 +89,9 @@ var generalSchema = z.object({
   is_physical: z.boolean().optional(),
   is_mobile: z.boolean().optional(),
   is_virtual: z.boolean().optional(),
+  mobile_base_address: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
   virtual_meeting_link: z
     .string()
     .url("Must be a valid URL")
@@ -86,6 +111,11 @@ export default function GeneralSettingsPage() {
   var router = useRouter();
   var { toast } = useToast();
   var fileInputRef = useRef(null);
+  var mobileMapRef = useRef(null);
+  var mobileGeocoderRef = useRef(null);
+  var mobileCircleRef = useRef(null);
+  var mobilePreviewRafRef = useRef(null);
+  var [mobilePreviewCenter, setMobilePreviewCenter] = useState(null);
   var [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   var [deleteBlockers, setDeleteBlockers] = useState(null);
   var [confirmDeleteText, setConfirmDeleteText] = useState("");
@@ -95,6 +125,16 @@ export default function GeneralSettingsPage() {
   var uploadPhoto = useUploadSalonPhoto();
   var deletePhoto = useDeleteSalonPhoto();
   var deleteSalon = useDeleteSalon();
+  var { isLoaded: isMapsLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+    libraries: ["places"],
+  });
+
+  function toBoolFlag(value, fallback) {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "string") return value === "1" || value === "true";
+    return !!value;
+  }
 
   var form = useForm({
     resolver: zodResolver(generalSchema),
@@ -113,6 +153,9 @@ export default function GeneralSettingsPage() {
       is_physical: true,
       is_mobile: false,
       is_virtual: false,
+      mobile_base_address: "",
+      latitude: null,
+      longitude: null,
       virtual_meeting_link: "",
       travel_radius: 0,
       travel_fee_type: "none",
@@ -142,9 +185,18 @@ export default function GeneralSettingsPage() {
           state: salon.state || "",
           zip_code: salon.zip_code || "",
           country: salon.country === "N/A" ? "" : salon.country || "",
-          is_physical: salon.is_physical ?? true,
-          is_mobile: salon.is_mobile ?? false,
-          is_virtual: salon.is_virtual ?? false,
+          is_physical: toBoolFlag(salon.is_physical, true),
+          is_mobile: toBoolFlag(salon.is_mobile, false),
+          is_virtual: toBoolFlag(salon.is_virtual, false),
+          mobile_base_address: salon.mobile_base_address || "",
+          latitude:
+            salon.latitude !== null && salon.latitude !== undefined
+              ? Number(salon.latitude)
+              : null,
+          longitude:
+            salon.longitude !== null && salon.longitude !== undefined
+              ? Number(salon.longitude)
+              : null,
           virtual_meeting_link: salon.virtual_meeting_link || "",
           travel_radius: salon.travel_radius ?? 0,
           travel_fee_type: salon.travel_fee_type ?? "none",
@@ -159,6 +211,15 @@ export default function GeneralSettingsPage() {
   );
 
   function onSubmit(data) {
+    if (!data.is_physical && !data.is_mobile && !data.is_virtual) {
+      toast({
+        title: "Select at least one fulfillment mode",
+        description: "Enable In-salon, Mobile, or Virtual before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     updateSettings.mutate(
       {
         salonId: params.salonId,
@@ -255,77 +316,242 @@ export default function GeneralSettingsPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="space-y-8 animate-pulse">
-        <div className="h-48 w-full bg-muted/60 rounded-3xl" />
-        <div className="space-y-6">
-           <div className="h-64 bg-muted/40 rounded-3xl" />
-           <div className="h-64 bg-muted/40 rounded-3xl" />
-        </div>
-      </div>
+  function updateMobileBaseAddressFromCoords(lat, lng) {
+    if (
+      typeof window === "undefined" ||
+      !window.google?.maps?.Geocoder ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+      return;
+    }
+
+    if (!mobileGeocoderRef.current) {
+      mobileGeocoderRef.current = new window.google.maps.Geocoder();
+    }
+
+    mobileGeocoderRef.current.geocode(
+      { location: { lat: lat, lng: lng } },
+      function (results, status) {
+        if (
+          status === "OK" &&
+          results &&
+          results[0] &&
+          results[0].formatted_address
+        ) {
+          form.setValue("mobile_base_address", results[0].formatted_address, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }
+      },
     );
   }
+
+  function handleMobileMapDragEnd() {
+    if (!mobileMapRef.current) return;
+    var center = mobileMapRef.current.getCenter();
+    var nextLat = center.lat();
+    var nextLng = center.lng();
+    setMobilePreviewCenter({ lat: nextLat, lng: nextLng });
+    form.setValue("latitude", center.lat(), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("longitude", center.lng(), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    updateMobileBaseAddressFromCoords(nextLat, nextLng);
+  }
+
+  function handleMobileMapCenterChanged() {
+    if (!mobileMapRef.current) return;
+
+    if (mobilePreviewRafRef.current) return;
+    mobilePreviewRafRef.current = window.requestAnimationFrame(function () {
+      mobilePreviewRafRef.current = null;
+      if (!mobileMapRef.current) return;
+      var center = mobileMapRef.current.getCenter();
+      var nextLat = center.lat();
+      var nextLng = center.lng();
+      setMobilePreviewCenter(function (prev) {
+        if (
+          prev &&
+          Math.abs(prev.lat - nextLat) < 0.000001 &&
+          Math.abs(prev.lng - nextLng) < 0.000001
+        ) {
+          return prev;
+        }
+        return { lat: nextLat, lng: nextLng };
+      });
+    });
+  }
+
+  function handleMobileCircleLoad(circle) {
+    // Keep a single live overlay to avoid ghost circles while dragging.
+    if (mobileCircleRef.current && mobileCircleRef.current !== circle) {
+      mobileCircleRef.current.setMap(null);
+    }
+    mobileCircleRef.current = circle;
+  }
+
+  function handleMobileCircleUnmount(circle) {
+    if (mobileCircleRef.current === circle) {
+      mobileCircleRef.current = null;
+    }
+    circle.setMap(null);
+  }
+
+  useEffect(function () {
+    return function () {
+      if (mobilePreviewRafRef.current) {
+        window.cancelAnimationFrame(mobilePreviewRafRef.current);
+        mobilePreviewRafRef.current = null;
+      }
+      if (mobileCircleRef.current) {
+        mobileCircleRef.current.setMap(null);
+        mobileCircleRef.current = null;
+      }
+    };
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1
-      }
-    }
+        staggerChildren: 0.1,
+      },
+    },
   };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+    show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
+
+  var isMobileEnabled = !!form.watch("is_mobile");
+  var isVirtualEnabled = !!form.watch("is_virtual");
+  var travelRadius = Number(form.watch("travel_radius") || 0);
+
+  function toFiniteCoord(value) {
+    if (value === null || value === undefined || value === "") return null;
+    var num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  var mobileCenterLat = toFiniteCoord(form.watch("latitude"));
+  var mobileCenterLng = toFiniteCoord(form.watch("longitude"));
+  var hasMobileCenterCoords =
+    mobileCenterLat !== null && mobileCenterLng !== null;
+
+  useEffect(
+    function () {
+      if (hasMobileCenterCoords) {
+        setMobilePreviewCenter({ lat: mobileCenterLat, lng: mobileCenterLng });
+      } else {
+        setMobilePreviewCenter(null);
+      }
+    },
+    [hasMobileCenterCoords, mobileCenterLat, mobileCenterLng],
+  );
+
+  var mobileMapCenter = useMemo(
+    function () {
+      return {
+        lat: hasMobileCenterCoords ? mobileCenterLat : 36.7056,
+        lng: hasMobileCenterCoords ? mobileCenterLng : 3.0906,
+      };
+    },
+    [hasMobileCenterCoords, mobileCenterLat, mobileCenterLng],
+  );
+  var mobileCircleCenter = useMemo(
+    function () {
+      if (mobilePreviewCenter) {
+        return mobilePreviewCenter;
+      }
+      return hasMobileCenterCoords
+        ? { lat: mobileCenterLat, lng: mobileCenterLng }
+        : null;
+    },
+    [
+      mobilePreviewCenter,
+      hasMobileCenterCoords,
+      mobileCenterLat,
+      mobileCenterLng,
+    ],
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="h-48 w-full bg-muted/60 rounded-3xl" />
+        <div className="space-y-6">
+          <div className="h-64 bg-muted/40 rounded-3xl" />
+          <div className="h-64 bg-muted/40 rounded-3xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="">
       {/* Decorative Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 mb-8 group"
       >
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
-          <Building2 className="w-48 h-48 sm:w-64 sm:h-64 text-primary" strokeWidth={1} />
+          <Building2
+            className="w-48 h-48 sm:w-64 sm:h-64 text-primary"
+            strokeWidth={1}
+          />
         </div>
-        
+
         <div className="relative z-10 flex flex-col gap-3 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
             <Info className="w-3.5 h-3.5" />
             <span>General Configuration</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Business Profile</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+            Business Profile
+          </h1>
           <p className="text-muted-foreground text-lg leading-relaxed max-w-xl">
-            Manage your core salon details, contact information, and operating address visible to your clients.
+            Manage your core salon details, contact information, and operating
+            address visible to your clients.
           </p>
         </div>
       </motion.div>
 
       <Form {...form}>
-        <motion.form 
+        <motion.form
           variants={containerVariants}
           initial="hidden"
           animate="show"
-          onSubmit={form.handleSubmit(onSubmit)} 
+          onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-8"
         >
           {/* Basic Info */}
-          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <motion.div
+            variants={itemVariants}
+            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
+          >
             <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight">Basic Information</h2>
-                <p className="text-sm text-muted-foreground">Public details displayed to clients</p>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Basic Information
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Public details displayed to clients
+                </p>
               </div>
             </div>
-            
+
             <div className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <FormField
@@ -334,9 +560,15 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold">Salon Name</FormLabel>
+                        <FormLabel className="text-sm font-semibold">
+                          Salon Name
+                        </FormLabel>
                         <FormControl>
-                          <Input className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50" {...field} placeholder="Your Salon Name" />
+                          <Input
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            {...field}
+                            placeholder="Your Salon Name"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -385,7 +617,9 @@ export default function GeneralSettingsPage() {
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel className="text-sm font-semibold">Description</FormLabel>
+                      <FormLabel className="text-sm font-semibold">
+                        Description
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           className="min-h-[120px] rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50 resize-y"
@@ -394,7 +628,8 @@ export default function GeneralSettingsPage() {
                         />
                       </FormControl>
                       <FormDescription>
-                        A brief description that appears on your booking page and public listing.
+                        A brief description that appears on your booking page
+                        and public listing.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -405,14 +640,21 @@ export default function GeneralSettingsPage() {
           </motion.div>
 
           {/* Contact Info */}
-          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <motion.div
+            variants={itemVariants}
+            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
+          >
             <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Phone className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight">Contact Details</h2>
-                <p className="text-sm text-muted-foreground">How clients can reach out to you</p>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Contact Details
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  How clients can reach out to you
+                </p>
               </div>
             </div>
 
@@ -452,10 +694,10 @@ export default function GeneralSettingsPage() {
                         Phone Number
                       </FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          {...field} 
-                          placeholder="+1 234 567 8900" 
+                          {...field}
+                          placeholder="+1 234 567 8900"
                         />
                       </FormControl>
                       <FormMessage />
@@ -475,10 +717,10 @@ export default function GeneralSettingsPage() {
                         Website Target
                       </FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          {...field} 
-                          placeholder="https://yoursalon.com" 
+                          {...field}
+                          placeholder="https://yoursalon.com"
                         />
                       </FormControl>
                       <FormMessage />
@@ -490,14 +732,19 @@ export default function GeneralSettingsPage() {
           </motion.div>
 
           {/* Location Info */}
-          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <motion.div
+            variants={itemVariants}
+            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
+          >
             <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <h2 className="text-xl font-bold tracking-tight">Location</h2>
-                <p className="text-sm text-muted-foreground">Physical address for clients navigating to you</p>
+                <p className="text-sm text-muted-foreground">
+                  Physical address for clients navigating to you
+                </p>
               </div>
             </div>
 
@@ -508,12 +755,14 @@ export default function GeneralSettingsPage() {
                 render={function ({ field }) {
                   return (
                     <FormItem>
-                      <FormLabel className="text-sm font-semibold">Street Address</FormLabel>
+                      <FormLabel className="text-sm font-semibold">
+                        Street Address
+                      </FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          {...field} 
-                          placeholder="123 Main Street" 
+                          {...field}
+                          placeholder="123 Main Street"
                         />
                       </FormControl>
                       <FormMessage />
@@ -529,12 +778,14 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold">City</FormLabel>
+                        <FormLabel className="text-sm font-semibold">
+                          City
+                        </FormLabel>
                         <FormControl>
-                          <Input 
+                          <Input
                             className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field} 
-                            placeholder="City" 
+                            {...field}
+                            placeholder="City"
                           />
                         </FormControl>
                         <FormMessage />
@@ -549,12 +800,14 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold">State / Province</FormLabel>
+                        <FormLabel className="text-sm font-semibold">
+                          State / Province
+                        </FormLabel>
                         <FormControl>
-                          <Input 
+                          <Input
                             className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field} 
-                            placeholder="State" 
+                            {...field}
+                            placeholder="State"
                           />
                         </FormControl>
                         <FormMessage />
@@ -571,12 +824,14 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold">ZIP / Postal Code</FormLabel>
+                        <FormLabel className="text-sm font-semibold">
+                          ZIP / Postal Code
+                        </FormLabel>
                         <FormControl>
-                          <Input 
+                          <Input
                             className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field} 
-                            placeholder="12345" 
+                            {...field}
+                            placeholder="12345"
                           />
                         </FormControl>
                         <FormMessage />
@@ -591,12 +846,14 @@ export default function GeneralSettingsPage() {
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel className="text-sm font-semibold">Country</FormLabel>
+                        <FormLabel className="text-sm font-semibold">
+                          Country
+                        </FormLabel>
                         <FormControl>
-                          <Input 
+                          <Input
                             className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field} 
-                            placeholder="Country" 
+                            {...field}
+                            placeholder="Country"
                           />
                         </FormControl>
                         <FormMessage />
@@ -608,15 +865,425 @@ export default function GeneralSettingsPage() {
             </div>
           </motion.div>
 
+          {/* Fulfillment Modes */}
+          <motion.div
+            variants={itemVariants}
+            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
+          >
+            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Globe className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Fulfillment Modes
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Choose how clients can book your services
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <FormField
+                control={form.control}
+                name="is_physical"
+                render={function ({ field }) {
+                  return (
+                    <FormItem className="flex items-center justify-between rounded-xl border border-border/60 p-4">
+                      <div className="space-y-1">
+                        <FormLabel className="text-sm font-semibold">
+                          In-Salon
+                        </FormLabel>
+                        <FormDescription>
+                          Clients come to your physical location.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!!field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  );
+                }}
+              />
+
+              <FormField
+                control={form.control}
+                name="is_mobile"
+                render={function ({ field }) {
+                  return (
+                    <FormItem className="flex items-center justify-between rounded-xl border border-border/60 p-4">
+                      <div className="space-y-1">
+                        <FormLabel className="text-sm font-semibold">
+                          Mobile
+                        </FormLabel>
+                        <FormDescription>
+                          You travel to the client location.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!!field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  );
+                }}
+              />
+
+              {isMobileEnabled && (
+                <div className="grid md:grid-cols-2 gap-6 rounded-xl border border-border/60 p-4">
+                  <FormField
+                    control={form.control}
+                    name="travel_radius"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">
+                            Travel Radius (km)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              {...field}
+                              value={field.value ?? 0}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Set the radius first, then choose the center point
+                            on the map.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  {travelRadius > 0 ? (
+                    <FormField
+                      control={form.control}
+                      name="mobile_base_address"
+                      render={function ({ field }) {
+                        return (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel className="text-sm font-semibold">
+                              Mobile Service Center Address
+                            </FormLabel>
+                            <FormControl>
+                              <AddressAutocomplete
+                                value={field.value || ""}
+                                placeholder="Search your mobile service center"
+                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                onChange={function (location) {
+                                  field.onChange(location.full_address || "");
+                                  if (
+                                    location.lat !== undefined &&
+                                    location.lng !== undefined
+                                  ) {
+                                    form.setValue("latitude", location.lat, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    });
+                                    form.setValue("longitude", location.lng, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    });
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Same flow as onboarding: search an address, then
+                              fine-tune by dragging the map.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <div className="md:col-span-2 rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                      Choose a travel radius first to unlock center selection on
+                      the map.
+                    </div>
+                  )}
+
+                  {travelRadius > 0 && (
+                    <div className="md:col-span-2">
+                      <div className="mb-2">
+                        <p className="text-sm font-semibold">
+                          Service Area Map
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Drag the pin to adjust the center. Radius:{" "}
+                          {travelRadius}
+                          km.
+                        </p>
+                      </div>
+                      <div className="w-full h-72 bg-muted border border-border rounded-xl relative overflow-hidden flex items-center justify-center cursor-crosshair">
+                        {isMapsLoaded ? (
+                          <GoogleMap
+                            mapContainerStyle={{
+                              width: "100%",
+                              height: "100%",
+                            }}
+                            center={mobileMapCenter}
+                            zoom={hasMobileCenterCoords ? 12 : 10}
+                            options={MAP_OPTIONS}
+                            onLoad={function (map) {
+                              mobileMapRef.current = map;
+                            }}
+                            onUnmount={function () {
+                              mobileMapRef.current = null;
+                            }}
+                            onCenterChanged={handleMobileMapCenterChanged}
+                            onDragEnd={handleMobileMapDragEnd}
+                          >
+                            {mobileCircleCenter && (
+                              <CircleF
+                                key={`${travelRadius}:${mobileCenterLat}:${mobileCenterLng}`}
+                                center={mobileCircleCenter}
+                                radius={travelRadius * 1000}
+                                options={{
+                                  fillColor: "#2563eb",
+                                  fillOpacity: 0.12,
+                                  strokeColor: "#2563eb",
+                                  strokeOpacity: 0.9,
+                                  strokeWeight: 2,
+                                }}
+                                onLoad={handleMobileCircleLoad}
+                                onUnmount={handleMobileCircleUnmount}
+                              />
+                            )}
+                          </GoogleMap>
+                        ) : (
+                          <div className="absolute inset-0 bg-[#E5E3DF] opacity-50 flex items-center justify-center">
+                            <div className="text-muted-foreground/30 font-semibold text-lg flex flex-col items-center">
+                              <Globe className="h-10 w-10 mb-2 opacity-50" />
+                              Loading Map...
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center pointer-events-none drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
+                          <MapPin className="h-10 w-10 text-black -mt-10" />
+                          <div className="h-2 w-3 bg-black/20 rounded-[100%] blur-[1px] mt-1" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <FormField
+                    control={form.control}
+                    name="travel_buffer_time"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">
+                            Travel Buffer (minutes)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              {...field}
+                              value={field.value ?? 0}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="travel_fee_type"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">
+                            Travel Fee Type
+                          </FormLabel>
+                          <Select
+                            value={field.value || "none"}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 focus:ring-primary/50 text-base">
+                                <SelectValue placeholder="Select fee type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="none">No fee</SelectItem>
+                              <SelectItem value="fixed">Fixed</SelectItem>
+                              <SelectItem value="per_km">Per km</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="travel_fee_amount"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">
+                            Travel Fee Amount
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              {...field}
+                              value={field.value ?? 0}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="mobile_base_address"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel className="text-sm font-semibold">
+                            Mobile Service Center Address
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              placeholder="Used as center point for travel radius checks"
+                              {...field}
+                              value={field.value || ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            If you do not have a physical salon, set your home
+                            or operating base address here.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="covered_zip_codes"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel className="text-sm font-semibold">
+                            Covered ZIP Codes
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              placeholder="10001, 10002, 10003"
+                              {...field}
+                              value={field.value || ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Optional comma-separated postal codes you serve.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
+              )}
+
+              <FormField
+                control={form.control}
+                name="is_virtual"
+                render={function ({ field }) {
+                  return (
+                    <FormItem className="flex items-center justify-between rounded-xl border border-border/60 p-4">
+                      <div className="space-y-1">
+                        <FormLabel className="text-sm font-semibold">
+                          Virtual
+                        </FormLabel>
+                        <FormDescription>
+                          Services delivered by video call.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!!field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  );
+                }}
+              />
+
+              {isVirtualEnabled && (
+                <FormField
+                  control={form.control}
+                  name="virtual_meeting_link"
+                  render={function ({ field }) {
+                    return (
+                      <FormItem>
+                        <FormLabel className="text-sm font-semibold">
+                          Default Virtual Meeting Link
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            placeholder="https://meet.google.com/your-room"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          This link is shared for virtual bookings when
+                          applicable.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+              )}
+            </div>
+          </motion.div>
+
           {/* Photos */}
-          <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
-             <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+          <motion.div
+            variants={itemVariants}
+            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
+          >
+            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Camera className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight">Salon Gallery</h2>
-                <p className="text-sm text-muted-foreground">Add photos to showcase your space and work</p>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Salon Gallery
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Add photos to showcase your space and work
+                </p>
               </div>
             </div>
 
@@ -653,7 +1320,9 @@ export default function GeneralSettingsPage() {
                 <div className="w-12 h-12 rounded-full bg-background flex items-center justify-center shadow-sm border border-border/50">
                   <ImagePlus className="h-5 w-5 text-primary" />
                 </div>
-                <span className="text-sm font-semibold text-primary">Add Photo</span>
+                <span className="text-sm font-semibold text-primary">
+                  Add Photo
+                </span>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -666,19 +1335,20 @@ export default function GeneralSettingsPage() {
           </motion.div>
 
           {/* Sticky Submit Bar */}
-          <motion.div 
-            variants={itemVariants}
-            className="sticky bottom-6 z-20"
-          >
+          <motion.div variants={itemVariants} className="sticky bottom-6 z-20">
             <div className="flex items-center justify-between p-4 sm:p-6 bg-background/80 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl shadow-black/5">
-              <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">Modifications map globally in real-time.</span>
-              <Button 
-                type="submit" 
+              <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">
+                Modifications map globally in real-time.
+              </span>
+              <Button
+                type="submit"
                 disabled={updateSettings.isPending}
                 size="lg"
                 className="rounded-xl px-8 shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
               >
-                {updateSettings.isPending ? "Syncing..." : "Publish Application Changes"}
+                {updateSettings.isPending
+                  ? "Syncing..."
+                  : "Publish Application Changes"}
               </Button>
             </div>
           </motion.div>
@@ -686,20 +1356,24 @@ export default function GeneralSettingsPage() {
       </Form>
 
       {/* Danger Zone */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
         className="mt-16 bg-destructive/5 border border-destructive/20 rounded-3xl overflow-hidden"
       >
         <div className="p-6 sm:p-8">
-           <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center">
               <AlertTriangle className="w-6 h-6 text-destructive" />
             </div>
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-destructive">Danger Zone</h2>
-              <p className="text-sm text-destructive/80">Irreversible and destructive actions</p>
+              <h2 className="text-xl font-bold tracking-tight text-destructive">
+                Danger Zone
+              </h2>
+              <p className="text-sm text-destructive/80">
+                Irreversible and destructive actions
+              </p>
             </div>
           </div>
 
@@ -707,7 +1381,8 @@ export default function GeneralSettingsPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-base">Delete this salon</h4>
               <p className="text-sm text-muted-foreground max-w-md">
-                Once deleted, all data associated with this salon including bookings, staff, and configurations will be permanently removed.
+                Once deleted, all data associated with this salon including
+                bookings, staff, and configurations will be permanently removed.
               </p>
             </div>
             <AlertDialog
@@ -721,7 +1396,11 @@ export default function GeneralSettingsPage() {
               }}
             >
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="lg" className="rounded-xl shrink-0 w-full md:w-auto">
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  className="rounded-xl shrink-0 w-full md:w-auto"
+                >
                   <Trash2 className="mr-2 h-5 w-5" />
                   Delete Business
                 </Button>
@@ -737,7 +1416,8 @@ export default function GeneralSettingsPage() {
                       {deleteBlockers && deleteBlockers.length > 0 ? (
                         <div className="space-y-4">
                           <p className="font-semibold text-destructive">
-                            Cannot delete salon. Please resolve the following issues:
+                            Cannot delete salon. Please resolve the following
+                            issues:
                           </p>
                           <ul className="space-y-2 bg-destructive/5 p-4 rounded-xl border border-destructive/10">
                             {deleteBlockers.map(function (blocker, index) {
@@ -746,27 +1426,45 @@ export default function GeneralSettingsPage() {
                                   key={index}
                                   className="flex items-start gap-3"
                                 >
-                                  <span className="text-destructive mt-0.5">•</span>
-                                  <span className="text-sm font-medium">{blocker.message}</span>
+                                  <span className="text-destructive mt-0.5">
+                                    •
+                                  </span>
+                                  <span className="text-sm font-medium">
+                                    {blocker.message}
+                                  </span>
                                 </li>
                               );
                             })}
                           </ul>
                           <p className="text-sm text-muted-foreground">
-                            You can force delete by clicking <strong className="text-foreground">Force Delete</strong> below, which will cancel pending bookings automatically.
+                            You can force delete by clicking{" "}
+                            <strong className="text-foreground">
+                              Force Delete
+                            </strong>{" "}
+                            below, which will cancel pending bookings
+                            automatically.
                           </p>
                         </div>
                       ) : (
                         <div className="space-y-4">
                           <p>
-                            Are you sure you want to delete <strong className="text-foreground">{salon?.name}</strong>? This action cannot be undone.
+                            Are you sure you want to delete{" "}
+                            <strong className="text-foreground">
+                              {salon?.name}
+                            </strong>
+                            ? This action cannot be undone.
                           </p>
                           <p className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-xl">
-                            All bookings, services, staff records, and other data associated with this salon will be removed.
+                            All bookings, services, staff records, and other
+                            data associated with this salon will be removed.
                           </p>
                           <div className="space-y-2 pt-2">
                             <label className="text-sm font-bold text-foreground">
-                              Type <span className="text-primary bg-primary/10 px-2 py-0.5 rounded-md select-all font-mono">{salon?.name}</span> to confirm:
+                              Type{" "}
+                              <span className="text-primary bg-primary/10 px-2 py-0.5 rounded-md select-all font-mono">
+                                {salon?.name}
+                              </span>{" "}
+                              to confirm:
                             </label>
                             <Input
                               className="h-12 rounded-xl text-base focus-visible:ring-destructive/50"
@@ -783,7 +1481,9 @@ export default function GeneralSettingsPage() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="mt-6 gap-3">
-                  <AlertDialogCancel className="rounded-xl h-12 w-full sm:w-auto">Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="rounded-xl h-12 w-full sm:w-auto">
+                    Cancel
+                  </AlertDialogCancel>
                   {deleteBlockers && deleteBlockers.length > 0 ? (
                     <Button
                       variant="destructive"

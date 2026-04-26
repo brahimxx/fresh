@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -16,6 +16,11 @@ import {
 import { createSafeBooking, BookingError } from "@/lib/booking";
 import { sendContextualBookingConfirmation } from "@/lib/notifications";
 import { stripe } from "@/lib/stripe";
+import {
+  geocodeAddress,
+  haversineDistanceKm,
+  isValidCoordinatePair,
+} from "@/lib/geo";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
 export async function POST(request, { params }) {
@@ -23,10 +28,10 @@ export async function POST(request, { params }) {
     // Require authentication
     const session = await requireAuth();
     const { salonId: rawSalonId } = await params;
-  const salonId = decodeId(rawSalonId);
+    const salonId = decodeId(rawSalonId);
 
     const salon = await getOne(
-      "SELECT id, name, is_marketplace_enabled, virtual_meeting_link FROM salons WHERE id = ?",
+      "SELECT id, name, address, city, country, latitude, longitude, is_marketplace_enabled, virtual_meeting_link, covered_zip_codes, travel_radius, mobile_base_address FROM salons WHERE id = ?",
       [salonId],
     );
     if (!salon) {
@@ -48,10 +53,21 @@ export async function POST(request, { params }) {
       "SELECT auto_confirm_bookings FROM salon_settings WHERE salon_id = ?",
       [salonId],
     );
-    const autoConfirm = salonSettings ? !!salonSettings.auto_confirm_bookings : false;
+    const autoConfirm = salonSettings
+      ? !!salonSettings.auto_confirm_bookings
+      : false;
 
     const body = await request.json();
-    const { services, startTime, notes, paymentMethod, fulfillmentType, serviceLocationAddress, clientTimezone } = body;
+    const {
+      services,
+      startTime,
+      notes,
+      paymentMethod,
+      fulfillmentType,
+      serviceLocationAddress,
+      clientTimezone,
+      virtualMeetingLink,
+    } = body;
 
     // Validate services array
     if (!services || !Array.isArray(services) || services.length === 0) {
@@ -83,16 +99,17 @@ export async function POST(request, { params }) {
     // Check if the client is blacklisted at this salon
     const salonClientRecord = await getOne(
       "SELECT is_active FROM salon_clients WHERE client_id = ? AND salon_id = ?",
-      [clientId, salonId]
+      [clientId, salonId],
     );
 
     if (salonClientRecord && salonClientRecord.is_active === 0) {
       return error(
-        { 
-          code: "CLIENT_BLACKLISTED", 
-          message: "You are currently restricted from booking at this salon due to previous no-shows or cancellations. Please contact the salon directly." 
-        }, 
-        403
+        {
+          code: "CLIENT_BLACKLISTED",
+          message:
+            "You are currently restricted from booking at this salon due to previous no-shows or cancellations. Please contact the salon directly.",
+        },
+        403,
       );
     }
 
@@ -135,7 +152,7 @@ export async function POST(request, { params }) {
       }
 
       totalDuration += service.duration_minutes;
-      totalBuffer += (service.buffer_time_minutes || 0);
+      totalBuffer += service.buffer_time_minutes || 0;
       totalPrice += parseFloat(service.price);
       serviceDetails.push({
         ...svc,
@@ -146,15 +163,155 @@ export async function POST(request, { params }) {
       });
     }
 
-    // Add travel fee if mobile fulfillment
-    if (fulfillmentType === "mobile" && salon.travel_fee_type !== "none") {
-      totalPrice += parseFloat(salon.travel_fee_amount || 0);
+    // ── Fulfillment-specific validation ─────────────────────────────────────
+    //
+    // Mobile: client address is required; ZIP must be within covered zones.
+    // Virtual: meeting link defaults to the salon's static link if not provided.
+    // Physical: no extra validation needed.
+
+    if (fulfillmentType === "mobile") {
+      if (!serviceLocationAddress || !serviceLocationAddress.trim()) {
+        return error(
+          {
+            code: "ADDRESS_REQUIRED",
+            message: "A client address is required for mobile service bookings",
+          },
+          400,
+        );
+      }
+
+      // Radius boundary check (if the salon has set travel_radius)
+      var radiusKm = Number(salon.travel_radius || 0);
+      if (radiusKm > 0) {
+        var centerLat = Number(salon.latitude);
+        var centerLng = Number(salon.longitude);
+
+        if (!isValidCoordinatePair(centerLat, centerLng)) {
+          var centerAddress = (salon.mobile_base_address || "").trim();
+          if (!centerAddress) {
+            centerAddress = [salon.address, salon.city, salon.country]
+              .filter(Boolean)
+              .join(", ");
+          }
+
+          if (!centerAddress) {
+            return error(
+              {
+                code: "MOBILE_CENTER_NOT_CONFIGURED",
+                message:
+                  "Mobile radius is enabled but no center address is configured. Please ask the salon to set a mobile service center address.",
+              },
+              400,
+            );
+          }
+
+          var centerCoords = null;
+          try {
+            centerCoords = await geocodeAddress(centerAddress);
+          } catch (geoErr) {
+            console.error("[WIDGET BOOKING] Center geocoding failed:", geoErr);
+          }
+
+          if (!centerCoords) {
+            return error(
+              {
+                code: "MOBILE_CENTER_GEOCODE_FAILED",
+                message:
+                  "We could not verify the salon mobile center location. Please try again later.",
+              },
+              400,
+            );
+          }
+
+          centerLat = centerCoords.lat;
+          centerLng = centerCoords.lng;
+
+          // Cache derived center coordinates for future checks.
+          try {
+            await query(
+              "UPDATE salons SET latitude = ?, longitude = ? WHERE id = ?",
+              [centerLat, centerLng, salonId],
+            );
+          } catch (persistErr) {
+            console.error(
+              "[WIDGET BOOKING] Failed to persist center coordinates:",
+              persistErr,
+            );
+          }
+        }
+
+        var clientCoords = null;
+        try {
+          clientCoords = await geocodeAddress(serviceLocationAddress.trim());
+        } catch (geoErr) {
+          console.error("[WIDGET BOOKING] Client geocoding failed:", geoErr);
+        }
+
+        if (!clientCoords) {
+          return error(
+            {
+              code: "CLIENT_ADDRESS_GEOCODE_FAILED",
+              message:
+                "We could not verify your address for mobile radius checks. Please use a full address.",
+            },
+            400,
+          );
+        }
+
+        var distanceKm = haversineDistanceKm(
+          centerLat,
+          centerLng,
+          clientCoords.lat,
+          clientCoords.lng,
+        );
+
+        if (distanceKm > radiusKm) {
+          return error(
+            {
+              code: "OUTSIDE_SERVICE_RADIUS",
+              message:
+                "Your address is outside our mobile service radius (" +
+                distanceKm.toFixed(1) +
+                " km away, max " +
+                radiusKm +
+                " km).",
+            },
+            400,
+          );
+        }
+      }
+
+      // ZIP code boundary check (if the salon has set covered zones)
+      if (salon.covered_zip_codes) {
+        const zips = salon.covered_zip_codes
+          .split(",")
+          .map((z) => z.trim())
+          .filter(Boolean);
+        if (zips.length > 0) {
+          const hasMatch = zips.some((z) => serviceLocationAddress.includes(z));
+          if (!hasMatch) {
+            return error(
+              {
+                code: "OUTSIDE_SERVICE_AREA",
+                message: `Your address is outside our service area. We cover: ${salon.covered_zip_codes}`,
+              },
+              400,
+            );
+          }
+        }
+      }
     }
-    
+
+    // Resolve meeting link for virtual bookings
+    const resolvedMeetingLink =
+      fulfillmentType === "virtual"
+        ? virtualMeetingLink || salon.virtual_meeting_link || null
+        : null;
+
     // Calculate end time from DB service durations — totalDuration is computed
     // from DB records above so this is authoritative, not frontend-controlled.
     // We add totalBuffer to endDateTime so the buffer is blocked out in the calendar.
-    const startDateTime = new Date(String(startTime).replace(' ', 'T'));
+    const startDateTime = new Date(String(startTime).replace(" ", "T"));
     const endDateTime = new Date(
       startDateTime.getTime() + (totalDuration + totalBuffer) * 60000,
     );
@@ -180,7 +337,9 @@ export async function POST(request, { params }) {
       const buffer = svc.bufferTime || 0;
       const isLast = i === serviceDetails.length - 1;
       const winStart = new Date(scheduleCursor);
-      const winEnd = new Date(scheduleCursor.getTime() + (duration + (isLast ? buffer : 0)) * 60000);
+      const winEnd = new Date(
+        scheduleCursor.getTime() + (duration + (isLast ? buffer : 0)) * 60000,
+      );
       // Advance cursor by pure duration (no buffer gap between services)
       scheduleCursor = new Date(scheduleCursor.getTime() + duration * 60000);
       return { staffId: svc.staffId, start: winStart, end: winEnd };
@@ -276,30 +435,37 @@ export async function POST(request, { params }) {
       status: autoConfirm ? "confirmed" : "pending",
       source: "marketplace",
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
+      fulfillmentType: fulfillmentType || "physical",
+      serviceLocationAddress: serviceLocationAddress || null,
+      clientTimezone: clientTimezone || null,
+      virtualMeetingLink: resolvedMeetingLink,
     });
 
     const { bookingId, isNewClient } = result;
     const finalPrice = result.totalPrice || totalPrice;
 
     let checkoutUrl = null;
-    
-    if (paymentMethod === 'stripe') {
+
+    if (paymentMethod === "stripe") {
       try {
-        const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-        
+        const origin =
+          request.headers.get("origin") ||
+          process.env.NEXT_PUBLIC_APP_URL ||
+          "http://localhost:3000";
+
         // Insert a pending payment record
         await query(
           "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'card', 'pending')",
-          [bookingId, finalPrice || 0]
+          [bookingId, finalPrice || 0],
         );
-        
+
         // Create Stripe checkout session
         const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
+          payment_method_types: ["card"],
           line_items: [
             {
               price_data: {
-                currency: 'eur', // Assuming eur, adjust if salon uses different currency
+                currency: "eur", // Assuming eur, adjust if salon uses different currency
                 product_data: {
                   name: `Booking at ${salon.name}`,
                 },
@@ -308,26 +474,26 @@ export async function POST(request, { params }) {
               quantity: 1,
             },
           ],
-          mode: 'payment',
+          mode: "payment",
           success_url: `${origin}/dashboard/client/bookings?success=true`,
           cancel_url: `${origin}/api/checkout/cancel?bookingId=${bookingId}&salonId=${salonId}`,
-          expires_at: Math.floor(Date.now() / 1000) + (30 * 60), // Expire link exactly in 30 minutes
+          expires_at: Math.floor(Date.now() / 1000) + 30 * 60, // Expire link exactly in 30 minutes
           metadata: {
             bookingId: bookingId.toString(),
             salonId: salonId.toString(),
-          }
+          },
         });
-        
+
         checkoutUrl = session.url;
       } catch (stripeErr) {
         console.error("Stripe session creation failed:", stripeErr);
         // Continue, the booking is created. They can pay later.
       }
-    } else if (paymentMethod === 'cash') {
+    } else if (paymentMethod === "cash") {
       // Insert a pending cash payment
       await query(
         "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'cash', 'pending')",
-        [bookingId, finalPrice || 0]
+        [bookingId, finalPrice || 0],
       );
     }
 
@@ -357,14 +523,16 @@ export async function POST(request, { params }) {
       );
     }
 
-    
     // Send Contextual Client Email / SMS
     try {
       if (clientId) {
-        // Find email address for the user, but we already have session? 
+        // Find email address for the user, but we already have session?
         // We know clientId. Next we need clientEmail. We queried ownerRow, let's just query client properly:
-        const clientProfile = await getOne("SELECT email, first_name, last_name FROM users WHERE id = ?", [clientId]);
-        
+        const clientProfile = await getOne(
+          "SELECT email, first_name, last_name FROM users WHERE id = ?",
+          [clientId],
+        );
+
         if (clientProfile && clientProfile.email) {
           await sendContextualBookingConfirmation({
             userId: clientId,
@@ -373,19 +541,22 @@ export async function POST(request, { params }) {
             salonName: salon.name,
             services: serviceDetails,
             startTime: startDateTime,
-            fulfillmentType: fulfillmentType || 'physical',
+            fulfillmentType: fulfillmentType || "physical",
             serviceLocationAddress: serviceLocationAddress || null,
-            virtualMeetingLink: fulfillmentType === 'virtual' ? salon.virtual_meeting_link : null,
-            clientTimezone: clientTimezone || 'UTC'
+            virtualMeetingLink:
+              fulfillmentType === "virtual" ? salon.virtual_meeting_link : null,
+            clientTimezone: clientTimezone || "UTC",
           });
         }
       }
     } catch (clientNotifErr) {
-      console.error("[WIDGET BOOKING] Contextual client email trigger failed:", clientNotifErr);
+      console.error(
+        "[WIDGET BOOKING] Contextual client email trigger failed:",
+        clientNotifErr,
+      );
     }
 
     return created({
-
       success: true,
       bookingId: result.bookingId,
       checkoutUrl,

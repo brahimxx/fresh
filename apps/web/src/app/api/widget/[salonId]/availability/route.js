@@ -76,15 +76,23 @@ export async function GET(request, { params }) {
       
       let capableStaffIds = [];
       if (pair.staffId === 'any') {
+        // Build fulfillment capability filter
+        let capabilityFilter = '';
+        if (fulfillmentType === 'mobile') {
+          capabilityFilter = 'AND st.can_mobile = 1';
+        } else if (fulfillmentType === 'virtual') {
+          capabilityFilter = 'AND st.can_virtual = 1';
+        }
+
         const staffList = await query(
           `SELECT staff_id FROM service_staff ss
            JOIN staff st ON st.id = ss.staff_id
-           WHERE ss.service_id = ? AND st.salon_id = ? AND st.is_active = 1`,
+           WHERE ss.service_id = ? AND st.salon_id = ? AND st.is_active = 1 ${capabilityFilter}`,
           [pair.serviceId, salonId]
         );
         capableStaffIds = staffList.map(s => s.staff_id);
         if (capableStaffIds.length === 0) {
-          return error(`No active staff can perform service ${pair.serviceId}`);
+          return error(`No active staff can perform service ${pair.serviceId} for ${fulfillmentType || 'physical'} fulfillment`);
         }
       } else {
         capableStaffIds = [pair.staffId];

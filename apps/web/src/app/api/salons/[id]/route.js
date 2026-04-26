@@ -1,6 +1,7 @@
 import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { getSession, requireAuth } from "@/lib/auth";
+import { geocodeAddress } from "@/lib/geo";
 import {
   success,
   error,
@@ -124,10 +125,24 @@ export async function GET(request, { params }) {
       address: salon.address,
       city: salon.city,
       country: salon.country,
+      state: salon.state,
+      zip_code: salon.zip_code,
+      website: salon.website,
       latitude: salon.latitude,
       longitude: salon.longitude,
       isMarketplaceEnabled: salon.is_marketplace_enabled,
       currency: salon.currency,
+      is_physical: salon.is_physical,
+      is_mobile: salon.is_mobile,
+      is_virtual: salon.is_virtual,
+      mobile_base_address: salon.mobile_base_address,
+      travel_radius: salon.travel_radius,
+      travel_fee_type: salon.travel_fee_type,
+      travel_fee_amount: salon.travel_fee_amount,
+      min_booking_amount: salon.min_booking_amount,
+      travel_buffer_time: salon.travel_buffer_time,
+      covered_zip_codes: salon.covered_zip_codes,
+      virtual_meeting_link: salon.virtual_meeting_link,
       avgRating: parseFloat(salon.avg_rating).toFixed(1),
       reviewCount: salon.review_count,
       createdAt: salon.created_at,
@@ -164,7 +179,11 @@ export async function GET(request, { params }) {
         lastName: s.last_name,
         role: s.role,
         isActive: s.is_active,
-        permissions: s.permissions ? (typeof s.permissions === 'string' ? JSON.parse(s.permissions) : s.permissions) : null,
+        permissions: s.permissions
+          ? typeof s.permissions === "string"
+            ? JSON.parse(s.permissions)
+            : s.permissions
+          : null,
       })),
     });
   } catch (err) {
@@ -202,6 +221,7 @@ export async function PUT(request, { params }) {
       is_physical,
       is_mobile,
       is_virtual,
+      mobile_base_address,
       travel_radius,
       travel_fee_type,
       travel_fee_amount,
@@ -210,6 +230,41 @@ export async function PUT(request, { params }) {
       covered_zip_codes,
       virtual_meeting_link,
     } = body;
+
+    var resolvedLatitude = latitude;
+    var resolvedLongitude = longitude;
+    var mobileEnabled =
+      is_mobile === true ||
+      is_mobile === 1 ||
+      is_mobile === "1" ||
+      is_mobile === "true";
+    var hasIncomingCoordinates =
+      latitude !== undefined &&
+      latitude !== null &&
+      longitude !== undefined &&
+      longitude !== null;
+
+    if (mobileEnabled && !hasIncomingCoordinates) {
+      var centerAddress = (mobile_base_address || "").trim();
+      if (!centerAddress) {
+        centerAddress = [address, city, country].filter(Boolean).join(", ");
+      }
+
+      if (centerAddress) {
+        try {
+          var coords = await geocodeAddress(centerAddress);
+          if (coords) {
+            resolvedLatitude = coords.lat;
+            resolvedLongitude = coords.lng;
+          }
+        } catch (geoErr) {
+          console.error(
+            "[SALON SETTINGS] Failed to geocode mobile center:",
+            geoErr,
+          );
+        }
+      }
+    }
 
     await query(
       `UPDATE salons SET
@@ -227,6 +282,7 @@ export async function PUT(request, { params }) {
         is_physical = COALESCE(?, is_physical),
         is_mobile = COALESCE(?, is_mobile),
         is_virtual = COALESCE(?, is_virtual),
+        mobile_base_address = COALESCE(?, mobile_base_address),
         travel_radius = COALESCE(?, travel_radius),
         travel_fee_type = COALESCE(?, travel_fee_type),
         travel_fee_amount = COALESCE(?, travel_fee_amount),
@@ -243,13 +299,14 @@ export async function PUT(request, { params }) {
         address,
         city,
         country,
-        latitude,
-        longitude,
+        resolvedLatitude,
+        resolvedLongitude,
         isMarketplaceEnabled,
         currency,
         is_physical !== undefined ? (is_physical ? 1 : 0) : null,
         is_mobile !== undefined ? (is_mobile ? 1 : 0) : null,
         is_virtual !== undefined ? (is_virtual ? 1 : 0) : null,
+        mobile_base_address,
         travel_radius,
         travel_fee_type,
         travel_fee_amount,
@@ -294,11 +351,25 @@ export async function PUT(request, { params }) {
       email: salon.email,
       address: salon.address,
       city: salon.city,
+      state: salon.state,
+      zip_code: salon.zip_code,
       country: salon.country,
+      website: salon.website,
       latitude: salon.latitude,
       longitude: salon.longitude,
       isMarketplaceEnabled: salon.is_marketplace_enabled,
       currency: salon.currency,
+      is_physical: salon.is_physical,
+      is_mobile: salon.is_mobile,
+      is_virtual: salon.is_virtual,
+      mobile_base_address: salon.mobile_base_address,
+      travel_radius: salon.travel_radius,
+      travel_fee_type: salon.travel_fee_type,
+      travel_fee_amount: salon.travel_fee_amount,
+      min_booking_amount: salon.min_booking_amount,
+      travel_buffer_time: salon.travel_buffer_time,
+      covered_zip_codes: salon.covered_zip_codes,
+      virtual_meeting_link: salon.virtual_meeting_link,
       salonCategories: updatedCategories.map((c) => ({
         name: c.name,
         isPrimary: c.is_primary === 1,

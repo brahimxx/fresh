@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { success, error, created, forbidden } from "@/lib/response";
@@ -16,6 +16,40 @@ async function checkSalonAccess(salonId, userId, role) {
     [salonId, userId],
   );
   return !!staff;
+}
+
+function deriveOfferingTypeFromFlags(canPhysical, canMobile, canVirtual) {
+  const p = !!canPhysical;
+  const m = !!canMobile;
+  const v = !!canVirtual;
+
+  if (p && !m && !v) return "physical";
+  if (!p && m && !v) return "mobile";
+  if (!p && !m && v) return "virtual";
+  return "hybrid";
+}
+
+function flagsFromPayload(payload) {
+  if (
+    payload.canPhysical !== undefined ||
+    payload.canMobile !== undefined ||
+    payload.canVirtual !== undefined
+  ) {
+    return {
+      canPhysical:
+        payload.canPhysical !== undefined ? !!payload.canPhysical : true,
+      canMobile: payload.canMobile !== undefined ? !!payload.canMobile : true,
+      canVirtual:
+        payload.canVirtual !== undefined ? !!payload.canVirtual : true,
+    };
+  }
+
+  const type = payload.offeringType || "hybrid";
+  return {
+    canPhysical: type === "physical" || type === "hybrid",
+    canMobile: type === "mobile" || type === "hybrid",
+    canVirtual: type === "virtual" || type === "hybrid",
+  };
 }
 
 // GET /api/services - Get all services (optionally filtered by salon_id)
@@ -55,6 +89,14 @@ export async function GET(request) {
         bufferTime: s.buffer_time_minutes,
         displayOrder: s.display_order,
         isActive: s.is_active,
+        canPhysical: !!s.can_physical,
+        canMobile: !!s.can_mobile,
+        canVirtual: !!s.can_virtual,
+        offeringType: deriveOfferingTypeFromFlags(
+          s.can_physical,
+          s.can_mobile,
+          s.can_virtual,
+        ),
       })),
     });
   } catch (err) {
@@ -85,15 +127,34 @@ export async function POST(request) {
       displayOrder,
       staff_ids,
       staffIds,
+      offeringType,
+      canPhysical,
+      canMobile,
+      canVirtual,
     } = body;
-    
+
+    const flags = flagsFromPayload({
+      offeringType,
+      canPhysical,
+      canMobile,
+      canVirtual,
+    });
+
+    if (!flags.canPhysical && !flags.canMobile && !flags.canVirtual) {
+      return error("At least one fulfillment mode must be enabled", 400);
+    }
+
     const finalCategory = category_id !== undefined ? category_id : categoryId;
     const finalDuration = duration !== undefined ? duration : duration_minutes;
     let finalBuffer = buffer_time !== undefined ? buffer_time : bufferTime;
-    if (finalBuffer === undefined && (buffer_before !== undefined || buffer_after !== undefined)) {
-       finalBuffer = (Number(buffer_before) || 0) + (Number(buffer_after) || 0);
+    if (
+      finalBuffer === undefined &&
+      (buffer_before !== undefined || buffer_after !== undefined)
+    ) {
+      finalBuffer = (Number(buffer_before) || 0) + (Number(buffer_after) || 0);
     }
-    const finalDisplay = display_order !== undefined ? display_order : displayOrder;
+    const finalDisplay =
+      display_order !== undefined ? display_order : displayOrder;
     const finalStaff = staff_ids || staffIds;
 
     if (!salon_id) {
@@ -124,8 +185,10 @@ export async function POST(request) {
     }
 
     const result = await query(
-      `INSERT INTO services (salon_id, category_id, name, description, duration_minutes, price, buffer_time_minutes, display_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO services
+       (salon_id, category_id, name, description, duration_minutes, price, buffer_time_minutes, display_order, is_active,
+        can_physical, can_mobile, can_virtual)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
       [
         salon_id,
         finalCategory || null,
@@ -135,6 +198,9 @@ export async function POST(request) {
         price || 0,
         finalBuffer || 0,
         finalDisplay || 0,
+        flags.canPhysical ? 1 : 0,
+        flags.canMobile ? 1 : 0,
+        flags.canVirtual ? 1 : 0,
       ],
     );
 
@@ -178,6 +244,14 @@ export async function POST(request) {
       bufferTime: newService.buffer_time_minutes,
       displayOrder: newService.display_order,
       isActive: newService.is_active,
+      canPhysical: !!newService.can_physical,
+      canMobile: !!newService.can_mobile,
+      canVirtual: !!newService.can_virtual,
+      offeringType: deriveOfferingTypeFromFlags(
+        newService.can_physical,
+        newService.can_mobile,
+        newService.can_virtual,
+      ),
       staffIds: Array.isArray(staff_ids) ? staff_ids : [],
     });
   } catch (err) {

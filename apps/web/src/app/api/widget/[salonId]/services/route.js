@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId } from "@/lib/id";
 import { query } from "@/lib/db";
 import { success, error, notFound } from "@/lib/response";
 
@@ -6,7 +6,9 @@ import { success, error, notFound } from "@/lib/response";
 export async function GET(request, { params }) {
   try {
     const { salonId: rawSalonId } = await params;
-  const salonId = decodeId(rawSalonId);
+    const salonId = decodeId(rawSalonId);
+    const { searchParams } = new URL(request.url);
+    const fulfillmentType = searchParams.get("fulfillmentType") || "physical";
 
     // Get categories
     const categories = await query(
@@ -17,17 +19,36 @@ export async function GET(request, { params }) {
       [salonId],
     );
 
-    // Get active services that have at least one staff member assigned
+    let serviceFulfillmentFilter = "";
+    if (fulfillmentType === "mobile") {
+      serviceFulfillmentFilter = "AND s.can_mobile = 1";
+    } else if (fulfillmentType === "virtual") {
+      serviceFulfillmentFilter = "AND s.can_virtual = 1";
+    } else {
+      serviceFulfillmentFilter = "AND s.can_physical = 1";
+    }
+
+    let staffCapabilityFilter = "";
+    if (fulfillmentType === "mobile") {
+      staffCapabilityFilter = "AND st.can_mobile = 1";
+    } else if (fulfillmentType === "virtual") {
+      staffCapabilityFilter = "AND st.can_virtual = 1";
+    }
+
+    // Get active services that have at least one compatible staff member assigned
     const services = await query(
       `SELECT 
         s.id, s.name, s.description, s.duration_minutes as duration,
-        s.price, s.category_id, sc.name as category_name
+        s.price, s.category_id, sc.name as category_name,
+        s.can_physical, s.can_mobile, s.can_virtual
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id
        INNER JOIN service_staff ss ON ss.service_id = s.id
        INNER JOIN staff st ON st.id = ss.staff_id
          AND st.is_active = 1 AND st.is_visible = 1 AND st.salon_id = s.salon_id
        WHERE s.salon_id = ? AND s.is_active = 1 AND s.deleted_at IS NULL
+         ${serviceFulfillmentFilter}
+         ${staffCapabilityFilter}
        GROUP BY s.id
        ORDER BY sc.display_order, s.name`,
       [salonId],
@@ -45,6 +66,7 @@ export async function GET(request, { params }) {
              AND st.salon_id = ?
              AND st.is_active = 1
              AND st.is_visible = 1
+             ${staffCapabilityFilter}
            ORDER BY st.first_name`,
           [service.id, salonId],
         );

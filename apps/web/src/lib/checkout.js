@@ -30,11 +30,15 @@ export class CheckoutError extends Error {
 /**
  * Compute the final booking total strictly from DB rows.
  *
- * Total = SUM(services) + SUM(products) - SUM(discounts) - SUM(gift_cards)
+ * Total = SUM(services) + SUM(products) + SUM(travel_fees)
+ *       - SUM(discounts) - SUM(gift_cards)
+ *
+ * Travel fees are stored in booking_travel_fees (inserted by createSafeBooking
+ * for mobile bookings). They are NEVER trusted from the frontend payload.
  *
  * @param {number} bookingId
  * @param {import('mysql2/promise').PoolConnection} conn  Active DB connection
- * @returns {Promise<{servicesTotal, productsTotal, discountsTotal, giftCardsTotal, finalTotal}>}
+ * @returns {Promise<{servicesTotal, productsTotal, travelTotal, discountsTotal, giftCardsTotal, finalTotal}>}
  */
 export async function calculateBookingTotal(bookingId, conn) {
   // Services
@@ -46,6 +50,12 @@ export async function calculateBookingTotal(bookingId, conn) {
   // Products
   const [[productsRow]] = await conn.query(
     "SELECT COALESCE(SUM(total_price), 0) AS total FROM booking_products WHERE booking_id = ?",
+    [bookingId]
+  );
+
+  // Travel fees (mobile bookings only — zero for physical/virtual)
+  const [[travelRow]] = await conn.query(
+    "SELECT COALESCE(SUM(amount), 0) AS total FROM booking_travel_fees WHERE booking_id = ?",
     [bookingId]
   );
 
@@ -61,22 +71,24 @@ export async function calculateBookingTotal(bookingId, conn) {
     [bookingId]
   );
 
-  const servicesTotal = parseFloat(servicesRow.total);
-  const productsTotal = parseFloat(productsRow.total);
+  const servicesTotal  = parseFloat(servicesRow.total);
+  const productsTotal  = parseFloat(productsRow.total);
+  const travelTotal    = parseFloat(travelRow.total);
   const discountsTotal = parseFloat(discountsRow.total);
   const giftCardsTotal = parseFloat(giftCardsRow.total);
 
   const finalTotal = Math.max(
     0,
-    servicesTotal + productsTotal - discountsTotal - giftCardsTotal
+    servicesTotal + productsTotal + travelTotal - discountsTotal - giftCardsTotal
   );
 
   return {
-    servicesTotal: round2(servicesTotal),
-    productsTotal: round2(productsTotal),
+    servicesTotal:  round2(servicesTotal),
+    productsTotal:  round2(productsTotal),
+    travelTotal:    round2(travelTotal),
     discountsTotal: round2(discountsTotal),
     giftCardsTotal: round2(giftCardsTotal),
-    finalTotal: round2(finalTotal),
+    finalTotal:     round2(finalTotal),
   };
 }
 

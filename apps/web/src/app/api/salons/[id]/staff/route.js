@@ -41,7 +41,11 @@ export async function GET(request, { params }) {
 
     let queryStr = `SELECT st.id, st.role, st.is_active, st.user_id, st.color,
               st.first_name as staff_first_name, st.last_name as staff_last_name,
-              u.first_name, u.last_name, u.email, u.phone, COALESCE(NULLIF(st.avatar_url, ''), u.avatar_url) as avatar_url
+              u.first_name, u.last_name, u.email, u.phone, COALESCE(NULLIF(st.avatar_url, ''), u.avatar_url) as avatar_url,
+              COALESCE(st.can_physical, 1) as can_physical,
+              COALESCE(st.can_mobile, 0) as can_mobile,
+              COALESCE(st.can_virtual, 0) as can_virtual,
+              st.travel_radius
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? ${includeInactive ? "" : "AND st.is_active = 1"}
@@ -69,6 +73,11 @@ export async function GET(request, { params }) {
           color: s.color,
           avatarUrl: s.avatar_url,
           service_ids: serviceIds.map((sid) => sid.service_id),
+          // Fulfillment capabilities
+          canPhysical: !!s.can_physical,
+          canMobile: !!s.can_mobile,
+          canVirtual: !!s.can_virtual,
+          travelRadius: s.travel_radius ?? null,
         };
       }),
     );

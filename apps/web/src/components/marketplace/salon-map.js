@@ -9,7 +9,7 @@ import { generateSalonSlug } from '@/lib/utils';
    CONSTANTS
    ─────────────────────────────────────────────────────────────────────────── */
 const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
-const DEFAULT_ZOOM = 12;
+const DEFAULT_ZOOM = 10;
 
 const MAP_OPTIONS = {
   disableDefaultUI: true,
@@ -255,7 +255,7 @@ export function SalonMap({
     // If we have an explicit user location, pan to it
     if (userLocation?.lat && userLocation?.lng && !isMapSearch) {
       map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-      map.setZoom(13);
+      map.setZoom(11);
       setTimeout(() => { isProgrammatic.current = false; }, 500);
       return;
     }

@@ -217,6 +217,11 @@ export async function POST(request) {
       source,
       discountCode,
       giftCardCode,
+      // Fulfillment fields (optional — defaults to physical if omitted)
+      fulfillmentType = 'physical',
+      serviceLocationAddress = null,
+      clientTimezone = null,
+      virtualMeetingLink = null,
     } = validation.data;
 
     // Get services to calculate total duration and price
@@ -373,6 +378,11 @@ export async function POST(request) {
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
       discountCode,
       giftCardCode,
+      // Fulfillment params — passed through to booking row and booking_travel_fees
+      fulfillmentType,
+      serviceLocationAddress,
+      clientTimezone,
+      virtualMeetingLink,
     });
 
     const isConfirmed = status === "confirmed";
@@ -432,6 +442,7 @@ export async function POST(request) {
       endDatetime: endDatetimeFormatted,
       status,
       source,
+      fulfillmentType,
       totalDuration,
       totalPrice,
       discountAmount: result.discountAmount,

@@ -120,6 +120,12 @@ export async function GET(request, { params }) {
             createdAt: payment.created_at,
           }
         : null,
+      // Fulfillment context
+      fulfillmentType: booking.fulfillment_type || 'physical',
+      serviceLocationAddress: booking.service_location_address || null,
+      virtualMeetingLink: booking.virtual_meeting_link || null,
+      travelFeeAmount: parseFloat(booking.travel_fee_amount || 0),
+      clientTimezone: booking.client_timezone || null,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();

@@ -45,6 +45,17 @@ var STEPS = [
   { id: "confirm", label: "Confirm", icon: Check },
 ];
 
+function getAvailableFulfillmentTypes(salon) {
+  if (!salon) return ["physical"];
+
+  var types = [];
+  if (salon.is_physical) types.push("physical");
+  if (salon.is_mobile) types.push("mobile");
+  if (salon.is_virtual) types.push("virtual");
+
+  return types.length > 0 ? types : ["physical"];
+}
+
 export default function BookingPage({ params }) {
   var resolvedParams = use(params);
   var salonId = resolvedParams.salonId;
@@ -78,14 +89,29 @@ export default function BookingPage({ params }) {
   var [discountError, setDiscountError] = useState("");
   var [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
 
+  var availableFulfillmentTypes = getAvailableFulfillmentTypes(salon);
+  var singleFulfillmentType =
+    availableFulfillmentTypes.length === 1
+      ? availableFulfillmentTypes[0]
+      : null;
+  var shouldSkipLocationStep =
+    !!singleFulfillmentType && singleFulfillmentType !== "mobile";
+  var visibleSteps = shouldSkipLocationStep
+    ? STEPS.filter(function (step) {
+        return step.id !== "location";
+      })
+    : STEPS;
+
   // Check for cancelled checkout redirect
   useEffect(
     function () {
       if (searchParams.get("error") === "checkout_cancelled") {
-        setErrorMsg("Your card payment was incomplete. Your booking slot has been released.");
+        setErrorMsg(
+          "Your card payment was incomplete. Your booking slot has been released.",
+        );
       }
     },
-    [searchParams]
+    [searchParams],
   );
 
   // Load salon data
@@ -110,7 +136,17 @@ export default function BookingPage({ params }) {
       }
       loadSalon();
     },
-    [salonId]
+    [salonId],
+  );
+
+  useEffect(
+    function () {
+      // If there is exactly one fulfillment type, preselect it automatically.
+      if (singleFulfillmentType) {
+        setFulfillmentType(singleFulfillmentType);
+      }
+    },
+    [singleFulfillmentType],
   );
 
   // Warn user about unsaved changes
@@ -119,22 +155,27 @@ export default function BookingPage({ params }) {
       function handleBeforeUnload(e) {
         if (selectedServices.length > 0 && !bookingComplete) {
           e.preventDefault();
-          e.returnValue = '';
+          e.returnValue = "";
         }
       }
 
-      window.addEventListener('beforeunload', handleBeforeUnload);
+      window.addEventListener("beforeunload", handleBeforeUnload);
       return function () {
-        window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener("beforeunload", handleBeforeUnload);
       };
     },
-    [selectedServices, bookingComplete]
+    [selectedServices, bookingComplete],
   );
 
   // Verify slot availability when reaching confirmation step
   useEffect(
     function () {
-      if (currentStep !== 3 || !selectedDate || !selectedTime || !selectedServices.length) {
+      if (
+        currentStep !== 4 ||
+        !selectedDate ||
+        !selectedTime ||
+        !selectedServices.length
+      ) {
         return;
       }
 
@@ -144,17 +185,24 @@ export default function BookingPage({ params }) {
 
         try {
           var year = selectedDate.getFullYear();
-          var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-          var day = String(selectedDate.getDate()).padStart(2, '0');
-          var dateStr = year + '-' + month + '-' + day;
+          var month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+          var day = String(selectedDate.getDate()).padStart(2, "0");
+          var dateStr = year + "-" + month + "-" + day;
 
           var servicesParam = selectedServices
-            .map(function (s) { return s.id + ':' + s.staffId; })
-            .join(',');
+            .map(function (s) {
+              return s.id + ":" + s.staffId;
+            })
+            .join(",");
 
           var res = await fetch(
-            "/api/widget/" + salonId + "/availability?date=" + dateStr +
-            "&services=" + encodeURIComponent(servicesParam)
+            "/api/widget/" +
+              salonId +
+              "/availability?date=" +
+              dateStr +
+              "&services=" +
+              encodeURIComponent(servicesParam) +
+              (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : ""),
           );
 
           if (res.ok) {
@@ -168,8 +216,10 @@ export default function BookingPage({ params }) {
             setSlotVerified(isAvailable);
 
             if (!isAvailable) {
-              setErrorMsg("This time slot is no longer available. Please select a different time.");
-              setCurrentStep(1);
+              setErrorMsg(
+                "This time slot is no longer available. Please select a different time.",
+              );
+              setCurrentStep(2);
             }
           }
         } catch (error) {
@@ -183,23 +233,41 @@ export default function BookingPage({ params }) {
 
       verifySlot();
     },
-    [currentStep, salonId, selectedDate, selectedTime, selectedServices]
+    [
+      currentStep,
+      salonId,
+      selectedDate,
+      selectedTime,
+      selectedServices,
+      fulfillmentType,
+    ],
   );
 
   // Calculate totals
-  var totalDuration = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    var duration = parseInt(s.duration) || 0;
-    return sum + duration;
-  }, 0) : 0;
+  var totalDuration =
+    selectedServices && Array.isArray(selectedServices)
+      ? selectedServices.reduce(function (sum, s) {
+          var duration = parseInt(s.duration) || 0;
+          return sum + duration;
+        }, 0)
+      : 0;
 
-  var totalPrice = (selectedServices && Array.isArray(selectedServices)) ? selectedServices.reduce(function (sum, s) {
-    var price = parseFloat(s.price);
-    return sum + (isNaN(price) ? 0 : price);
-  }, 0) : 0;
+  var totalPrice =
+    selectedServices && Array.isArray(selectedServices)
+      ? selectedServices.reduce(function (sum, s) {
+          var price = parseFloat(s.price);
+          return sum + (isNaN(price) ? 0 : price);
+        }, 0)
+      : 0;
 
-  var travelFee = fulfillmentType === "mobile" && salon?.travel_fee_type !== "none" ? parseFloat(salon?.travel_fee_amount || 0) : 0;
-  var discountAmount = appliedDiscount ? parseFloat(appliedDiscount.calculatedAmount || 0) : 0;
-  var finalTotal = Math.max(0, (totalPrice + travelFee) - discountAmount);
+  var travelFee =
+    fulfillmentType === "mobile" && salon?.travel_fee_type !== "none"
+      ? parseFloat(salon?.travel_fee_amount || 0)
+      : 0;
+  var discountAmount = appliedDiscount
+    ? parseFloat(appliedDiscount.calculatedAmount || 0)
+    : 0;
+  var finalTotal = Math.max(0, totalPrice + travelFee - discountAmount);
 
   async function handleApplyDiscount() {
     if (!discountInput.trim()) return;
@@ -213,7 +281,9 @@ export default function BookingPage({ params }) {
           code: discountInput.trim().toUpperCase(),
           salonId: salonId,
           subtotal: totalPrice,
-          services: selectedServices.map(function(s) { return { id: s.id, price: s.price, quantity: 1 }; }),
+          services: selectedServices.map(function (s) {
+            return { id: s.id, price: s.price, quantity: 1 };
+          }),
           products: [],
         }),
       });
@@ -222,7 +292,9 @@ export default function BookingPage({ params }) {
         setAppliedDiscount(json.data.discount);
         setDiscountInput("");
       } else {
-        setDiscountError(json.error?.message || "Invalid or expired discount code.");
+        setDiscountError(
+          json.error?.message || "Invalid or expired discount code.",
+        );
       }
     } catch (e) {
       setDiscountError("Could not validate discount. Please try again.");
@@ -238,12 +310,22 @@ export default function BookingPage({ params }) {
   }
 
   function handleNext() {
+    if (currentStep === 0 && shouldSkipLocationStep) {
+      setCurrentStep(2);
+      return;
+    }
+
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   }
 
   function handleBack() {
+    if (currentStep === 2 && shouldSkipLocationStep) {
+      setCurrentStep(0);
+      return;
+    }
+
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
@@ -253,13 +335,22 @@ export default function BookingPage({ params }) {
     switch (currentStep) {
       case 0:
         // All services must have staff assigned
-        return selectedServices &&
+        return (
+          selectedServices &&
           Array.isArray(selectedServices) &&
           selectedServices.length > 0 &&
-          selectedServices.every(function (s) { return s.staffId; });
+          selectedServices.every(function (s) {
+            return s.staffId;
+          })
+        );
       case 1:
-        return selectedDate && selectedTime;
+        if (fulfillmentType === "mobile") {
+          return !!(clientAddress && clientAddress.trim());
+        }
+        return true;
       case 2:
+        return selectedDate && selectedTime;
+      case 3:
         return isAuthenticated; // Must be logged in
       default:
         return true;
@@ -288,7 +379,7 @@ export default function BookingPage({ params }) {
           serviceId: service.id,
           staffId: service.staffId,
           price: service.price,
-          duration: service.duration
+          duration: service.duration,
         };
       });
 
@@ -305,7 +396,8 @@ export default function BookingPage({ params }) {
           paymentMethod: paymentMethod,
           clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           fulfillmentType: fulfillmentType,
-          serviceLocationAddress: fulfillmentType === "mobile" ? clientAddress : undefined,
+          serviceLocationAddress:
+            fulfillmentType === "mobile" ? clientAddress : undefined,
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
@@ -320,29 +412,36 @@ export default function BookingPage({ params }) {
         setBookingComplete(true);
       } else {
         var errorData = await res.json();
-        var errorMessage = typeof errorData.error === 'string'
-          ? errorData.error
-          : (errorData.error?.message || "Unable to complete booking");
-        
+        var errorMessage =
+          typeof errorData.error === "string"
+            ? errorData.error
+            : errorData.error?.message || "Unable to complete booking";
+
         var errorCode = errorData.error?.code;
 
         if (errorCode === "CLIENT_BLACKLISTED") {
           setErrorMsg(errorMessage);
           return; // Stop here, do not go back to step 1
         } else if (errorMessage.includes("not available")) {
-          setErrorMsg("This time slot is no longer available. Please select a different time.");
+          setErrorMsg(
+            "This time slot is no longer available. Please select a different time.",
+          );
         } else if (errorMessage.includes("conflict")) {
-          setErrorMsg("There's a scheduling conflict. Please choose a different time slot.");
+          setErrorMsg(
+            "There's a scheduling conflict. Please choose a different time slot.",
+          );
         } else {
-          setErrorMsg(errorMessage + ". Please try again or contact the salon.");
+          setErrorMsg(
+            errorMessage + ". Please try again or contact the salon.",
+          );
         }
         // Go back to datetime selection
-        setCurrentStep(1);
+        setCurrentStep(2);
       }
     } catch (error) {
       console.error("Booking failed:", error);
       setErrorMsg("Network error. Please check your connection and try again.");
-      setCurrentStep(1);
+      setCurrentStep(2);
     } finally {
       setIsBooking(false);
     }
@@ -371,18 +470,21 @@ export default function BookingPage({ params }) {
             </div>
             <div>
               <h2 className="text-xl font-bold mb-2">
-                {errorMsg === "Salon not found" ? "Salon Not Found" : "Booking Unavailable"}
+                {errorMsg === "Salon not found"
+                  ? "Salon Not Found"
+                  : "Booking Unavailable"}
               </h2>
               <p className="text-muted-foreground">
                 {errorMsg === "Salon not found"
                   ? "We couldn't find this salon. It may have been removed or the link is incorrect."
-                  : errorMsg || "This booking page is temporarily unavailable. Please try again later."}
+                  : errorMsg ||
+                    "This booking page is temporarily unavailable. Please try again later."}
               </p>
             </div>
             <Button
               variant="outline"
               className="w-full rounded-xl min-h-[44px]"
-              onClick={() => window.location.href = '/'}
+              onClick={() => (window.location.href = "/")}
             >
               Back to Marketplace
             </Button>
@@ -416,97 +518,107 @@ export default function BookingPage({ params }) {
         {/* Header */}
         <header className="border-b">
           <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link href={'/salon/' + (salon ? generateSalonSlug(salon) : salonId)}>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div className="flex-1">
-              <div className="flex items-center gap-4">
-                {salon.logo ? (
-                  <img
-                    src={salon.logo}
-                    alt={salon.name}
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                    {salon.name?.charAt(0)}
-                  </div>
-                )}
-                <div>
-                  <h1 className="font-semibold">{salon.name}</h1>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {salon.rating && (
-                      <span className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        {salon.rating}
-                      </span>
-                    )}
-                    {salon.city && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {salon.city}
-                      </span>
-                    )}
+            <div className="flex items-center gap-4">
+              <Link
+                href={"/salon/" + (salon ? generateSalonSlug(salon) : salonId)}
+              >
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              </Link>
+              <div className="flex-1">
+                <div className="flex items-center gap-4">
+                  {salon.logo ? (
+                    <img
+                      src={salon.logo}
+                      alt={salon.name}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                      {salon.name?.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <h1 className="font-semibold">{salon.name}</h1>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {salon.rating && (
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          {salon.rating}
+                        </span>
+                      )}
+                      {salon.city && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {salon.city}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         </header>
 
         {/* Progress Steps */}
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            {STEPS.map(function (step, index) {
-              var isActive = index === currentStep;
-              var isCompleted = index < currentStep;
+            {visibleSteps.map(function (step, index) {
+              var stepIndex = STEPS.findIndex(function (s) {
+                return s.id === step.id;
+              });
+              var isActive = stepIndex === currentStep;
+              var isCompleted = stepIndex < currentStep;
               var Icon = step.icon;
 
               return (
                 <div key={step.id} className="flex items-center">
                   <button
                     type="button"
-                    onClick={function() {
+                    onClick={function () {
                       if (isCompleted) {
-                        setCurrentStep(index);
+                        setCurrentStep(stepIndex);
                       }
                     }}
                     disabled={!isCompleted}
-                    className={"flex items-center outline-none group " + (isCompleted ? "cursor-pointer" : "")}
+                    className={
+                      "flex items-center outline-none group " +
+                      (isCompleted ? "cursor-pointer" : "")
+                    }
                   >
                     <div
                       className={
                         "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-all duration-300 " +
-                        (isCompleted ? "group-hover:opacity-80 group-hover:scale-[1.05] " : "") +
+                        (isCompleted
+                          ? "group-hover:opacity-80 group-hover:scale-[1.05] "
+                          : "") +
                         (isCompleted
                           ? "bg-primary text-primary-foreground"
-                        : isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground")
-                    }
-                  >
-                    {isCompleted ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Icon className="h-4 w-4" />
-                    )}
-                  </div>
-                  <span
-                    className={
-                      "hidden sm:block ml-2 text-sm " +
-                      (isActive
-                        ? "text-foreground font-medium"
-                        : "text-muted-foreground")
-                    }
-                  >
-                    {step.label}
-                  </span>
+                          : isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground")
+                      }
+                    >
+                      {isCompleted ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Icon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span
+                      className={
+                        "hidden sm:block ml-2 text-sm " +
+                        (isActive
+                          ? "text-foreground font-medium"
+                          : "text-muted-foreground")
+                      }
+                    >
+                      {step.label}
+                    </span>
                   </button>
-                  {index < STEPS.length - 1 && (
+                  {index < visibleSteps.length - 1 && (
                     <div
                       className={
                         "hidden sm:block w-12 h-0.5 mx-2 " +
@@ -533,15 +645,27 @@ export default function BookingPage({ params }) {
                 </div>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-destructive">{errorMsg}</p>
+                <p className="text-sm font-medium text-destructive">
+                  {errorMsg}
+                </p>
               </div>
               <button
                 onClick={() => setErrorMsg(null)}
                 className="flex-shrink-0 text-destructive/70 hover:text-destructive"
               >
                 <span className="sr-only">Dismiss</span>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -553,28 +677,30 @@ export default function BookingPage({ params }) {
           <div className="lg:col-span-2 transition-all duration-300 ease-in-out">
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {currentStep === 0 && (
-            <ServiceSelection
-              salonId={salonId}
-              selected={selectedServices}
-              onSelect={setSelectedServices}
-              currency={salon?.currency || "EUR"}
-            />
-          )}
+                <ServiceSelection
+                  salonId={salonId}
+                  selected={selectedServices}
+                  onSelect={setSelectedServices}
+                  fulfillmentType={fulfillmentType}
+                  currency={salon?.currency || "EUR"}
+                />
+              )}
 
-          {currentStep === 1 && salon && (
-            <FulfillmentSelection
-              salon={salon}
-              fulfillmentType={fulfillmentType}
-              onSelectType={setFulfillmentType}
-              clientAddress={clientAddress}
-              onSelectAddress={setClientAddress}
-            />
-          )}
+              {currentStep === 1 && salon && (
+                <FulfillmentSelection
+                  salon={salon}
+                  fulfillmentType={fulfillmentType}
+                  onSelectType={setFulfillmentType}
+                  clientAddress={clientAddress}
+                  onSelectAddress={setClientAddress}
+                />
+              )}
 
-              {currentStep === 4 && (
+              {currentStep === 2 && (
                 <DateTimeSelection
                   salonId={salonId}
                   selectedServices={selectedServices}
+                  fulfillmentType={fulfillmentType}
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
                   onDateSelect={setSelectedDate}
@@ -582,7 +708,7 @@ export default function BookingPage({ params }) {
                 />
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 3 && (
                 <BookingAuth
                   onAuthenticated={function () {
                     /* User just logged in, can proceed */
@@ -599,14 +725,18 @@ export default function BookingPage({ params }) {
                     {isVerifyingSlot && (
                       <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
                         <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                        <span className="text-sm text-blue-700 dark:text-blue-300">Verifying availability...</span>
+                        <span className="text-sm text-blue-700 dark:text-blue-300">
+                          Verifying availability...
+                        </span>
                       </div>
                     )}
 
                     {!isVerifyingSlot && slotVerified && (
                       <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
                         <Check className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-700 dark:text-green-300">Time slot confirmed available</span>
+                        <span className="text-sm text-green-700 dark:text-green-300">
+                          Time slot confirmed available
+                        </span>
                       </div>
                     )}
 
@@ -619,8 +749,15 @@ export default function BookingPage({ params }) {
                             className="py-2 border-b last:border-0"
                           >
                             <div className="flex justify-between">
-                              <span className="font-medium">{service.name}</span>
-                              <span>{formatCurrency(service.price || 0, salon?.currency)}</span>
+                              <span className="font-medium">
+                                {service.name}
+                              </span>
+                              <span>
+                                {formatCurrency(
+                                  service.price || 0,
+                                  salon?.currency,
+                                )}
+                              </span>
                             </div>
                             {service.staffName && (
                               <p className="text-sm text-muted-foreground mt-1">
@@ -635,7 +772,19 @@ export default function BookingPage({ params }) {
                     <div>
                       <h4 className="font-medium mb-1">Date & Time</h4>
                       <p className="text-sm text-muted-foreground">
-                        {selectedDate && selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {selectedDate &&
+                          selectedDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}{" "}
+                        at{" "}
+                        {selectedTime &&
+                          new Date(selectedTime).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
                       </p>
                     </div>
 
@@ -666,15 +815,24 @@ export default function BookingPage({ params }) {
                       {appliedDiscount ? (
                         <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                           <div>
-                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{appliedDiscount.code}</p>
+                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                              {appliedDiscount.code}
+                            </p>
                             <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                              {appliedDiscount.type === 'percentage'
-                                ? appliedDiscount.value + '% off'
-                                : formatCurrency(appliedDiscount.value, salon?.currency) + ' off'}
-                              {' — saving ' + formatCurrency(discountAmount, salon?.currency)}
+                              {appliedDiscount.type === "percentage"
+                                ? appliedDiscount.value + "% off"
+                                : formatCurrency(
+                                    appliedDiscount.value,
+                                    salon?.currency,
+                                  ) + " off"}
+                              {" — saving " +
+                                formatCurrency(discountAmount, salon?.currency)}
                             </p>
                           </div>
-                          <button onClick={handleRemoveDiscount} className="text-emerald-500 hover:text-emerald-700">
+                          <button
+                            onClick={handleRemoveDiscount}
+                            className="text-emerald-500 hover:text-emerald-700"
+                          >
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -684,25 +842,35 @@ export default function BookingPage({ params }) {
                             className="flex-1 px-3 py-2 border rounded-md text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary"
                             placeholder="Enter code"
                             value={discountInput}
-                            onChange={function(e) {
+                            onChange={function (e) {
                               setDiscountInput(e.target.value.toUpperCase());
                               setDiscountError("");
                             }}
-                            onKeyDown={function(e) { if (e.key === 'Enter') handleApplyDiscount(); }}
+                            onKeyDown={function (e) {
+                              if (e.key === "Enter") handleApplyDiscount();
+                            }}
                           />
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             onClick={handleApplyDiscount}
-                            disabled={!discountInput.trim() || isValidatingDiscount}
+                            disabled={
+                              !discountInput.trim() || isValidatingDiscount
+                            }
                           >
-                            {isValidatingDiscount ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply'}
+                            {isValidatingDiscount ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              "Apply"
+                            )}
                           </Button>
                         </div>
                       )}
                       {discountError && (
-                        <p className="text-xs text-destructive">{discountError}</p>
+                        <p className="text-xs text-destructive">
+                          {discountError}
+                        </p>
                       )}
                     </div>
 
@@ -711,24 +879,48 @@ export default function BookingPage({ params }) {
                       <label className="font-medium text-sm">
                         Payment Method
                       </label>
-                      <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="gap-3">
-                        <div className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === 'stripe' ? 'bg-primary/5 border-primary' : 'hover:bg-muted'}`} onClick={() => setPaymentMethod('stripe')}>
+                      <RadioGroup
+                        value={paymentMethod}
+                        onValueChange={setPaymentMethod}
+                        className="gap-3"
+                      >
+                        <div
+                          className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === "stripe" ? "bg-primary/5 border-primary" : "hover:bg-muted"}`}
+                          onClick={() => setPaymentMethod("stripe")}
+                        >
                           <RadioGroupItem value="stripe" id="pay-stripe" />
-                          <label htmlFor="pay-stripe" className="flex flex-1 items-center gap-2 cursor-pointer">
+                          <label
+                            htmlFor="pay-stripe"
+                            className="flex flex-1 items-center gap-2 cursor-pointer"
+                          >
                             <CreditCard className="h-5 w-5 text-muted-foreground" />
                             <div className="flex flex-col">
-                              <span className="font-medium text-sm">Pay with Card</span>
-                              <span className="text-xs text-muted-foreground">Secure payment via Stripe</span>
+                              <span className="font-medium text-sm">
+                                Pay with Card
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Secure payment via Stripe
+                              </span>
                             </div>
                           </label>
                         </div>
-                        <div className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === 'cash' ? 'bg-primary/5 border-primary' : 'hover:bg-muted'}`} onClick={() => setPaymentMethod('cash')}>
+                        <div
+                          className={`flex items-center space-x-3 space-y-0 rounded-md border p-4 cursor-pointer transition-colors ${paymentMethod === "cash" ? "bg-primary/5 border-primary" : "hover:bg-muted"}`}
+                          onClick={() => setPaymentMethod("cash")}
+                        >
                           <RadioGroupItem value="cash" id="pay-cash" />
-                          <label htmlFor="pay-cash" className="flex flex-1 items-center gap-2 cursor-pointer">
+                          <label
+                            htmlFor="pay-cash"
+                            className="flex flex-1 items-center gap-2 cursor-pointer"
+                          >
                             <Banknote className="h-5 w-5 text-muted-foreground" />
                             <div className="flex flex-col">
-                              <span className="font-medium text-sm">Pay at Salon</span>
-                              <span className="text-xs text-muted-foreground">Cash or card after your appointment</span>
+                              <span className="font-medium text-sm">
+                                Pay at Salon
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Cash or card after your appointment
+                              </span>
                             </div>
                           </label>
                         </div>
@@ -782,7 +974,10 @@ export default function BookingPage({ params }) {
                               </p>
                             </div>
                             <p className="font-medium">
-                              {formatCurrency(service.price || 0, salon?.currency)}
+                              {formatCurrency(
+                                service.price || 0,
+                                salon?.currency,
+                              )}
                             </p>
                           </div>
                         );
@@ -798,20 +993,26 @@ export default function BookingPage({ params }) {
                         <>
                           <div className="flex justify-between text-sm text-muted-foreground">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(totalPrice, salon?.currency)}</span>
+                            <span>
+                              {formatCurrency(totalPrice, salon?.currency)}
+                            </span>
                           </div>
                           <div className="flex justify-between text-sm text-emerald-600">
                             <span className="flex items-center gap-1">
                               <Tag className="h-3 w-3" />
                               {appliedDiscount.code}
                             </span>
-                            <span>-{formatCurrency(discountAmount, salon?.currency)}</span>
+                            <span>
+                              -{formatCurrency(discountAmount, salon?.currency)}
+                            </span>
                           </div>
                         </>
                       )}
                       <div className="flex justify-between font-semibold pt-1 border-t">
                         <span>Total</span>
-                        <span>{formatCurrency(finalTotal, salon?.currency)}</span>
+                        <span>
+                          {formatCurrency(finalTotal, salon?.currency)}
+                        </span>
                       </div>
                     </div>
 
@@ -819,11 +1020,22 @@ export default function BookingPage({ params }) {
                       <div className="border-t pt-4">
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>{selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                          <span>
+                            {selectedDate.toLocaleDateString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 text-sm mt-1">
                           <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>{new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                          <span>
+                            {new Date(selectedTime).toLocaleTimeString(
+                              "en-US",
+                              { hour: "numeric", minute: "2-digit" },
+                            )}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -861,7 +1073,12 @@ export default function BookingPage({ params }) {
           ) : (
             <Button
               onClick={handleConfirmBooking}
-              disabled={!canProceed() || isBooking || isVerifyingSlot || (currentStep === 3 && !slotVerified)}
+              disabled={
+                !canProceed() ||
+                isBooking ||
+                isVerifyingSlot ||
+                (currentStep === 4 && !slotVerified)
+              }
               className="min-h-[44px] transition-all"
             >
               {isBooking ? (

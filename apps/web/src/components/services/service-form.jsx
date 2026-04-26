@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,9 @@ var serviceSchema = z.object({
   category_id: z.string().optional(),
   buffer_before: z.coerce.number().min(0).optional(),
   buffer_after: z.coerce.number().min(0).optional(),
+  can_physical: z.boolean().default(true),
+  can_mobile: z.boolean().default(false),
+  can_virtual: z.boolean().default(false),
 });
 
 var DURATION_OPTIONS = [
@@ -75,7 +79,7 @@ export function ServiceFormDialog({
   var createService = useCreateService();
   var updateService = useUpdateService();
   var isEditing = !!service;
-    var { salon } = useSalon();
+  var { salon } = useSalon();
 
   // Staff assignment
   var [selectedStaffIds, setSelectedStaffIds] = useState([]);
@@ -97,6 +101,9 @@ export function ServiceFormDialog({
       category_id: "none",
       buffer_before: 0,
       buffer_after: 0,
+      can_physical: true,
+      can_mobile: false,
+      can_virtual: false,
     },
   });
 
@@ -105,6 +112,9 @@ export function ServiceFormDialog({
     function () {
       if (open) {
         if (service) {
+          // Legacy check: If all false or not set, default to physical
+          var hasFulfillment =
+            service.can_physical || service.can_mobile || service.can_virtual;
           form.reset({
             name: service.name || "",
             description: service.description || "",
@@ -120,6 +130,9 @@ export function ServiceFormDialog({
               service.buffer_time_minutes ||
               0,
             buffer_after: service.buffer_after || 0,
+            can_physical: hasFulfillment ? !!service.can_physical : true,
+            can_mobile: !!service.can_mobile,
+            can_virtual: !!service.can_virtual,
           });
         } else {
           form.reset({
@@ -130,6 +143,9 @@ export function ServiceFormDialog({
             category_id: categoryId ? String(categoryId) : "none",
             buffer_before: 0,
             buffer_after: 0,
+            can_physical: true,
+            can_mobile: false,
+            can_virtual: false,
           });
           setSelectedStaffIds([]);
           seededServiceIdRef.current = null;
@@ -175,6 +191,14 @@ export function ServiceFormDialog({
   }
 
   function onSubmit(data) {
+    if (!data.can_physical && !data.can_mobile && !data.can_virtual) {
+      form.setError("root.fulfillment", {
+        type: "manual",
+        message: "Select at least one service availability option",
+      });
+      return;
+    }
+
     var payload = {
       ...data,
       salon_id: salonId,
@@ -209,20 +233,35 @@ export function ServiceFormDialog({
   }
 
   var isSubmitting = createService.isPending || updateService.isPending;
+  var salonSupportsMobile = !!(salon?.can_mobile || salon?.is_mobile);
+  var salonSupportsVirtual = !!(salon?.can_virtual || salon?.is_virtual);
+  var hasMultipleFulfillmentModes = salonSupportsMobile || salonSupportsVirtual;
 
-    var primaryCategory = salon?.salonCategories?.find(function(c) { return c.isPrimary; })?.name || salon?.category;
-    var TEMPLATES = {
-      "Hair Salon": ["Women's Haircut", "Men's Haircut", "Balayage", "Blowout"],
-      "Barbershop": ["Men's Fade", "Beard Trim", "Skin Fade", "Hot Towel Shave"],
-      "Nail Salon": ["Acrylics", "Gel Manicure", "Pedicure", "Dip Powder"],
-      "Esthetician": ["Facial", "Eyebrow Wax", "Brazilian Wax", "Lash Extensions"],
-      "Massage": ["Swedish Massage", "Deep Tissue", "Hot Stone Therapy", "Couples Massage"]
-    };
-    var quickSuggestions = TEMPLATES[primaryCategory] || ["Haircut", "Manicure", "Facial"];
+  var primaryCategory =
+    salon?.salonCategories?.find(function (c) {
+      return c.isPrimary;
+    })?.name || salon?.category;
+  var TEMPLATES = {
+    "Hair Salon": ["Women's Haircut", "Men's Haircut", "Balayage", "Blowout"],
+    Barbershop: ["Men's Fade", "Beard Trim", "Skin Fade", "Hot Towel Shave"],
+    "Nail Salon": ["Acrylics", "Gel Manicure", "Pedicure", "Dip Powder"],
+    Esthetician: ["Facial", "Eyebrow Wax", "Brazilian Wax", "Lash Extensions"],
+    Massage: [
+      "Swedish Massage",
+      "Deep Tissue",
+      "Hot Stone Therapy",
+      "Couples Massage",
+    ],
+  };
+  var quickSuggestions = TEMPLATES[primaryCategory] || [
+    "Haircut",
+    "Manicure",
+    "Facial",
+  ];
 
-    function applySuggestion(name) {
-      form.setValue("name", name, { shouldValidate: true, shouldDirty: true });
-    }
+  function applySuggestion(name) {
+    form.setValue("name", name, { shouldValidate: true, shouldDirty: true });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -245,28 +284,30 @@ export function ServiceFormDialog({
                       <FormItem>
                         <FormLabel>Service Name *</FormLabel>
                         <FormControl>
-                            <Input
-                              placeholder="e.g., Women's Haircut"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                          {!isEditing && (
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              {quickSuggestions.map(function(sug) {
-                                return (
-                                  <button
-                                    type="button"
-                                    key={sug}
-                                    onClick={function() { return applySuggestion(sug); }}
-                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold focus:outline-none border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer"
-                                  >
-                                    {sug}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
+                          <Input
+                            placeholder="e.g., Women's Haircut"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        {!isEditing && (
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {quickSuggestions.map(function (sug) {
+                              return (
+                                <button
+                                  type="button"
+                                  key={sug}
+                                  onClick={function () {
+                                    return applySuggestion(sug);
+                                  }}
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold focus:outline-none border border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer"
+                                >
+                                  {sug}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </FormItem>
                     );
                   }}
@@ -434,6 +475,90 @@ export function ServiceFormDialog({
                     }}
                   />
                 </div>
+
+                {/* ── Fulfillment Options (only if salon has multiple) ───────────── */}
+                {hasMultipleFulfillmentModes && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          Service Availability
+                        </span>
+                      </div>
+                      <div className="flex gap-4">
+                        <FormField
+                          control={form.control}
+                          name="can_physical"
+                          render={function ({ field }) {
+                            return (
+                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer">
+                                  In-Salon
+                                </FormLabel>
+                              </FormItem>
+                            );
+                          }}
+                        />
+
+                        {salonSupportsMobile && (
+                          <FormField
+                            control={form.control}
+                            name="can_mobile"
+                            render={function ({ field }) {
+                              return (
+                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal cursor-pointer">
+                                    Mobile
+                                  </FormLabel>
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        )}
+
+                        {salonSupportsVirtual && (
+                          <FormField
+                            control={form.control}
+                            name="can_virtual"
+                            render={function ({ field }) {
+                              return (
+                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal cursor-pointer">
+                                    Virtual
+                                  </FormLabel>
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        )}
+                      </div>
+                      {form.formState.errors.root?.fulfillment && (
+                        <p className="text-[0.8rem] font-medium text-destructive">
+                          {form.formState.errors.root.fulfillment.message}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {/* ── Staff Assignment ─────────────────────────────────── */}
                 <Separator />

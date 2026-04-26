@@ -17,7 +17,13 @@ import {
 } from "@/components/ui/select";
 import { formatDuration, formatCurrency } from "@/lib/format";
 
-export function ServiceSelection({ salonId, selected, onSelect, currency }) {
+export function ServiceSelection({
+  salonId,
+  selected,
+  onSelect,
+  fulfillmentType,
+  currency,
+}) {
   var searchParams = useSearchParams();
   var [services, setServices] = useState([]);
   var [categories, setCategories] = useState([]);
@@ -29,18 +35,29 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
     function () {
       async function loadServices() {
         try {
-          var res = await fetch("/api/widget/" + salonId + "/services");
+          var url =
+            "/api/widget/" +
+            salonId +
+            "/services" +
+            (fulfillmentType
+              ? "?fulfillmentType=" + encodeURIComponent(fulfillmentType)
+              : "");
+          var res = await fetch(url);
           if (res.ok) {
             var data = await res.json();
             var fetchedServices = data.data.services || [];
-            var servicesWithVirtualStaff = fetchedServices.map(function(s) {
+            var servicesWithVirtualStaff = fetchedServices.map(function (s) {
               if (s.availableStaff && s.availableStaff.length > 0) {
                 return {
                   ...s,
                   availableStaff: [
-                    { id: "any", name: "Anyone Available", title: "First available team member" },
-                    ...s.availableStaff
-                  ]
+                    {
+                      id: "any",
+                      name: "Anyone Available",
+                      title: "First available team member",
+                    },
+                    ...s.availableStaff,
+                  ],
                 };
               }
               return s;
@@ -53,17 +70,23 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
             // Check for pre-selected service in URL
             var urlServiceId = searchParams?.get("service");
             if (urlServiceId && selected.length === 0) {
-              var serviceToSelect = servicesWithVirtualStaff.find(function(s) {
+              var serviceToSelect = servicesWithVirtualStaff.find(function (s) {
                 return s.id.toString() === urlServiceId;
               });
-              
-              if (serviceToSelect && serviceToSelect.availableStaff && serviceToSelect.availableStaff.length > 0) {
+
+              if (
+                serviceToSelect &&
+                serviceToSelect.availableStaff &&
+                serviceToSelect.availableStaff.length > 0
+              ) {
                 var defaultStaff = serviceToSelect.availableStaff[0];
-                onSelect([{
-                  ...serviceToSelect,
-                  staffId: defaultStaff.id,
-                  staffName: defaultStaff.name
-                }]);
+                onSelect([
+                  {
+                    ...serviceToSelect,
+                    staffId: defaultStaff.id,
+                    staffName: defaultStaff.name,
+                  },
+                ]);
               }
             }
           } else {
@@ -77,7 +100,7 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
       }
       loadServices();
     },
-    [salonId]
+    [salonId, fulfillmentType],
   );
 
   function toggleService(service) {
@@ -97,11 +120,14 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
     } else {
       // Add service with first available staff as default
       var defaultStaff = service.availableStaff[0];
-      newSelected = [...selected, {
-        ...service,
-        staffId: defaultStaff.id,
-        staffName: defaultStaff.name
-      }];
+      newSelected = [
+        ...selected,
+        {
+          ...service,
+          staffId: defaultStaff.id,
+          staffName: defaultStaff.name,
+        },
+      ];
     }
     console.log("Service selection changed:", newSelected);
     onSelect(newSelected);
@@ -127,7 +153,7 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
   var filteredServices = useMemo(
     function () {
       if (!services || !Array.isArray(services)) return [];
-      
+
       return services.filter(function (service) {
         var matchesSearch =
           !search ||
@@ -138,7 +164,7 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
         return matchesSearch && matchesCategory;
       });
     },
-    [services, search, activeCategory]
+    [services, search, activeCategory],
   );
 
   // Group by category with memoization
@@ -154,7 +180,7 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
       });
       return groups;
     },
-    [filteredServices]
+    [filteredServices],
   );
 
   if (loading) {
@@ -238,9 +264,13 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
                 )}
                 <div className="space-y-2">
                   {catServices.map(function (service) {
-                    var selectedService = selected.find(function (s) { return s.id === service.id; });
+                    var selectedService = selected.find(function (s) {
+                      return s.id === service.id;
+                    });
                     var isServiceSelected = !!selectedService;
-                    var hasNoStaff = !service.availableStaff || service.availableStaff.length === 0;
+                    var hasNoStaff =
+                      !service.availableStaff ||
+                      service.availableStaff.length === 0;
 
                     return (
                       <div
@@ -250,8 +280,8 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
                           (hasNoStaff
                             ? "border-border bg-muted/30 opacity-60 cursor-not-allowed"
                             : isServiceSelected
-                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                            : "border-border hover:border-primary/20 hover:bg-muted/30")
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border hover:border-primary/20 hover:bg-muted/30")
                         }
                       >
                         <div
@@ -260,7 +290,11 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
                               toggleService(service);
                             }
                           }}
-                          className={hasNoStaff ? "cursor-not-allowed" : "cursor-pointer active:scale-[0.98] transition-transform"}
+                          className={
+                            hasNoStaff
+                              ? "cursor-not-allowed"
+                              : "cursor-pointer active:scale-[0.98] transition-transform"
+                          }
                         >
                           <div className="flex gap-4 min-h-[44px]">
                             <div className="flex-1 min-w-0">
@@ -296,47 +330,74 @@ export function ServiceSelection({ salonId, selected, onSelect, currency }) {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Staff selection dropdown - shown when service is selected */}
-                        {isServiceSelected && service.availableStaff && service.availableStaff.length > 0 && (
-                          <div className="mt-4 pt-4 border-t" onClick={function(e) { e.stopPropagation(); }}>
-                            <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                              <User className="h-4 w-4" />
-                              Select Staff Member
-                            </label>
-                            <Select 
-                              value={selectedService.staffId ? selectedService.staffId.toString() : ""}
-                              onValueChange={function(value) {
-                                var staff = service.availableStaff.find(function(s) { return s.id.toString() === value; });
-                                if (staff) {
-                                  updateServiceStaff(service.id, staff.id, staff.name);
-                                }
+                        {isServiceSelected &&
+                          service.availableStaff &&
+                          service.availableStaff.length > 0 && (
+                            <div
+                              className="mt-4 pt-4 border-t"
+                              onClick={function (e) {
+                                e.stopPropagation();
                               }}
                             >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Choose a staff member" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {service.availableStaff.map(function(staff) {
-                                  return (
-                                    <SelectItem key={staff.id} value={staff.id.toString()}>
-                                      <div className="flex items-center gap-2">
-                                        <div 
-                                          className="w-3 h-3 rounded-full" 
-                                          style={{ backgroundColor: staff.color || '#3B82F6' }}
-                                        />
-                                        <span>{staff.name}</span>
-                                        {staff.title && (
-                                          <span className="text-xs text-muted-foreground">({staff.title})</span>
-                                        )}
-                                      </div>
-                                    </SelectItem>
+                              <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                Select Staff Member
+                              </label>
+                              <Select
+                                value={
+                                  selectedService.staffId
+                                    ? selectedService.staffId.toString()
+                                    : ""
+                                }
+                                onValueChange={function (value) {
+                                  var staff = service.availableStaff.find(
+                                    function (s) {
+                                      return s.id.toString() === value;
+                                    },
                                   );
-                                })}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                                  if (staff) {
+                                    updateServiceStaff(
+                                      service.id,
+                                      staff.id,
+                                      staff.name,
+                                    );
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Choose a staff member" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {service.availableStaff.map(function (staff) {
+                                    return (
+                                      <SelectItem
+                                        key={staff.id}
+                                        value={staff.id.toString()}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{
+                                              backgroundColor:
+                                                staff.color || "#3B82F6",
+                                            }}
+                                          />
+                                          <span>{staff.name}</span>
+                                          {staff.title && (
+                                            <span className="text-xs text-muted-foreground">
+                                              ({staff.title})
+                                            </span>
+                                          )}
+                                        </div>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
                       </div>
                     );
                   })}

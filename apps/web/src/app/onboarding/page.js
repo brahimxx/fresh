@@ -127,7 +127,7 @@ const inputClass =
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { checkAuth, user } = useAuth();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [locationTypes, setLocationTypes] = useState([]); // Array to hold [physical, mobile, virtual]
   const [showAddressForm, setShowAddressForm] = useState(false); // Sub-step boolean
@@ -422,11 +422,14 @@ export default function OnboardingPage() {
       // Mark onboarding as completed
       localStorage.setItem("fresh_onboarding_completed", "true");
 
-      // Refresh user role to 'owner'
-      await checkAuth();
-
       toast.success("Welcome to Fresh! Your salon is ready! 🎉");
-      router.push(`/dashboard/salon/${encodeId(newSalonId)}`);
+
+      // Use a hard navigation instead of router.push to avoid a race condition.
+      // router.push fires before React has re-rendered with the new 'owner' role
+      // from checkAuth(), so the dashboard layout still sees role='client' and
+      // redirects back to '/'. A full page reload reads the updated cookie from
+      // scratch and mounts the dashboard with the correct auth state.
+      window.location.href = `/dashboard/salon/${encodeId(newSalonId)}`;
     } catch (error) {
       toast.error(error.message || "Failed to complete onboarding");
     } finally {

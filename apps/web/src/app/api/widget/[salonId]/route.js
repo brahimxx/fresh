@@ -1,34 +1,37 @@
-import { decodeId } from '@/lib/id';
-import { query, getOne } from '@/lib/db';
-import { success, error, notFound } from '@/lib/response';
+import { decodeId } from "@/lib/id";
+import { query, getOne } from "@/lib/db";
+import { success, error, notFound } from "@/lib/response";
 
 // GET /api/widget/[salonId] - Get public widget data for embedding
 export async function GET(request, { params }) {
   try {
     const { salonId: rawSalonId } = await params;
-  const salonId = decodeId(rawSalonId);
+    const salonId = decodeId(rawSalonId);
 
     // Get salon basic info
     const salon = await getOne(
-      'SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes FROM salons WHERE id = ? AND is_active = 1',
-      [salonId]
+      "SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes FROM salons WHERE id = ? AND is_active = 1",
+      [salonId],
     );
 
     if (!salon) {
-      return notFound('Salon not found');
+      return notFound("Salon not found");
     }
 
     // Get widget settings
-    const widgetSettings = await getOne('SELECT * FROM widget_settings WHERE salon_id = ?', [salonId]);
+    const widgetSettings = await getOne(
+      "SELECT * FROM widget_settings WHERE salon_id = ?",
+      [salonId],
+    );
 
     if (!widgetSettings || !widgetSettings.enabled) {
-      return error('Booking widget is not available for this salon');
+      return error("Booking widget is not available for this salon");
     }
 
     // Get service categories with services
     const categories = await query(
-      'SELECT * FROM service_categories WHERE salon_id = ? ORDER BY display_order, name',
-      [salonId]
+      "SELECT * FROM service_categories WHERE salon_id = ? ORDER BY display_order, name",
+      [salonId],
     );
 
     const services = await query(
@@ -37,7 +40,7 @@ export async function GET(request, { params }) {
        LEFT JOIN service_categories sc ON sc.id = s.category_id
        WHERE s.salon_id = ? AND s.is_active = 1
        ORDER BY s.name`,
-      [salonId]
+      [salonId],
     );
 
     // Get staff if enabled
@@ -49,7 +52,7 @@ export async function GET(request, { params }) {
          JOIN users u ON u.id = s.user_id
          WHERE s.salon_id = ? AND s.is_active = 1
          ORDER BY u.first_name`,
-        [salonId]
+        [salonId],
       );
     }
 
@@ -64,6 +67,14 @@ export async function GET(request, { params }) {
         website: salon.website,
         logo: salon.logo_url,
         currency: salon.currency,
+        is_physical: salon.is_physical,
+        is_mobile: salon.is_mobile,
+        is_virtual: salon.is_virtual,
+        travel_radius: salon.travel_radius,
+        travel_fee_type: salon.travel_fee_type,
+        travel_fee_amount: salon.travel_fee_amount,
+        min_booking_amount: salon.min_booking_amount,
+        covered_zip_codes: salon.covered_zip_codes,
       },
       settings: {
         primaryColor: widgetSettings.primary_color,
@@ -82,14 +93,14 @@ export async function GET(request, { params }) {
       })),
       services: widgetSettings.show_services
         ? services.map((s) => ({
-          id: s.id,
-          name: s.name,
-          description: s.description,
-          categoryId: s.category_id,
-          categoryName: s.category_name,
-          duration: s.duration_minutes,
-          price: widgetSettings.show_prices ? parseFloat(s.price) : null,
-        }))
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            categoryId: s.category_id,
+            categoryName: s.category_name,
+            duration: s.duration_minutes,
+            price: widgetSettings.show_prices ? parseFloat(s.price) : null,
+          }))
         : [],
       staff: staff.map((s) => ({
         id: s.id,
@@ -98,7 +109,7 @@ export async function GET(request, { params }) {
       })),
     });
   } catch (err) {
-    console.error('Get widget data error:', err);
-    return error('Failed to get widget data', 500);
+    console.error("Get widget data error:", err);
+    return error("Failed to get widget data", 500);
   }
 }

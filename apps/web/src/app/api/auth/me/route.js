@@ -1,5 +1,6 @@
 import { query, getOne } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, createToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 import { success, error, unauthorized } from "@/lib/response";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,28 @@ export async function GET() {
         ]);
         user.role = "client";
       }
+    }
+
+    // If the DB role differs from what the JWT carries, silently reissue the
+    // cookie so the browser is immediately up to date — no logout required.
+    // This self-heals stale tokens (e.g. registered as 'client', later promoted
+    // to 'owner' or 'staff' but old cookie never refreshed).
+    if (session.role !== user.role) {
+      const freshToken = await createToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        ...(session.impersonatorAdminId
+          ? { impersonatorAdminId: session.impersonatorAdminId }
+          : {}),
+      });
+      const cookieStore = await cookies();
+      cookieStore.set("token", freshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 60 * 60 * 24 * 7,
+      });
     }
 
     return success({

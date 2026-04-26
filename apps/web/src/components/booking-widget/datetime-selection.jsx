@@ -27,27 +27,34 @@ export function DateTimeSelection({
   var [closureMessage, setClosureMessage] = useState("");
 
   // Check if multiple staff are involved
-  var uniqueStaffIds = selectedServices && Array.isArray(selectedServices)
-    ? new Set(selectedServices.map(function (s) { return s.staffId; }).filter(Boolean))
-    : new Set();
+  var uniqueStaffIds =
+    selectedServices && Array.isArray(selectedServices)
+      ? new Set(
+          selectedServices
+            .map(function (s) {
+              return s.staffId;
+            })
+            .filter(Boolean),
+        )
+      : new Set();
   var hasMultipleStaff = uniqueStaffIds.size > 1;
 
   // Calculate total duration
   var totalDuration =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-        return sum + (s.duration || 30);
-      }, 0)
+          return sum + (s.duration || 30);
+        }, 0)
       : 0;
 
   // Load slots when date is selected
   useEffect(
     function () {
-      console.log('DateTime useEffect triggered:', {
+      console.log("DateTime useEffect triggered:", {
         selectedDate,
         selectedServices,
         selectedServicesLength: selectedServices?.length,
-        isArray: Array.isArray(selectedServices)
+        isArray: Array.isArray(selectedServices),
       });
 
       if (
@@ -56,7 +63,7 @@ export function DateTimeSelection({
         !Array.isArray(selectedServices) ||
         selectedServices.length === 0
       ) {
-        console.log('Early return - missing required data');
+        console.log("Early return - missing required data");
         return;
       }
 
@@ -66,7 +73,10 @@ export function DateTimeSelection({
       });
 
       if (servicesWithoutStaff.length > 0) {
-        console.log('Cannot load slots - services missing staff:', servicesWithoutStaff);
+        console.log(
+          "Cannot load slots - services missing staff:",
+          servicesWithoutStaff,
+        );
         return;
       }
 
@@ -75,43 +85,49 @@ export function DateTimeSelection({
         try {
           // Format date as YYYY-MM-DD in local timezone, not UTC
           var year = selectedDate.getFullYear();
-          var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-          var day = String(selectedDate.getDate()).padStart(2, '0');
-          var dateStr = year + '-' + month + '-' + day;
+          var month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+          var day = String(selectedDate.getDate()).padStart(2, "0");
+          var dateStr = year + "-" + month + "-" + day;
 
           // Build services parameter with staff assignments
           var servicesParam = selectedServices
             .map(function (s) {
-              return s.id + ':' + s.staffId;
+              return s.id + ":" + s.staffId;
             })
-            .join(',');
+            .join(",");
 
           var url =
             "/api/widget/" +
             salonId +
             "/availability?date=" +
             dateStr +
-            "&services=" + encodeURIComponent(servicesParam) + (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "");
+            "&services=" +
+            encodeURIComponent(servicesParam) +
+            (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "");
 
-          console.log('===== AVAILABILITY REQUEST =====');
-          console.log('Selected date object:', selectedDate);
-          console.log('Date string for API:', dateStr);
-          console.log('Services with staff:', servicesParam);
-          console.log('Full URL:', url);
+          console.log("===== AVAILABILITY REQUEST =====");
+          console.log("Selected date object:", selectedDate);
+          console.log("Date string for API:", dateStr);
+          console.log("Services with staff:", servicesParam);
+          console.log("Full URL:", url);
 
           var res = await fetch(url);
           if (res.ok) {
             var data = await res.json();
-            console.log('===== AVAILABILITY RESPONSE =====');
-            console.log('Full response:', data);
-            console.log('Success:', data.success);
-            console.log('Slots array:', data.data?.slots);
-            console.log('Number of slots:', data.data?.slots?.length || 0);
+            console.log("===== AVAILABILITY RESPONSE =====");
+            console.log("Full response:", data);
+            console.log("Success:", data.success);
+            console.log("Slots array:", data.data?.slots);
+            console.log("Number of slots:", data.data?.slots?.length || 0);
             setTimeSlots(data.data?.slots || []);
             setIsClosedDay(data.data?.closed || false);
             setClosureMessage(data.data?.message || "");
           } else {
-            console.error('Availability API error:', res.status, await res.text());
+            console.error(
+              "Availability API error:",
+              res.status,
+              await res.text(),
+            );
           }
         } catch (error) {
           console.error("Failed to load slots:", error);
@@ -121,7 +137,7 @@ export function DateTimeSelection({
       }
       loadSlots();
     },
-    [salonId, selectedServices, selectedDate]
+    [salonId, selectedServices, selectedDate, fulfillmentType],
   );
 
   // Calendar helpers
@@ -131,12 +147,12 @@ export function DateTimeSelection({
   var monthStart = new Date(
     currentMonth.getFullYear(),
     currentMonth.getMonth(),
-    1
+    1,
   );
   var monthEnd = new Date(
     currentMonth.getFullYear(),
     currentMonth.getMonth() + 1,
-    0
+    0,
   );
   var startDay = monthStart.getDay();
 
@@ -170,13 +186,13 @@ export function DateTimeSelection({
 
   function prevMonth() {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   }
 
   function nextMonth() {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
   }
 
@@ -191,7 +207,7 @@ export function DateTimeSelection({
     return time.getHours();
   }
 
-  console.log('Total timeSlots:', timeSlots.length, timeSlots);
+  console.log("Total timeSlots:", timeSlots.length, timeSlots);
 
   var morningSlots = timeSlots.filter(function (s) {
     return getHourFromSlot(s) < 12;
@@ -204,10 +220,10 @@ export function DateTimeSelection({
     return getHourFromSlot(s) >= 17;
   });
 
-  console.log('Grouped slots:', {
+  console.log("Grouped slots:", {
     morning: morningSlots.length,
     afternoon: afternoonSlots.length,
-    evening: eveningSlots.length
+    evening: eveningSlots.length,
   });
 
   function formatTime(slot) {
@@ -258,9 +274,12 @@ export function DateTimeSelection({
               <Clock className="h-4 w-4 text-blue-600" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Multiple Staff Booking</p>
+              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                Multiple Staff Booking
+              </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                Showing times when all selected staff members are available together for your services.
+                Showing times when all selected staff members are available
+                together for your services.
               </p>
             </div>
           </div>
@@ -451,9 +470,12 @@ export function DateTimeSelection({
               <div className="text-center py-8 space-y-3 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/50 p-6">
                 <div className="text-4xl">🚫</div>
                 <div>
-                  <p className="font-semibold text-red-700 dark:text-red-400">Closed</p>
+                  <p className="font-semibold text-red-700 dark:text-red-400">
+                    Closed
+                  </p>
                   <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1">
-                    {closureMessage || "The salon is closed on this date. Please select another day."}
+                    {closureMessage ||
+                      "The salon is closed on this date. Please select another day."}
                   </p>
                 </div>
               </div>

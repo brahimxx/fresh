@@ -131,6 +131,11 @@ export async function GET(request, { params }) {
             startDatetime: bs.start_datetime ? String(bs.start_datetime).replace(' ', 'T') : null,
             endDatetime: bs.end_datetime ? String(bs.end_datetime).replace(' ', 'T') : null,
           })),
+        // Fulfillment context — used by calendar view for badges, tooltips, and travel blocks
+        fulfillmentType: b.fulfillment_type || 'physical',
+        serviceLocationAddress: b.service_location_address || null,
+        virtualMeetingLink: b.virtual_meeting_link || null,
+        travelFeeAmount: parseFloat(b.travel_fee_amount || 0),
       })),
       ...timeOff.map((to) => ({
         type: 'time_off',

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, getOne } from "@/lib/db";
-import { getSession, requireAuth } from "@/lib/auth";
+import { getSession, requireAuth, createToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 import {
   success,
   error,
@@ -300,6 +301,22 @@ export async function POST(request) {
        VALUES (?, 24, 0.00, 0, 0)`,
       [result.insertId],
     );
+
+    // Reissue the JWT cookie with role:'owner' so the browser immediately
+    // carries the updated role — prevents the stale 'client' JWT from
+    // blocking dashboard access without requiring a logout/login cycle.
+    const freshToken = await createToken({
+      userId: session.userId,
+      email: session.email,
+      role: "owner",
+    });
+    const cookieStore = await cookies();
+    cookieStore.set("token", freshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    });
 
     return created({
       id: result.insertId,

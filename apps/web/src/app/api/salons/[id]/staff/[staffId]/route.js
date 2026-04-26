@@ -89,6 +89,11 @@ export async function GET(request, { params }) {
         duration: s.duration_minutes,
         price: s.price,
       })),
+      // Fulfillment capabilities
+      canPhysical: !!staff.can_physical,
+      canMobile: !!staff.can_mobile,
+      canVirtual: !!staff.can_virtual,
+      travelRadius: staff.travel_radius ?? null,
     });
   } catch (err) {
     console.error('Get staff member error:', err);
@@ -110,7 +115,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { role, isActive, permissions } = body;
+    const { role, isActive, permissions, canPhysical, canMobile, canVirtual, travelRadius } = body;
 
     // If permissions are being set, only the salon owner can do this
     if (permissions !== undefined) {
@@ -152,6 +157,23 @@ export async function PUT(request, { params }) {
       updates.push('permissions = ?');
       updateParams.push(permissions === null ? null : JSON.stringify(permissions));
     }
+    // Fulfillment capability flags
+    if (canPhysical !== undefined) {
+      updates.push('can_physical = ?');
+      updateParams.push(canPhysical ? 1 : 0);
+    }
+    if (canMobile !== undefined) {
+      updates.push('can_mobile = ?');
+      updateParams.push(canMobile ? 1 : 0);
+    }
+    if (canVirtual !== undefined) {
+      updates.push('can_virtual = ?');
+      updateParams.push(canVirtual ? 1 : 0);
+    }
+    if (travelRadius !== undefined) {
+      updates.push('travel_radius = ?');
+      updateParams.push(travelRadius === null ? null : Number(travelRadius));
+    }
 
     if (updates.length > 0) {
       updateParams.push(staffId, id);
@@ -181,6 +203,10 @@ export async function PUT(request, { params }) {
       role: staff.role,
       isActive: staff.is_active,
       permissions: parsedPerms,
+      canPhysical: !!staff.can_physical,
+      canMobile: !!staff.can_mobile,
+      canVirtual: !!staff.can_virtual,
+      travelRadius: staff.travel_radius ?? null,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
