@@ -20,13 +20,52 @@ export function useMarketplaceSalons(filters = {}, options = {}) {
   });
 }
 
-// Fetch single salon details
-export function useMarketplaceSalon(id, options = {}) {
+// Fetch single salon details (alias for marketplace conventions)
+export function useSalonDetails(id, options = {}) {
   return useQuery({
-    queryKey: marketplaceKeys.salon(id),
+    queryKey: [...marketplaceKeys.salon(id), "details"],
     queryFn: async () => {
       const response = await api.get(`/marketplace/salons/${id}`);
       return response.data;
+    },
+    enabled: !!id,
+    ...options,
+  });
+}
+
+// Fetch salon services
+export function useSalonServices(id, options = {}) {
+  return useQuery({
+    queryKey: [...marketplaceKeys.salon(id), "services"],
+    queryFn: async () => {
+      const response = await api.get(`/marketplace/salons/${id}/services`);
+      return response.data || [];
+    },
+    enabled: !!id,
+    ...options,
+  });
+}
+
+// Fetch salon staff
+export function useSalonStaff(id, options = {}) {
+  return useQuery({
+    queryKey: [...marketplaceKeys.salon(id), "staff"],
+    queryFn: async () => {
+      const response = await api.get(`/marketplace/salons/${id}/staff`);
+      return response.data || [];
+    },
+    enabled: !!id,
+    ...options,
+  });
+}
+
+// Fetch salon reviews
+export function useSalonReviews(id, options = {}) {
+  return useQuery({
+    queryKey: [...marketplaceKeys.salon(id), "reviews"],
+    queryFn: async () => {
+      const response = await api.get(`/marketplace/salons/${id}/reviews`);
+      return response.data?.reviews || [];
     },
     enabled: !!id,
     ...options,
