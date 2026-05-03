@@ -18,6 +18,7 @@ import {
   X,
   CreditCard,
   Banknote,
+  AlertCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,20 +39,22 @@ import api from "@/lib/api-client";
 import { formatDuration, formatCurrency } from "@/lib/format";
 
 var STEPS = [
+  { id: "location", label: "Service Type", icon: MapPin },
   { id: "services", label: "Services", icon: Scissors },
-  { id: "location", label: "Location", icon: MapPin },
   { id: "datetime", label: "Date & Time", icon: Calendar },
   { id: "account", label: "Sign In", icon: User },
   { id: "confirm", label: "Confirm", icon: Check },
 ];
 
+var MOBILE_LOCATION_SESSION_KEY = "fresh_mobile_service_location";
+
 function getAvailableFulfillmentTypes(salon) {
   if (!salon) return ["physical"];
 
   var types = [];
-  if (salon.is_physical) types.push("physical");
-  if (salon.is_mobile) types.push("mobile");
-  if (salon.is_virtual) types.push("virtual");
+  if (salon.is_physical === 1 && salon.has_physical_services !== false) types.push("physical");
+  if (salon.is_mobile === 1 && salon.has_mobile_services !== false) types.push("mobile");
+  if (salon.is_virtual === 1 && salon.has_virtual_services !== false) types.push("virtual");
 
   return types.length > 0 ? types : ["physical"];
 }
@@ -71,8 +74,9 @@ export default function BookingPage({ params }) {
 
   // Booking state - now services include staff assignments
   var [selectedServices, setSelectedServices] = useState([]); // Each service has: { ...service, staffId, staffName }
-  var [fulfillmentType, setFulfillmentType] = useState("physical");
+  var [fulfillmentType, setFulfillmentType] = useState(null);
   var [clientAddress, setClientAddress] = useState("");
+  var [mobileLocationCoords, setMobileLocationCoords] = useState(null);
   var [selectedDate, setSelectedDate] = useState(null);
   var [selectedTime, setSelectedTime] = useState(null);
   var [bookingNotes, setBookingNotes] = useState("");
@@ -90,17 +94,35 @@ export default function BookingPage({ params }) {
   var [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
 
   var availableFulfillmentTypes = getAvailableFulfillmentTypes(salon);
+
   var singleFulfillmentType =
     availableFulfillmentTypes.length === 1
       ? availableFulfillmentTypes[0]
       : null;
-  var shouldSkipLocationStep =
-    !!singleFulfillmentType && singleFulfillmentType !== "mobile";
+      
+  var shouldSkipLocationStep = !!singleFulfillmentType;
+
+  // Auto-select single fulfillment type
+  useEffect(
+    function () {
+      if (singleFulfillmentType && fulfillmentType !== singleFulfillmentType) {
+        setFulfillmentType(singleFulfillmentType);
+      }
+    },
+    [singleFulfillmentType, fulfillmentType]
+  );
   var visibleSteps = shouldSkipLocationStep
     ? STEPS.filter(function (step) {
         return step.id !== "location";
       })
     : STEPS;
+
+  // Initialize step if we should skip location
+  useEffect(function() {
+    if (salon && shouldSkipLocationStep && currentStep === 0) {
+      setCurrentStep(1);
+    }
+  }, [salon, shouldSkipLocationStep, currentStep]);
 
   // Check for cancelled checkout redirect
   useEffect(
@@ -114,6 +136,26 @@ export default function BookingPage({ params }) {
     [searchParams],
   );
 
+  // Restore previously selected mobile location from session storage.
+  useEffect(function () {
+    if (typeof window === "undefined") return;
+    try {
+      var raw = sessionStorage.getItem(MOBILE_LOCATION_SESSION_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      var lat = Number(parsed?.lat);
+      var lng = Number(parsed?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setMobileLocationCoords({ lat: lat, lng: lng });
+        if (parsed?.address) {
+          setClientAddress(String(parsed.address));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to restore mobile location from session", error);
+    }
+  }, []);
+
   // Load salon data
   useEffect(
     function () {
@@ -125,7 +167,11 @@ export default function BookingPage({ params }) {
             setSalon(data.data.salon);
             // We might need settings too later, but for now salon info is primary
           } else {
-            setErrorMsg(data.error || "Failed to load salon");
+            var errorMessage =
+              typeof data.error === "string"
+                ? data.error
+                : data.error?.message || "Failed to load salon";
+            setErrorMsg(errorMessage);
           }
         } catch (error) {
           console.error("Failed to load salon:", error);
@@ -260,10 +306,26 @@ export default function BookingPage({ params }) {
         }, 0)
       : 0;
 
-  var travelFee =
-    fulfillmentType === "mobile" && salon?.travel_fee_type !== "none"
-      ? parseFloat(salon?.travel_fee_amount || 0)
-      : 0;
+  var travelFee = 0;
+  if (fulfillmentType === "mobile" && salon?.travel_fee_type && salon?.travel_fee_type !== "none") {
+    if (salon.travel_fee_type === "fixed") {
+      travelFee = parseFloat(salon.travel_fee_amount || 0);
+    } else if (
+      salon.travel_fee_type === "per_km" &&
+      mobileLocationCoords?.lat &&
+      mobileLocationCoords?.lng &&
+      salon.latitude &&
+      salon.longitude
+    ) {
+      var distance = calculateDistance(
+        parseFloat(salon.latitude),
+        parseFloat(salon.longitude),
+        mobileLocationCoords.lat,
+        mobileLocationCoords.lng
+      );
+      travelFee = parseFloat(salon.travel_fee_amount || 0) * distance;
+    }
+  }
   var discountAmount = appliedDiscount
     ? parseFloat(appliedDiscount.calculatedAmount || 0)
     : 0;
@@ -310,20 +372,23 @@ export default function BookingPage({ params }) {
   }
 
   function handleNext() {
-    if (currentStep === 0 && shouldSkipLocationStep) {
-      setCurrentStep(2);
-      return;
-    }
-
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   }
 
   function handleBack() {
-    if (currentStep === 2 && shouldSkipLocationStep) {
-      setCurrentStep(0);
+    if (currentStep === 1 && shouldSkipLocationStep) {
       return;
+    }
+
+    if (currentStep === 1) {
+      setSelectedServices([]);
+      setSelectedDate(null);
+      setSelectedTime(null);
+    } else if (currentStep === 2) {
+      setSelectedDate(null);
+      setSelectedTime(null);
     }
 
     if (currentStep > 0) {
@@ -334,20 +399,27 @@ export default function BookingPage({ params }) {
   function canProceed() {
     switch (currentStep) {
       case 0:
-        // All services must have staff assigned
-        return (
+        if (!fulfillmentType) return false;
+        if (fulfillmentType === "mobile") {
+          return !!(
+            clientAddress &&
+            clientAddress.trim() &&
+            mobileLocationCoords &&
+            Number.isFinite(mobileLocationCoords.lat) &&
+            Number.isFinite(mobileLocationCoords.lng)
+          );
+        }
+        return true;
+      case 1:
+        var hasValidServices =
           selectedServices &&
           Array.isArray(selectedServices) &&
           selectedServices.length > 0 &&
           selectedServices.every(function (s) {
             return s.staffId;
-          })
-        );
-      case 1:
-        if (fulfillmentType === "mobile") {
-          return !!(clientAddress && clientAddress.trim());
-        }
-        return true;
+          });
+          
+        return hasValidServices;
       case 2:
         return selectedDate && selectedTime;
       case 3:
@@ -370,9 +442,6 @@ export default function BookingPage({ params }) {
       // Parse the selected time to get startTime
       var startTime = selectedTime; // Set slot start time
 
-      // Get token for authenticated request
-      var token = api.getToken();
-
       // Prepare services with staff assignments
       var servicesWithStaff = selectedServices.map(function (service) {
         return {
@@ -387,8 +456,8 @@ export default function BookingPage({ params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: token ? "Bearer " + token : "",
         },
+        credentials: "include",
         body: JSON.stringify({
           services: servicesWithStaff,
           startTime: startTime,
@@ -398,6 +467,14 @@ export default function BookingPage({ params }) {
           fulfillmentType: fulfillmentType,
           serviceLocationAddress:
             fulfillmentType === "mobile" ? clientAddress : undefined,
+          serviceLat:
+            fulfillmentType === "mobile" && mobileLocationCoords
+              ? mobileLocationCoords.lat
+              : undefined,
+          serviceLng:
+            fulfillmentType === "mobile" && mobileLocationCoords
+              ? mobileLocationCoords.lng
+              : undefined,
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
@@ -445,6 +522,45 @@ export default function BookingPage({ params }) {
     } finally {
       setIsBooking(false);
     }
+  }
+
+  function handleSelectMobileLocation(location) {
+    var nextAddress = String(location?.address || "").trim();
+    var nextLat = Number(location?.lat);
+    var nextLng = Number(location?.lng);
+
+    if (
+      !Number.isFinite(nextLat) ||
+      !Number.isFinite(nextLng) ||
+      !nextAddress
+    ) {
+      return;
+    }
+
+    var nextCoords = { lat: nextLat, lng: nextLng };
+    setClientAddress(nextAddress);
+    setMobileLocationCoords(nextCoords);
+
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(
+          MOBILE_LOCATION_SESSION_KEY,
+          JSON.stringify({
+            address: nextAddress,
+            lat: nextLat,
+            lng: nextLng,
+            updatedAt: Date.now(),
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to persist mobile location in session", error);
+      }
+    }
+  }
+
+  function handleClientAddressChange(address) {
+    setClientAddress(address);
+    setMobileLocationCoords(null);
   }
 
   if (loading) {
@@ -631,10 +747,61 @@ export default function BookingPage({ params }) {
             })}
           </div>
         </div>
+
+        {/* Navigation (Sticky) */}
+        <div className="border-t bg-background">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0}
+              className="min-h-[44px] w-full sm:w-auto transition-all bg-background"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+
+            {currentStep < STEPS.length - 1 ? (
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className="min-h-[44px] w-full sm:w-auto transition-all"
+              >
+                Continue
+              </Button>
+            ) : (
+              <Button
+                onClick={handleConfirmBooking}
+                disabled={
+                  !canProceed() ||
+                  isBooking ||
+                  isVerifyingSlot ||
+                  (currentStep === 4 && !slotVerified)
+                }
+                className="min-h-[44px] w-full sm:w-auto transition-all"
+              >
+                {isBooking ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Booking...
+                  </>
+                ) : isVerifyingSlot ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Confirm Booking"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
+
         {/* Error Alert */}
         {errorMsg && (
           <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -676,23 +843,36 @@ export default function BookingPage({ params }) {
           {/* Step Content */}
           <div className="lg:col-span-2 transition-all duration-300 ease-in-out">
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {currentStep === 0 && (
-                <ServiceSelection
-                  salonId={salonId}
-                  selected={selectedServices}
-                  onSelect={setSelectedServices}
-                  fulfillmentType={fulfillmentType}
-                  currency={salon?.currency || "EUR"}
-                />
-              )}
-
-              {currentStep === 1 && salon && (
+              {currentStep === 0 && salon && (
                 <FulfillmentSelection
                   salon={salon}
                   fulfillmentType={fulfillmentType}
                   onSelectType={setFulfillmentType}
                   clientAddress={clientAddress}
-                  onSelectAddress={setClientAddress}
+                  onSelectAddress={handleClientAddressChange}
+                  mobileLocationCoords={mobileLocationCoords}
+                  onSelectMobileLocation={handleSelectMobileLocation}
+                  supportedFulfillmentTypes={availableFulfillmentTypes}
+                />
+              )}
+
+              {currentStep === 1 && (
+                <ServiceSelection
+                  salonId={salonId}
+                  selected={selectedServices}
+                  onSelect={setSelectedServices}
+                  fulfillmentType={fulfillmentType}
+                  onResetFulfillmentType={function() {
+                    setFulfillmentType(null);
+                    if (!shouldSkipLocationStep) {
+                      setCurrentStep(0);
+                    }
+                  }}
+                  currency={salon?.currency || "EUR"}
+                  mobileLocationCoords={mobileLocationCoords}
+                  onRequestLocationChange={function () {
+                    setCurrentStep(0);
+                  }}
                 />
               )}
 
@@ -705,6 +885,7 @@ export default function BookingPage({ params }) {
                   selectedTime={selectedTime}
                   onDateSelect={setSelectedDate}
                   onTimeSelect={setSelectedTime}
+                  mobileLocationCoords={mobileLocationCoords}
                 />
               )}
 
@@ -767,6 +948,17 @@ export default function BookingPage({ params }) {
                           </div>
                         );
                       })}
+                      {travelFee > 0 && (
+                        <div className="py-2 border-b last:border-0">
+                          <div className="flex justify-between">
+                            <span className="font-medium">Travel Fee</span>
+                            <span>{formatCurrency(travelFee, salon?.currency)}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {salon?.travel_fee_type === "fixed" ? "Fixed location fee" : "Distance-based travel rate"}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -953,7 +1145,7 @@ export default function BookingPage({ params }) {
 
           {/* Summary Sidebar */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-40">
+            <Card className="sticky top-64">
               <CardHeader>
                 <CardTitle className="text-lg">Booking Summary</CardTitle>
               </CardHeader>
@@ -989,6 +1181,12 @@ export default function BookingPage({ params }) {
                         <span>Duration</span>
                         <span>{formatDuration(totalDuration)}</span>
                       </div>
+                      {travelFee > 0 && (
+                        <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                          <span>Travel Fee</span>
+                          <span>{formatCurrency(travelFee, salon?.currency)}</span>
+                        </div>
+                      )}
                       {discountAmount > 0 && (
                         <>
                           <div className="flex justify-between text-sm text-muted-foreground">
@@ -1049,55 +1247,27 @@ export default function BookingPage({ params }) {
             </Card>
           </div>
         </div>
-
-        {/* Navigation */}
-        <div className="flex justify-between mt-6 pt-6 border-t">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-            className="min-h-[44px] transition-all"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-
-          {currentStep < STEPS.length - 1 ? (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              className="min-h-[44px] transition-all"
-            >
-              Continue
-            </Button>
-          ) : (
-            <Button
-              onClick={handleConfirmBooking}
-              disabled={
-                !canProceed() ||
-                isBooking ||
-                isVerifyingSlot ||
-                (currentStep === 4 && !slotVerified)
-              }
-              className="min-h-[44px] transition-all"
-            >
-              {isBooking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Booking...
-                </>
-              ) : isVerifyingSlot ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                "Confirm Booking"
-              )}
-            </Button>
-          )}
-        </div>
       </main>
     </div>
   );
+}
+
+// Helpers for Haversine distance
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  var R = 6371; // Radius of the earth in km
+  var dLat = deg2rad(lat2 - lat1);
+  var dLon = deg2rad(lon2 - lon1);
+  var a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  var d = R * c; // Distance in km
+  return d;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
 }

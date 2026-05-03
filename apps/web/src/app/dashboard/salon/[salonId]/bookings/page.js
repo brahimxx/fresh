@@ -17,7 +17,10 @@ import {
   XOctagon,
   CalendarDays,
   CalendarClock,
-  Layers
+  Layers,
+  Car,
+  Video,
+  Store,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -310,6 +313,7 @@ export default function BookingsPage({ params }) {
                       <TableRow className="hover:bg-transparent border-border/50 [&_th]:h-14">
                         <TableHead className="pl-8 text-xs font-bold uppercase tracking-wider text-muted-foreground">Client Profile</TableHead>
                         <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Service List</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Type</TableHead>
                         <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assigned Pro</TableHead>
                         <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</TableHead>
                         <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Settlement</TableHead>
@@ -379,6 +383,24 @@ export default function BookingsPage({ params }) {
                                   </div>
                                 </TableCell>
                                 <TableCell>
+                                  {booking.fulfillmentType === 'mobile' ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-500/10 rounded-md px-2 py-1 w-fit">
+                                      <Car className="h-3 w-3" />
+                                      Mobile
+                                    </span>
+                                  ) : booking.fulfillmentType === 'virtual' ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 bg-purple-500/10 rounded-md px-2 py-1 w-fit">
+                                      <Video className="h-3 w-3" />
+                                      Virtual
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-500/10 rounded-md px-2 py-1 w-fit">
+                                      <Store className="h-3 w-3" />
+                                      In-Salon
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
                                   <span className="text-[14px] font-semibold text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-lg">
                                     {booking.staff
                                       ? `${booking.staff.firstName} ${booking.staff.lastName}`
@@ -391,9 +413,17 @@ export default function BookingsPage({ params }) {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <span className="font-extrabold text-[15px]">
-                                    €{Number(booking.total_price || booking.totalPrice || 0).toFixed(2)}
-                                  </span>
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <span className="font-extrabold text-[15px]">
+                                      €{Number(booking.total_price || booking.totalPrice || 0).toFixed(2)}
+                                    </span>
+                                    {booking.travelFeeAmount > 0 && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600">
+                                        <Car className="h-2.5 w-2.5" />
+                                        +€{Number(booking.travelFeeAmount).toFixed(2)} travel
+                                      </span>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className="pr-8 text-right">
                                   <DropdownMenu>

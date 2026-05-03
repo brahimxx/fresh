@@ -75,6 +75,8 @@ export async function GET(request, { params }) {
     // Get payment info
     const payment = await getOne('SELECT * FROM payments WHERE booking_id = ?', [id]);
 
+    const computedTotal = services.reduce((sum, s) => sum + parseFloat(s.price || 0), 0) + parseFloat(booking.travel_fee_amount || 0);
+
     return success({
       id: booking.id,
       salon: {
@@ -84,6 +86,7 @@ export async function GET(request, { params }) {
         city: salon.city,
         phone: salon.phone,
       },
+      totalPrice: payment ? parseFloat(payment.amount) : computedTotal,
       client: {
         id: client.id,
         firstName: client.first_name,

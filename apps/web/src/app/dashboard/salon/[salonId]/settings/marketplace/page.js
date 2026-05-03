@@ -39,7 +39,7 @@ export default function MarketplacePage() {
   
   useEffect(function() {
     if (salon) {
-      setIsListed(salon.marketplace_listed || false);
+      setIsListed(salon.isMarketplaceEnabled || false);
       setProfile({
         tagline: salon.tagline || '',
         highlights: salon.highlights || '',

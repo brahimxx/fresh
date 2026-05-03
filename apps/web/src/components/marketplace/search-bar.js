@@ -74,7 +74,9 @@ function SearchBarContent({
   const [searchQuery, setSearchQuery] = useState(defaultSearch);
   const [locationQuery, setLocationQuery] = useState(defaultLocation);
   const isPresetLocationLabel =
-    locationQuery === "Current Location" || locationQuery === "Map area";
+    locationQuery.startsWith("Current Location") ||
+    locationQuery.startsWith("Near ") ||
+    locationQuery === "Map area";
 
   // Sync when URL changes
   useEffect(() => {
@@ -99,6 +101,7 @@ function SearchBarContent({
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [silentLocation, setSilentLocation] = useState(null);
+  const [silentLocationLabel, setSilentLocationLabel] = useState("Current Location");
 
   // New location data states
   const [recentSearches, setRecentSearches] = useState([]);
@@ -160,12 +163,15 @@ function SearchBarContent({
       console.error("Failed to parse recent locations", e);
     }
 
-    // 3. Silently fetch IP-based rough coords to prioritize search suggestions
-    fetch("http://ip-api.com/json/?fields=lat,lon")
+    // 3. Silently fetch IP-based rough coords + city to enrich default label
+    fetch("http://ip-api.com/json/?fields=lat,lon,city")
       .then((res) => res.json())
       .then((data) => {
         if (data.lat && data.lon) {
           setSilentLocation({ lat: data.lat, lng: data.lon });
+          if (data.city) {
+            setSilentLocationLabel(`Near ${data.city}`);
+          }
         }
       })
       .catch(() => {});
@@ -269,7 +275,23 @@ function SearchBarContent({
           clearTimeout(fallbackTimeout);
           try {
             const { latitude, longitude } = position.coords;
-            const city = "Current Location";
+            let city = "Current Location";
+            
+            try {
+              if (window.google?.maps?.Geocoder) {
+                const geocoder = new window.google.maps.Geocoder();
+                const response = await geocoder.geocode({ location: { lat: latitude, lng: longitude } });
+                if (response.results && response.results[0]) {
+                  const addressComponents = response.results[0].address_components;
+                  const cityComponent = addressComponents.find(c => c.types.includes("locality") || c.types.includes("postal_town"));
+                  if (cityComponent) {
+                    city = `Current Location (${cityComponent.long_name})`;
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("Reverse geocoding failed", e);
+            }
 
             setLocationQuery(city);
             setShowLocationSuggestions(false);
@@ -314,9 +336,12 @@ function SearchBarContent({
 
     async function fallbackToIP(coords = null) {
       try {
-        const res = await fetch("http://ip-api.com/json/?fields=lat,lon");
+        const res = await fetch("http://ip-api.com/json/?fields=lat,lon,city");
         const data = await res.json();
-        const city = "Current Location";
+        let city = "Current Location";
+        if (data.city) {
+          city = `Near ${data.city}`;
+        }
         setLocationQuery(city);
         setShowLocationSuggestions(false);
         saveRecentSearch(city);
@@ -364,8 +389,8 @@ function SearchBarContent({
     );
     if (hasLocationInUrl || hasCoordsInUrl) return;
 
-    // Keep Current Location written by default until the user changes location.
-    setLocationQuery("Current Location");
+    // Keep enriched label written by default until the user changes location.
+    setLocationQuery(silentLocationLabel);
 
     const sessionKey = "fresh_marketplace_auto_location_done";
     try {
@@ -383,7 +408,7 @@ function SearchBarContent({
       fallbackToIpOnFailure: false,
       showCurrentLocationWhileResolving: true,
     });
-  }, [autoLocationAttempted, pathname, searchParams]);
+  }, [autoLocationAttempted, pathname, searchParams, silentLocationLabel]);
 
   // Handle clicking outside to close suggestions
   useEffect(() => {
@@ -562,15 +587,20 @@ function SearchBarContent({
 
     const params = new URLSearchParams();
     if (searchQuery) params.append("q", searchQuery);
-    const finalLocation = locationQuery || "Current Location";
+    const finalLocation = locationQuery && !isPresetLocationLabel
+      ? locationQuery
+      : silentLocationLabel;
 
-    if (finalLocation === "Current Location") {
+    if (
+      finalLocation.startsWith("Current Location") ||
+      finalLocation.startsWith("Near ")
+    ) {
       // 1. Reuse coords already in the URL
       const existingLat = searchParams.get("userLat");
       const existingLng = searchParams.get("userLng");
 
       if (existingLat && existingLng) {
-        params.append("location", "Current Location");
+        params.append("location", finalLocation);
         params.append("userLat", existingLat);
         params.append("userLng", existingLng);
         router.push("/salons?" + params.toString());
@@ -578,7 +608,7 @@ function SearchBarContent({
       }
 
       // 2. Use the IP-based coords fetched silently on mount (instant)
-      params.append("location", "Current Location");
+      params.append("location", finalLocation);
       if (silentLocation?.lat && silentLocation?.lng) {
         params.append("userLat", silentLocation.lat.toString());
         params.append("userLng", silentLocation.lng.toString());

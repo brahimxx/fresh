@@ -74,6 +74,9 @@ const wizardSchema = z.object({
   // Step 5: Services & Settings (Optional)
   serviceIds: z.array(z.number()).optional(),
   isVisible: z.boolean().optional(),
+  canPhysical: z.boolean().optional().default(true),
+  canMobile: z.boolean().optional().default(false),
+  canVirtual: z.boolean().optional().default(false),
 });
 
 const STEPS = [
@@ -112,6 +115,9 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
       emergencyEmail: '',
       serviceIds: [],
       isVisible: true,
+      canPhysical: true,
+      canMobile: false,
+      canVirtual: false,
     },
   });
 
@@ -148,7 +154,7 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
       case 4:
         return ['emergencyName', 'emergencyRelationship', 'emergencyPhone', 'emergencyEmail'];
       case 5:
-        return ['serviceIds', 'isVisible'];
+        return ['serviceIds', 'isVisible', 'canPhysical', 'canMobile', 'canVirtual'];
       default:
         return [];
     }
@@ -173,6 +179,9 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
       notes: data.notes || null,
       serviceIds: data.serviceIds || [],
       isVisible: data.isVisible !== false,
+      canPhysical: data.canPhysical,
+      canMobile: data.canMobile,
+      canVirtual: data.canVirtual,
       // Emergency contact data (we'll need a separate API call for this)
       emergencyContact: data.emergencyName ? {
         contactName: data.emergencyName,
@@ -737,6 +746,65 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
                     </FormItem>
                   )}
                 />
+
+                <div className="space-y-3 pt-4 border-t">
+                  <FormLabel className="text-sm font-semibold">Fulfillment Capabilities</FormLabel>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="canPhysical"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer text-sm">
+                            In-Salon
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="canMobile"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer text-sm">
+                            Mobile
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="canVirtual"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer text-sm">
+                            Virtual
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

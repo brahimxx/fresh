@@ -101,7 +101,12 @@ export async function GET(request) {
       params.push(city);
     }
 
-    if (location && location !== "Map area") {
+    if (
+      location &&
+      location !== "Map area" &&
+      !location.startsWith("Current Location") &&
+      !location.startsWith("Near ")
+    ) {
       sql += ` AND (s.city LIKE ? OR s.state LIKE ? OR s.postal_code LIKE ?)`;
       const term = "%" + location + "%";
       params.push(term, term, term);

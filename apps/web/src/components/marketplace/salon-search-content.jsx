@@ -46,6 +46,7 @@ import {
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { SearchBar } from "@/components/marketplace/search-bar";
 import { SalonCard } from "@/components/marketplace/salon-card";
+import { LocationModal } from "@/components/ui/location-modal";
 import { BUSINESS_CATEGORIES } from "@/lib/constants/categories";
 import { generateSalonSlug } from "@/lib/utils";
 
@@ -114,6 +115,33 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
     lng: searchParams.get("userLng"),
   });
 
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [pendingSalonForMobile, setPendingSalonForMobile] = useState(null);
+  const [hasExactLocation, setHasExactLocation] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = sessionStorage.getItem("fresh_mobile_service_location");
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.lat && parsed.lng && parsed.address) {
+            setHasExactLocation(true);
+          }
+        } catch (e) {}
+      }
+    }
+  }, []);
+
+  const handleCardClick = (salon) => {
+    if (isMobile && !hasExactLocation) {
+      setPendingSalonForMobile(salon);
+      setShowLocationModal(true);
+    } else {
+      router.push("/salon/" + generateSalonSlug(salon));
+    }
+  };
+
   useEffect(() => {
     setQuery(searchParams.get("q") || "");
     setLocation(searchParams.get("location") || initialCity || "");
@@ -168,7 +196,8 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
           if (
             location &&
             location !== "Map area" &&
-            location !== "Current Location"
+            !location.startsWith("Current Location") &&
+            !location.startsWith("Near ")
           )
             params.append("location", location);
           if (bounds.minLat) params.append("minLat", bounds.minLat);
@@ -710,9 +739,19 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
                 })}
               </div>
             ) : salons.length > 0 ? (
-              <div
-                className={`transition-opacity duration-200 ${isMapLoading ? "opacity-50" : "opacity-100"} ${viewMode === "grid" ? `grid ${gridCols} gap-6` : "space-y-4"}`}
-              >
+              <div className="space-y-6">
+                {isMobile && !hasExactLocation && (
+                  <div className="p-4 rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800 flex items-start gap-3">
+                    <Car className="h-5 w-5 text-orange-500 mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-orange-800 dark:text-orange-300">Set your exact location to see providers that can reach you</h4>
+                      <p className="text-sm text-orange-700/80 dark:text-orange-400/80 mt-1">We need to know exactly where you are to match you with mobile professionals in your area.</p>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`transition-opacity duration-200 ${isMapLoading ? "opacity-50" : "opacity-100"} ${viewMode === "grid" ? `grid ${gridCols} gap-6` : "space-y-4"}`}
+                >
                 {salons.map(function (salon) {
                   return viewMode === "grid" ? (
                     <SalonCardGrid
@@ -720,6 +759,7 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
                       salon={salon}
                       onMouseEnter={() => setHoveredSalonId(salon.id)}
                       onMouseLeave={() => setHoveredSalonId(null)}
+                      onCardClick={handleCardClick}
                     />
                   ) : (
                     <SalonCardList
@@ -727,9 +767,11 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
                       salon={salon}
                       onMouseEnter={() => setHoveredSalonId(salon.id)}
                       onMouseLeave={() => setHoveredSalonId(null)}
+                      onCardClick={handleCardClick}
                     />
                   );
                 })}
+              </div>
               </div>
             ) : (
               <div className="text-center py-16">
@@ -780,24 +822,47 @@ export function SalonSearchContent({ initialCategory, initialCity }) {
           </div>
         )}
       </div>
+
+      <LocationModal
+        open={showLocationModal}
+        onOpenChange={setShowLocationModal}
+        onLocationSubmit={(address, lat, lng) => {
+          sessionStorage.setItem(
+            "fresh_mobile_service_location",
+            JSON.stringify({ address, lat, lng, updatedAt: Date.now() })
+          );
+          setHasExactLocation(true);
+          setShowLocationModal(false);
+          if (pendingSalonForMobile) {
+            router.push("/salon/" + generateSalonSlug(pendingSalonForMobile));
+          }
+        }}
+      />
     </div>
   );
 }
 
-function SalonCardGrid({ salon, onMouseEnter, onMouseLeave }) {
+function SalonCardGrid({ salon, onMouseEnter, onMouseLeave, onCardClick }) {
   return (
     <SalonCard
       salon={salon}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onCardClick={onCardClick}
     />
   );
 }
 
-function SalonCardList({ salon, onMouseEnter, onMouseLeave }) {
+function SalonCardList({ salon, onMouseEnter, onMouseLeave, onCardClick }) {
   return (
     <Link
       href={"/salon/" + generateSalonSlug(salon)}
+      onClick={(e) => {
+        if (onCardClick) {
+          e.preventDefault();
+          onCardClick(salon);
+        }
+      }}
       className="block w-full"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

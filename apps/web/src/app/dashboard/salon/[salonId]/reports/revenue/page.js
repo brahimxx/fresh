@@ -15,6 +15,8 @@ import {
   Gift,
   Scissors,
   Package,
+  Car,
+  MapPin,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -115,7 +117,9 @@ export default function RevenueReportPage() {
   };
   
   var data = report || mockReport;
-  var change = calculateChange(data.total, data.previous);
+  var change = calculateChange(data.total || data.summary?.totalRevenue, data.previous);
+  var travelFeeRevenue = data.summary?.travelFeeRevenue || 0;
+  var byFulfillmentType = data.byFulfillmentType || [];
   
   function handleExport() {
     exportToCSV(data.byService, 'revenue-by-service');
@@ -178,7 +182,7 @@ export default function RevenueReportPage() {
       </div>
       
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -186,7 +190,7 @@ export default function RevenueReportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.total)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(data.total || data.summary?.totalRevenue)}</div>
             <div className="flex items-center gap-1 mt-1">
               {change >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-500" />
@@ -236,6 +240,21 @@ export default function RevenueReportPage() {
             <div className="text-sm text-muted-foreground">lowest revenue</div>
           </CardContent>
         </Card>
+
+        {travelFeeRevenue > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <Car className="h-3.5 w-3.5" />
+                Travel Fees
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{formatCurrency(travelFeeRevenue)}</div>
+              <div className="text-sm text-muted-foreground">mobile bookings</div>
+            </CardContent>
+          </Card>
+        )}
       </div>
       
       {/* Revenue Chart */}
@@ -311,6 +330,50 @@ export default function RevenueReportPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Fulfillment Type Breakdown */}
+      {byFulfillmentType.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              Revenue by Fulfillment Type
+            </CardTitle>
+            <CardDescription>Services revenue + travel fees grouped by booking type</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {byFulfillmentType.map(function(item) {
+                var label = item.type === 'mobile' ? 'Mobile' : item.type === 'virtual' ? 'Virtual' : 'In-Salon';
+                var Icon = item.type === 'mobile' ? Car : item.type === 'virtual' ? Gift : Scissors;
+                var color = item.type === 'mobile' ? 'text-blue-600' : item.type === 'virtual' ? 'text-purple-600' : 'text-green-600';
+                return (
+                  <div key={item.type} className="p-4 bg-muted/40 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className={'h-4 w-4 ' + color} />
+                      <span className="font-semibold text-sm">{label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{item.bookings} bookings</span>
+                    </div>
+                    <div className={'text-2xl font-bold ' + color}>{formatCurrency(item.totalRevenue)}</div>
+                    {item.type === 'mobile' && item.travelRevenue > 0 && (
+                      <div className="text-xs text-muted-foreground flex justify-between">
+                        <span>Services</span>
+                        <span>{formatCurrency(item.servicesRevenue)}</span>
+                      </div>
+                    )}
+                    {item.type === 'mobile' && item.travelRevenue > 0 && (
+                      <div className="text-xs text-blue-500 flex justify-between font-medium">
+                        <span>Travel fees</span>
+                        <span>+{formatCurrency(item.travelRevenue)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Revenue by Service Table */}
       <Card>

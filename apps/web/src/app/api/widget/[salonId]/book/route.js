@@ -21,6 +21,7 @@ import {
   haversineDistanceKm,
   isValidCoordinatePair,
 } from "@/lib/geo";
+import { isTravelFeasible, checkBidirectionalTravel } from "@/lib/travel";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
 export async function POST(request, { params }) {
@@ -31,7 +32,7 @@ export async function POST(request, { params }) {
     const salonId = decodeId(rawSalonId);
 
     const salon = await getOne(
-      "SELECT id, name, address, city, country, latitude, longitude, is_marketplace_enabled, virtual_meeting_link, covered_zip_codes, travel_radius, mobile_base_address FROM salons WHERE id = ?",
+      "SELECT id, name, address, city, country, latitude, longitude, is_marketplace_enabled, virtual_meeting_link, covered_zip_codes, travel_radius, mobile_base_address, travel_buffer_time FROM salons WHERE id = ?",
       [salonId],
     );
     if (!salon) {
@@ -65,6 +66,8 @@ export async function POST(request, { params }) {
       paymentMethod,
       fulfillmentType,
       serviceLocationAddress,
+      serviceLat,
+      serviceLng,
       clientTimezone,
       virtualMeetingLink,
     } = body;
@@ -241,10 +244,14 @@ export async function POST(request, { params }) {
         }
 
         var clientCoords = null;
-        try {
-          clientCoords = await geocodeAddress(serviceLocationAddress.trim());
-        } catch (geoErr) {
-          console.error("[WIDGET BOOKING] Client geocoding failed:", geoErr);
+        if (serviceLat && serviceLng) {
+          clientCoords = { lat: Number(serviceLat), lng: Number(serviceLng) };
+        } else {
+          try {
+            clientCoords = await geocodeAddress(serviceLocationAddress.trim());
+          } catch (geoErr) {
+            console.error("[WIDGET BOOKING] Client geocoding failed:", geoErr);
+          }
         }
 
         if (!clientCoords) {
@@ -416,6 +423,138 @@ export async function POST(request, { params }) {
     // Primary staff = the staff assigned to the first service
     const primaryStaffId = services[0].staffId;
 
+    // ── Pre-transaction mobile travel feasibility check ──────────────────────
+    //
+    // For mobile bookings where we have the client's coordinates, verify
+    // that each staff member can physically travel from their previous
+    // appointment to the client's location before the booking starts.
+    // This is a fast-fail check before opening the DB transaction.
+    if (fulfillmentType === "mobile" && serviceLat && serviceLng) {
+      const dayStr = startDateTime.toISOString().slice(0, 10);
+
+      // Build a set of unique staff IDs involved in this booking.
+      const involvedStaffIds = [
+        ...new Set(
+          serviceDetails
+            .map((s) => Number(s.staffId))
+            .filter((id) => !isNaN(id) && id > 0),
+        ),
+      ];
+
+      for (const staffId of involvedStaffIds) {
+        // Find the last booking for this staff on the same day that ends at or
+        // before the new booking starts (any fulfillment type).
+        const prevBookings = await getOne(
+          `SELECT b.fulfillment_type, b.service_lat, b.service_lng,
+                  bs.end_datetime
+           FROM bookings b
+           JOIN booking_services bs ON bs.booking_id = b.id
+           WHERE COALESCE(bs.staff_id, b.staff_id) = ?
+             AND DATE(b.start_datetime) = ?
+             AND b.status IN ('pending', 'confirmed')
+             AND b.deleted_at IS NULL
+             AND bs.end_datetime <= ?
+           ORDER BY bs.end_datetime DESC
+           LIMIT 1`,
+          [staffId, dayStr, startDatetimeFormatted],
+        );
+
+        if (!prevBookings) continue; // No prior appointment — always feasible.
+
+        const prevLat =
+          prevBookings.fulfillment_type === "mobile" && prevBookings.service_lat
+            ? Number(prevBookings.service_lat)
+            : null;
+        const prevLng =
+          prevBookings.fulfillment_type === "mobile" && prevBookings.service_lng
+            ? Number(prevBookings.service_lng)
+            : null;
+        const prevEndTime = new Date(
+          String(prevBookings.end_datetime).replace(" ", "T"),
+        );
+
+        // Find the nearest next booking: first one that starts at or after the booking end.
+        const nextBookings = await getOne(
+          `SELECT b.fulfillment_type, b.service_lat, b.service_lng,
+                  bs.start_datetime
+           FROM bookings b
+           JOIN booking_services bs ON bs.booking_id = b.id
+           WHERE COALESCE(bs.staff_id, b.staff_id) = ?
+             AND DATE(b.start_datetime) = ?
+             AND b.status IN ('pending', 'confirmed')
+             AND b.deleted_at IS NULL
+             AND bs.start_datetime >= ?
+           ORDER BY bs.start_datetime ASC
+           LIMIT 1`,
+          [staffId, dayStr, endDatetimeFormatted],
+        );
+
+        const nextLat =
+          nextBookings?.fulfillment_type === "mobile" && nextBookings.service_lat
+            ? Number(nextBookings.service_lat)
+            : null;
+        const nextLng =
+          nextBookings?.fulfillment_type === "mobile" && nextBookings.service_lng
+            ? Number(nextBookings.service_lng)
+            : null;
+        const nextStartTime = nextBookings
+          ? new Date(String(nextBookings.start_datetime).replace(" ", "T"))
+          : null;
+
+        // Staff base: home lat/lng → salon lat/lng
+        const staffBase = await getOne(
+          "SELECT home_lat, home_lng FROM staff WHERE id = ? LIMIT 1",
+          [staffId],
+        );
+        const salBase = await getOne(
+          "SELECT latitude, longitude FROM salons WHERE id = ? LIMIT 1",
+          [salonId],
+        );
+        const baseLat =
+          staffBase?.home_lat != null
+            ? Number(staffBase.home_lat)
+            : salBase?.latitude != null
+              ? Number(salBase.latitude)
+              : null;
+        const baseLng =
+          staffBase?.home_lng != null
+            ? Number(staffBase.home_lng)
+            : salBase?.longitude != null
+              ? Number(salBase.longitude)
+              : null;
+
+        const { feasible, arrivalFeasible, departureFeasible, arrivalTravelMinutes, departureTravelMinutes, arrivalGapMinutes, departureGapMinutes } = checkBidirectionalTravel({
+          prevLat,
+          prevLng,
+          prevEndTime,
+          newLat: Number(serviceLat),
+          newLng: Number(serviceLng),
+          newStartTime: startDateTime,
+          newEndTime: endDateTime,
+          nextLat,
+          nextLng,
+          nextStartTime,
+          baseLat,
+          baseLng,
+          salonBufferTime: salon.travel_buffer_time,
+        });
+
+        if (!feasible) {
+          const direction = !arrivalFeasible ? "arrive at" : "depart from";
+          const travelMins = !arrivalFeasible ? arrivalTravelMinutes : departureTravelMinutes;
+          const gapMins = !arrivalFeasible ? arrivalGapMinutes : departureGapMinutes;
+          return error(
+            {
+              code: "TRAVEL_NOT_FEASIBLE",
+              message: `Staff cannot ${direction} your location in time (need ${travelMins} min, only ${Math.floor(gapMins)} min available). Please choose a different time slot.`,
+            },
+            409,
+          );
+        }
+      }
+    }
+    // ── End travel feasibility check ─────────────────────────────────────
+
     // createSafeBooking handles the full transaction:
     //   FOR UPDATE conflict check, time-off check, insert, salon_clients upsert.
     const result = await createSafeBooking({
@@ -437,6 +576,8 @@ export async function POST(request, { params }) {
       isMarketplaceEnabled: !!salon.is_marketplace_enabled,
       fulfillmentType: fulfillmentType || "physical",
       serviceLocationAddress: serviceLocationAddress || null,
+      serviceLat: serviceLat ? Number(serviceLat) : null,
+      serviceLng: serviceLng ? Number(serviceLng) : null,
       clientTimezone: clientTimezone || null,
       virtualMeetingLink: resolvedMeetingLink,
     });

@@ -49,10 +49,16 @@ export function StaffScheduleDialog({
   
   // Load saved schedule when available
   useEffect(function() {
-    if (savedSchedule && savedSchedule.length > 0) {
-      var newSchedule = { ...DEFAULT_SCHEDULE };
+    if (savedSchedule) {
+      var newSchedule = {};
+      DAYS.forEach(function(day) {
+        newSchedule[day.key] = { enabled: false, start: null, end: null };
+      });
+      
+      var hasAnySchedule = false;
       savedSchedule.forEach(function(day) {
         if (newSchedule[day.day_of_week]) {
+          hasAnySchedule = true;
           newSchedule[day.day_of_week] = {
             enabled: day.is_working,
             start: day.start_time ? day.start_time.slice(0, 5) : null,
@@ -60,9 +66,12 @@ export function StaffScheduleDialog({
           };
         }
       });
-      setSchedule(newSchedule);
-    } else if (open && !savedSchedule) {
-      setSchedule(DEFAULT_SCHEDULE);
+      
+      if (hasAnySchedule) {
+        setSchedule(newSchedule);
+      } else {
+        setSchedule(DEFAULT_SCHEDULE);
+      }
     }
   }, [savedSchedule, open]);
   

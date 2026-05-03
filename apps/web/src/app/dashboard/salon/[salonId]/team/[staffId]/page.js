@@ -43,6 +43,8 @@ import { StaffPermissionsTab } from "@/components/staff/staff-permissions-tab";
 import { StaffWagesTab } from "@/components/staff/staff-wages-tab";
 import { StaffCommissionsTab } from "@/components/staff/staff-commissions-tab";
 import { StaffPayRunsTab } from "@/components/staff/staff-pay-runs-tab";
+import { StaffFormDialog } from "@/components/staff/staff-form";
+import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 import { useSalon } from "@/providers/salon-provider";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +56,8 @@ export default function StaffDetailPage({ params }) {
   const { staffRole: currentUserRole } = useSalon();
 
   const [activeTab, setActiveTab] = useState("personal");
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [staffFormOpen, setStaffFormOpen] = useState(false);
   const { data: staff, isLoading, error } = useStaffMember(staffId);
 
   const getInitials = (firstName, lastName) => {
@@ -195,13 +199,19 @@ export default function StaffDetailPage({ params }) {
                   </div>
                 </div>
 
-                {/* Actions Hub */}
                 <div className="flex shrink-0 gap-3 items-center">
-                  <Button variant="outline" className="h-12 px-6 rounded-xl shadow-sm border-border/50 bg-background/50 backdrop-blur-md hover:bg-background font-bold text-[14px]">
+                  <Button 
+                    variant="outline" 
+                    className="h-12 px-6 rounded-xl shadow-sm border-border/50 bg-background/50 backdrop-blur-md hover:bg-background font-bold text-[14px]"
+                    onClick={() => setScheduleDialogOpen(true)}
+                  >
                     <CalendarClock className="h-4 w-4 mr-2 text-muted-foreground" />
                     Operational Hours
                   </Button>
-                  <Button className="h-12 px-6 rounded-xl shadow-md font-bold text-[14px]">
+                  <Button 
+                    className="h-12 px-6 rounded-xl shadow-md font-bold text-[14px]"
+                    onClick={() => setStaffFormOpen(true)}
+                  >
                     <Pencil className="h-4 w-4 mr-2" /> Modify Profile
                   </Button>
                 </div>
@@ -321,6 +331,23 @@ export default function StaffDetailPage({ params }) {
           )}
         </div>
       </Tabs>
+
+      <StaffScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        staff={{
+          id: staff.id,
+          name: name
+        }}
+        salonId={salonId}
+      />
+
+      <StaffFormDialog
+        open={staffFormOpen}
+        onOpenChange={setStaffFormOpen}
+        salonId={salonId}
+        staffMember={staff}
+      />
     </div>
   );
 }

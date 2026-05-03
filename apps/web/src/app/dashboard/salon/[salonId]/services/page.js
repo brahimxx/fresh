@@ -197,6 +197,12 @@ export default function ServicesPage({ params }) {
 
   const renderServiceItem = (service) => {
     const discountedPrice = getDiscountedPrice(service);
+
+    const hasFulfillmentDefined = service.canPhysical !== undefined || service.canMobile !== undefined || service.canVirtual !== undefined || service.can_physical !== undefined || service.can_mobile !== undefined || service.can_virtual !== undefined;
+    const canPhysical = hasFulfillmentDefined ? !!(service.canPhysical ?? service.can_physical) : true;
+    const canMobile = !!(service.canMobile ?? service.can_mobile);
+    const canVirtual = !!(service.canVirtual ?? service.can_virtual);
+
     return (
       <div
         key={service.id}
@@ -220,6 +226,18 @@ export default function ServicesPage({ params }) {
         </div>
 
         <div className="flex items-center sm:justify-end gap-6 shrink-0 mt-2 sm:mt-0">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {canPhysical && (
+              <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] uppercase font-bold tracking-wider px-2 py-0 border-0 h-5">In-Salon</Badge>
+            )}
+            {canMobile && (
+              <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] uppercase font-bold tracking-wider px-2 py-0 border-0 h-5">Mobile</Badge>
+            )}
+            {canVirtual && (
+              <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] uppercase font-bold tracking-wider px-2 py-0 border-0 h-5">Virtual</Badge>
+            )}
+          </div>
+
           <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground font-bold bg-muted/40 px-2.5 py-1.5 rounded-lg border border-border/50">
             <Clock className="h-3.5 w-3.5 shrink-0 opacity-50" />
             <span>{formatDuration(service.duration)}</span>

@@ -2,6 +2,8 @@ import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { success, error, notFound } from "@/lib/response";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/widget/[salonId] - Get public widget data for embedding
 export async function GET(request, { params }) {
   try {
@@ -10,7 +12,7 @@ export async function GET(request, { params }) {
 
     // Get salon basic info
     const salon = await getOne(
-      "SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes FROM salons WHERE id = ? AND is_active = 1",
+      "SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes, latitude, longitude FROM salons WHERE id = ? AND is_active = 1",
       [salonId],
     );
 
@@ -38,7 +40,7 @@ export async function GET(request, { params }) {
       `SELECT s.*, sc.name as category_name 
        FROM services s 
        LEFT JOIN service_categories sc ON sc.id = s.category_id
-       WHERE s.salon_id = ? AND s.is_active = 1
+       WHERE s.salon_id = ? AND s.is_active = 1 AND s.deleted_at IS NULL
        ORDER BY s.name`,
       [salonId],
     );
@@ -75,6 +77,11 @@ export async function GET(request, { params }) {
         travel_fee_amount: salon.travel_fee_amount,
         min_booking_amount: salon.min_booking_amount,
         covered_zip_codes: salon.covered_zip_codes,
+        latitude: salon.latitude,
+        longitude: salon.longitude,
+        has_physical_services: services.some(s => s.can_physical === 1 || s.can_physical === true),
+        has_mobile_services: services.some(s => s.can_mobile === 1 || s.can_mobile === true),
+        has_virtual_services: services.some(s => s.can_virtual === 1 || s.can_virtual === true),
       },
       settings: {
         primaryColor: widgetSettings.primary_color,
@@ -100,6 +107,9 @@ export async function GET(request, { params }) {
             categoryName: s.category_name,
             duration: s.duration_minutes,
             price: widgetSettings.show_prices ? parseFloat(s.price) : null,
+            can_physical: s.can_physical === 1 || s.can_physical === true,
+            can_mobile: s.can_mobile === 1 || s.can_mobile === true,
+            can_virtual: s.can_virtual === 1 || s.can_virtual === true,
           }))
         : [],
       staff: staff.map((s) => ({

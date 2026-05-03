@@ -111,10 +111,18 @@ export function ServiceFormDialog({
   useEffect(
     function () {
       if (open) {
+        var defaultPhysical = !!(salon?.can_physical ?? salon?.is_physical ?? true);
+        var defaultMobile = !!(salon?.can_mobile || salon?.is_mobile);
+        var defaultVirtual = !!(salon?.can_virtual || salon?.is_virtual);
+
         if (service) {
           // Legacy check: If all false or not set, default to physical
           var hasFulfillment =
-            service.can_physical || service.can_mobile || service.can_virtual;
+            service.canPhysical !== undefined || 
+            service.canMobile !== undefined || 
+            service.canVirtual !== undefined || 
+            service.can_physical !== undefined;
+            
           form.reset({
             name: service.name || "",
             description: service.description || "",
@@ -130,11 +138,15 @@ export function ServiceFormDialog({
               service.buffer_time_minutes ||
               0,
             buffer_after: service.buffer_after || 0,
-            can_physical: hasFulfillment ? !!service.can_physical : true,
-            can_mobile: !!service.can_mobile,
-            can_virtual: !!service.can_virtual,
+            can_physical: hasFulfillment ? !!(service.canPhysical ?? service.can_physical) : defaultPhysical,
+            can_mobile: hasFulfillment ? !!(service.canMobile ?? service.can_mobile) : defaultMobile && !defaultPhysical,
+            can_virtual: hasFulfillment ? !!(service.canVirtual ?? service.can_virtual) : defaultVirtual && !defaultPhysical && !defaultMobile,
           });
         } else {
+          var initPhysical = defaultPhysical;
+          var initMobile = !defaultPhysical ? defaultMobile : false;
+          var initVirtual = !defaultPhysical && !defaultMobile ? defaultVirtual : false;
+
           form.reset({
             name: "",
             description: "",
@@ -143,9 +155,9 @@ export function ServiceFormDialog({
             category_id: categoryId ? String(categoryId) : "none",
             buffer_before: 0,
             buffer_after: 0,
-            can_physical: true,
-            can_mobile: false,
-            can_virtual: false,
+            can_physical: initPhysical,
+            can_mobile: initMobile,
+            can_virtual: initVirtual,
           });
           setSelectedStaffIds([]);
           seededServiceIdRef.current = null;
@@ -155,7 +167,7 @@ export function ServiceFormDialog({
         seededServiceIdRef.current = null;
       }
     },
-    [open, service, categoryId],
+    [open, service, categoryId, salon],
   );
 
   // Pre-populate assigned staff exactly once per service open.
@@ -190,14 +202,67 @@ export function ServiceFormDialog({
     });
   }
 
+  // Auto-deselect staff who become incompatible whenever fulfillment options change.
+  var watchedPhysical = form.watch("can_physical");
+  var watchedMobile = form.watch("can_mobile");
+  var watchedVirtual = form.watch("can_virtual");
+  useEffect(
+    function () {
+      if (!allStaff || allStaff.length === 0) return;
+      var compatibleIds = getCompatibleStaffIds(
+        allStaff,
+        watchedPhysical,
+        watchedMobile,
+        watchedVirtual,
+      );
+      setSelectedStaffIds(function (prev) {
+        var next = prev.filter(function (id) {
+          return compatibleIds.includes(id);
+        });
+        // Only update state if something actually changed to avoid infinite loops
+        return next.length !== prev.length ? next : prev;
+      });
+    },
+    [watchedPhysical, watchedMobile, watchedVirtual, allStaff],
+  );
+
+  // Compute which staff are compatible with the CURRENT fulfillment selection.
+  // Staff must support ALL modes the service enables (not just one).
+  function getCompatibleStaffIds(staffList, canPhysical, canMobile, canVirtual) {
+    if (!staffList) return [];
+    return staffList
+      .filter(function (member) {
+        if (canPhysical && !member.canPhysical) return false;
+        if (canMobile && !member.canMobile) return false;
+        if (canVirtual && !member.canVirtual) return false;
+        return true;
+      })
+      .map(function (m) { return m.id; });
+  }
+
   function onSubmit(data) {
-    if (!data.can_physical && !data.can_mobile && !data.can_virtual) {
+    if (!hasMultipleFulfillmentModes) {
+      data.can_physical = salonSupportsPhysical;
+      data.can_mobile = salonSupportsMobile;
+      data.can_virtual = salonSupportsVirtual;
+    } else if (!data.can_physical && !data.can_mobile && !data.can_virtual) {
       form.setError("root.fulfillment", {
         type: "manual",
         message: "Select at least one service availability option",
       });
       return;
     }
+
+    // Safety net: strip any selected staff who are incompatible with the final modes
+    var compatibleIds = getCompatibleStaffIds(
+      allStaff,
+      data.can_physical,
+      data.can_mobile,
+      data.can_virtual,
+    );
+    var safeStaffIds = selectedStaffIds.filter(function (id) {
+      return compatibleIds.includes(id);
+    });
 
     var payload = {
       ...data,
@@ -206,11 +271,15 @@ export function ServiceFormDialog({
         data.category_id && data.category_id !== "none"
           ? Number(data.category_id)
           : null,
+      // API expects camelCase; form schema uses snake_case
+      canPhysical: data.can_physical,
+      canMobile: data.can_mobile,
+      canVirtual: data.can_virtual,
     };
 
     if (isEditing) {
       updateService.mutate(
-        { id: service.id, data: { ...payload, staffIds: selectedStaffIds } },
+        { id: service.id, data: { ...payload, staffIds: safeStaffIds } },
         {
           onSuccess: function () {
             onOpenChange(false);
@@ -220,7 +289,7 @@ export function ServiceFormDialog({
       );
     } else {
       createService.mutate(
-        { ...payload, staff_ids: selectedStaffIds },
+        { ...payload, staff_ids: safeStaffIds },
         {
           onSuccess: function () {
             onOpenChange(false);
@@ -233,9 +302,11 @@ export function ServiceFormDialog({
   }
 
   var isSubmitting = createService.isPending || updateService.isPending;
+  var salonSupportsPhysical = !!(salon?.can_physical ?? salon?.is_physical ?? true);
   var salonSupportsMobile = !!(salon?.can_mobile || salon?.is_mobile);
   var salonSupportsVirtual = !!(salon?.can_virtual || salon?.is_virtual);
-  var hasMultipleFulfillmentModes = salonSupportsMobile || salonSupportsVirtual;
+  var supportedModes = [salonSupportsPhysical, salonSupportsMobile, salonSupportsVirtual].filter(Boolean);
+  var hasMultipleFulfillmentModes = supportedModes.length > 1;
 
   var primaryCategory =
     salon?.salonCategories?.find(function (c) {
@@ -487,25 +558,27 @@ export function ServiceFormDialog({
                         </span>
                       </div>
                       <div className="flex gap-4">
-                        <FormField
-                          control={form.control}
-                          name="can_physical"
-                          render={function ({ field }) {
-                            return (
-                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                  />
-                                </FormControl>
-                                <FormLabel className="font-normal cursor-pointer">
-                                  In-Salon
-                                </FormLabel>
-                              </FormItem>
-                            );
-                          }}
-                        />
+                        {salonSupportsPhysical && (
+                          <FormField
+                            control={form.control}
+                            name="can_physical"
+                            render={function ({ field }) {
+                              return (
+                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal cursor-pointer">
+                                    In-Salon
+                                  </FormLabel>
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        )}
 
                         {salonSupportsMobile && (
                           <FormField
@@ -579,14 +652,34 @@ export function ServiceFormDialog({
                   ) : (
                     <div className="grid grid-cols-1 gap-1.5">
                       {allStaff.map(function (member) {
+                        var currentPhysical = hasMultipleFulfillmentModes ? form.watch("can_physical") : salonSupportsPhysical;
+                        var currentMobile = hasMultipleFulfillmentModes ? form.watch("can_mobile") : salonSupportsMobile;
+                        var currentVirtual = hasMultipleFulfillmentModes ? form.watch("can_virtual") : salonSupportsVirtual;
+                        
+                        // Staff must satisfy EVERY mode the service enables (AND logic, not OR).
+                        // If nothing is selected yet, don't disable anyone.
+                        var nothingSelected = !currentPhysical && !currentMobile && !currentVirtual;
+                        var isCompatible =
+                          nothingSelected ||
+                          (
+                            (!currentPhysical || member.canPhysical) &&
+                            (!currentMobile   || member.canMobile) &&
+                            (!currentVirtual  || member.canVirtual)
+                          );
+
                         var isSelected = selectedStaffIds.includes(member.id);
                         return (
                           <div
                             key={member.id}
-                            className="flex items-center gap-3 rounded-md px-3 py-2 border hover:bg-accent/50 cursor-pointer transition-colors"
+                            className={[
+                              "flex items-center gap-3 rounded-md px-3 py-2 border transition-colors",
+                              isCompatible ? "hover:bg-accent/50 cursor-pointer" : "opacity-50 cursor-not-allowed bg-muted/30"
+                            ].join(" ")}
                             onClick={function (e) {
                               e.stopPropagation();
-                              toggleStaff(member.id);
+                              if (isCompatible) {
+                                toggleStaff(member.id);
+                              }
                             }}
                           >
                             {/* Plain CSS indicator — no Radix Presence, no animation conflict */}
@@ -616,9 +709,16 @@ export function ServiceFormDialog({
                                 {member.lastName || member.last_name}
                               </p>
                               {member.role && (
-                                <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-                                  {member.role}
-                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <p className="text-xs text-muted-foreground capitalize">
+                                    {member.role}
+                                  </p>
+                                  {!isCompatible && (
+                                    <span className="text-[10px] font-semibold bg-destructive/10 text-destructive px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                      Incompatible Fulfillment
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>

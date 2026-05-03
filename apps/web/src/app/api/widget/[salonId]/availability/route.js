@@ -1,6 +1,8 @@
 import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error, notFound } from '@/lib/response';
+import { checkBidirectionalTravel } from '@/lib/travel';
+import { isValidCoordinatePair } from '@/lib/geo';
 
 // GET /api/widget/[salonId]/availability - Get available slots for widget
 export async function GET(request, { params }) {
@@ -11,6 +13,10 @@ export async function GET(request, { params }) {
     const date = searchParams.get('date');
     const fulfillmentType = searchParams.get('fulfillmentType');
     const servicesParam = searchParams.get('services');
+    const userLat = Number(searchParams.get('userLat'));
+    const userLng = Number(searchParams.get('userLng'));
+    const isMobile = fulfillmentType === 'mobile';
+    const hasMobileCoords = isMobile && isValidCoordinatePair(userLat, userLng);
 
     if (!date || !servicesParam) {
       return error('Date and services are required');
@@ -20,7 +26,7 @@ export async function GET(request, { params }) {
       return error('Invalid date format. Expected YYYY-MM-DD', 400);
     }
 
-    const salon = await getOne('SELECT id, travel_buffer_time FROM salons WHERE id = ? AND is_active = 1', [salonId]);
+    const salon = await getOne('SELECT id, travel_buffer_time, latitude, longitude FROM salons WHERE id = ? AND is_active = 1', [salonId]);
     if (!salon) {
       return notFound('Salon not found');
     }
@@ -212,20 +218,40 @@ export async function GET(request, { params }) {
     }
 
     // ── Batch fetch existing sub-window bookings for all staff ─────────────
+    // For mobile bookings we also need location data so we can compute travel time.
     const allBookings = await query(
-      `SELECT COALESCE(bs.staff_id, b.staff_id) AS staff_id, bs.start_datetime, bs.end_datetime
+      `SELECT COALESCE(bs.staff_id, b.staff_id) AS staff_id,
+              bs.start_datetime, bs.end_datetime,
+              b.fulfillment_type, b.service_lat, b.service_lng
        FROM bookings b
        JOIN booking_services bs ON bs.booking_id = b.id
-       WHERE COALESCE(bs.staff_id, b.staff_id) IN (?) 
+       WHERE COALESCE(bs.staff_id, b.staff_id) IN (?)
        AND DATE(b.start_datetime) = ?
        AND b.status IN ('pending', 'confirmed')
-       AND b.deleted_at IS NULL`,
+       AND b.deleted_at IS NULL
+       ORDER BY bs.start_datetime ASC`,
       [staffIds, date]
     );
 
     const staffBookings = {};
     for (const staffId of staffIds) {
       staffBookings[staffId] = allBookings.filter(b => b.staff_id === staffId);
+    }
+
+    // ── Fetch staff base locations (home_lat/home_lng) for travel fallback ─
+    // Also fetch salon coordinates as the ultimate fallback.
+    const staffBaseLocations = {};
+    if (hasMobileCoords && staffIds.length > 0) {
+      const baseRows = await query(
+        `SELECT id, home_lat, home_lng FROM staff WHERE id IN (?)`,
+        [staffIds]
+      );
+      for (const row of baseRows) {
+        staffBaseLocations[row.id] = {
+          lat: row.home_lat !== null ? Number(row.home_lat) : null,
+          lng: row.home_lng !== null ? Number(row.home_lng) : null,
+        };
+      }
     }
 
     // ── Helper: check if a single staff member is free in a time window ───
@@ -269,13 +295,22 @@ export async function GET(request, { params }) {
     // available during THEIR service window, not the entire booking span.
 
     const now = new Date();
+    
+    // ── Enforce Lead Times ──────────────────────────────────────────────────
+    // Physical/Virtual: 30 mins notice. Mobile: 2 hours (120 mins) + travel_buffer_time notice.
+    const leadTimeMinutes = isMobile 
+      ? 120 + (salon.travel_buffer_time || 0) 
+      : 30;
+      
+    const cutoffTime = new Date(now.getTime() + leadTimeMinutes * 60000);
+
     let currentSlot = new Date(scanStart);
 
     while (currentSlot.getTime() + (totalDuration + totalBuffer) * 60000 <= scanEnd.getTime()) {
       const slotStart = new Date(currentSlot);
 
-      // Skip past times
-      if (slotStart <= now) {
+      // Skip times that violate the minimum lead time
+      if (slotStart <= cutoffTime) {
         currentSlot.setMinutes(currentSlot.getMinutes() + 15);
         continue;
       }
@@ -297,10 +332,58 @@ export async function GET(request, { params }) {
         let anyCapableStaffAvailable = false;
 
         for (const staffId of serviceData.capableStaffIds) {
-          if (isStaffAvailable(staffId, svcStart, svcEnd)) {
-            anyCapableStaffAvailable = true;
-            break;
+          if (!isStaffAvailable(staffId, svcStart, svcEnd)) continue;
+
+          // ── Mobile bidirectional travel feasibility check ───────────────
+          // Only applied when we have the client's coordinates.
+          if (hasMobileCoords) {
+            const staffDayBookings = staffBookings[staffId] || [];
+
+            // Nearest previous booking: the one that ends latest at or before svcStart.
+            const prevBooking = staffDayBookings
+              .filter(b => new Date(String(b.end_datetime).replace(' ', 'T')) <= svcStart)
+              .sort((a, b) => new Date(String(b.end_datetime).replace(' ', 'T')) - new Date(String(a.end_datetime).replace(' ', 'T')))[0] || null;
+
+            // Nearest next booking: the one that starts earliest at or after svcEnd.
+            const nextBooking = staffDayBookings
+              .filter(b => new Date(String(b.start_datetime).replace(' ', 'T')) >= svcEnd)
+              .sort((a, b) => new Date(String(a.start_datetime).replace(' ', 'T')) - new Date(String(b.start_datetime).replace(' ', 'T')))[0] || null;
+
+            // Location hierarchy: booking location → staff home → salon center
+            const base = staffBaseLocations[staffId] || {};
+            const baseLat = isValidCoordinatePair(base.lat, base.lng)
+              ? base.lat
+              : (salon.latitude ? Number(salon.latitude) : null);
+            const baseLng = isValidCoordinatePair(base.lat, base.lng)
+              ? base.lng
+              : (salon.longitude ? Number(salon.longitude) : null);
+
+            const { feasible } = checkBidirectionalTravel({
+              // Arrival: where is staff coming FROM?
+              prevLat: prevBooking?.fulfillment_type === 'mobile' ? Number(prevBooking.service_lat) : null,
+              prevLng: prevBooking?.fulfillment_type === 'mobile' ? Number(prevBooking.service_lng) : null,
+              prevEndTime: prevBooking ? new Date(String(prevBooking.end_datetime).replace(' ', 'T')) : null,
+              // New booking (client location)
+              newLat: userLat,
+              newLng: userLng,
+              newStartTime: svcStart,
+              newEndTime: svcEnd,
+              // Departure: where does staff need to go NEXT?
+              nextLat: nextBooking?.fulfillment_type === 'mobile' ? Number(nextBooking.service_lat) : null,
+              nextLng: nextBooking?.fulfillment_type === 'mobile' ? Number(nextBooking.service_lng) : null,
+              nextStartTime: nextBooking ? new Date(String(nextBooking.start_datetime).replace(' ', 'T')) : null,
+              // Fallback base location
+              baseLat,
+              baseLng,
+              salonBufferTime: salon.travel_buffer_time,
+            });
+
+            if (!feasible) continue;
           }
+          // ── End bidirectional travel check ─────────────────────────────
+
+          anyCapableStaffAvailable = true;
+          break;
         }
 
         if (!anyCapableStaffAvailable) {

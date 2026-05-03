@@ -18,6 +18,7 @@ export function DateTimeSelection({
   selectedTime,
   onDateSelect,
   onTimeSelect,
+  mobileLocationCoords,
 }) {
   var [timeSlots, setTimeSlots] = useState([]);
   var [loading, setLoading] = useState(false);
@@ -103,7 +104,16 @@ export function DateTimeSelection({
             dateStr +
             "&services=" +
             encodeURIComponent(servicesParam) +
-            (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "");
+            (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "") +
+            // Pass user coordinates for mobile travel feasibility checks
+            (fulfillmentType === "mobile" &&
+            mobileLocationCoords?.lat &&
+            mobileLocationCoords?.lng
+              ? "&userLat=" +
+                mobileLocationCoords.lat +
+                "&userLng=" +
+                mobileLocationCoords.lng
+              : "");
 
           console.log("===== AVAILABILITY REQUEST =====");
           console.log("Selected date object:", selectedDate);

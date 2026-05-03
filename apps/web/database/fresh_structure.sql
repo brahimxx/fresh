@@ -156,6 +156,26 @@ CREATE TABLE `booking_services` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `booking_travel_fees`
+--
+
+DROP TABLE IF EXISTS `booking_travel_fees`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `booking_travel_fees` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `booking_id` bigint unsigned NOT NULL,
+  `fee_type` enum('fixed','per_km') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fixed',
+  `distance_km` decimal(8,2) DEFAULT NULL COMMENT 'Calculated distance (populated for per_km type)',
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_booking_travel_fee` (`booking_id`),
+  CONSTRAINT `fk_btf_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `bookings`
 --
 
@@ -184,6 +204,8 @@ CREATE TABLE `bookings` (
   `service_lng` decimal(10,7) DEFAULT NULL COMMENT 'Lng for mobile bookings',
   `client_timezone` varchar(50) DEFAULT NULL COMMENT 'Timezone for virtual bookings',
   `virtual_meeting_link` text COMMENT 'Generated or static meeting link for virtual bookings',
+  `travel_fee_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'Snapshot of travel fee charged at booking time',
+  `travel_distance_km` decimal(8,2) DEFAULT NULL COMMENT 'Calculated travel distance at booking time (per_km bookings)',
   PRIMARY KEY (`id`),
   KEY `idx_bookings_salon_id` (`salon_id`),
   KEY `idx_bookings_client_id` (`client_id`),
@@ -192,6 +214,7 @@ CREATE TABLE `bookings` (
   KEY `idx_bookings_staff_datetime_status` (`staff_id`,`start_datetime`,`status`),
   KEY `idx_bookings_salon_datetime` (`salon_id`,`start_datetime`),
   KEY `idx_bookings_client_status` (`client_id`,`status`),
+  KEY `idx_bookings_fulfillment` (`fulfillment_type`),
   CONSTRAINT `fk_bookings_client` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -796,7 +819,7 @@ CREATE TABLE `salon_categories` (
   KEY `idx_salon_categories_salon_id` (`salon_id`),
   KEY `idx_salon_categories_name` (`category_name`),
   CONSTRAINT `fk_salon_categories_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=70 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -953,6 +976,7 @@ CREATE TABLE `salons` (
   `virtual_meeting_link` text,
   `covered_zip_codes` text COMMENT 'Comma separated list of zip codes covered for mobile service',
   `travel_buffer_time` int DEFAULT '0' COMMENT 'Minutes automatically added before/after mobile bookings',
+  `mobile_base_address` varchar(255) DEFAULT NULL COMMENT 'Base address used as center point for mobile travel radius',
   PRIMARY KEY (`id`),
   KEY `idx_salons_owner_id` (`owner_id`),
   KEY `idx_salons_marketplace_city` (`is_marketplace_enabled`,`city`),
@@ -964,7 +988,7 @@ CREATE TABLE `salons` (
   KEY `idx_salons_stripe_account` (`stripe_account_id`),
   CONSTRAINT `fk_salons_deleted_by` FOREIGN KEY (`deleted_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_salons_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=225 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=232 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1026,14 +1050,21 @@ CREATE TABLE `services` (
   `deleted_at` datetime DEFAULT NULL,
   `is_popular` tinyint(1) DEFAULT '0',
   `offering_type` enum('physical','mobile','virtual','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT 'How this specific service can be fulfilled',
+  `mobile_price_override` decimal(10,2) DEFAULT NULL COMMENT 'Price when fulfilled as mobile (NULL = use base price)',
+  `virtual_price_override` decimal(10,2) DEFAULT NULL COMMENT 'Price when fulfilled as virtual (NULL = use base price)',
+  `can_physical` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Service can be fulfilled physically at salon',
+  `can_mobile` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Service can be fulfilled as mobile/home visit',
+  `can_virtual` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Service can be fulfilled virtually',
   PRIMARY KEY (`id`),
   KEY `idx_services_salon_id` (`salon_id`),
   KEY `idx_services_category_id` (`category_id`),
   KEY `idx_services_salon_active` (`salon_id`,`is_active`),
   KEY `idx_services_salon_active_name` (`salon_id`,`is_active`,`name`),
+  KEY `idx_services_offering` (`offering_type`),
+  KEY `idx_services_fulfillment_flags` (`can_physical`,`can_mobile`,`can_virtual`),
   CONSTRAINT `fk_services_category` FOREIGN KEY (`category_id`) REFERENCES `service_categories` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_services_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=63 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=65 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1067,6 +1098,12 @@ CREATE TABLE `staff` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `permissions` json DEFAULT NULL COMMENT 'Custom permission overrides. NULL = use role defaults.',
+  `can_physical` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Staff can perform physical/in-salon services',
+  `can_mobile` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Staff can travel to client for mobile services',
+  `can_virtual` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Staff can deliver services virtually (video call)',
+  `travel_radius` int DEFAULT NULL COMMENT 'Staff-specific travel radius override in km (NULL = use salon default)',
+  `home_lat` decimal(10,7) DEFAULT NULL COMMENT 'Staff home/base latitude for distance calculations',
+  `home_lng` decimal(10,7) DEFAULT NULL COMMENT 'Staff home/base longitude for distance calculations',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_staff_salon_user` (`salon_id`,`user_id`),
   UNIQUE KEY `uq_staff_user_salon` (`user_id`,`salon_id`),
@@ -1077,7 +1114,7 @@ CREATE TABLE `staff` (
   KEY `idx_staff_user_active` (`user_id`,`is_active`),
   CONSTRAINT `fk_staff_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_staff_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=86 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=93 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1330,7 +1367,7 @@ CREATE TABLE `staff_working_hours` (
   KEY `idx_staff_working_hours_staff_id` (`staff_id`),
   KEY `idx_staff_hours_lookup` (`staff_id`,`day_of_week`,`start_time`,`end_time`),
   CONSTRAINT `fk_staff_working_hours_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=782 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=788 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1419,7 +1456,7 @@ CREATE TABLE `users` (
   KEY `idx_users_first_name` (`first_name`),
   KEY `idx_users_last_name` (`last_name`),
   KEY `idx_users_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=1254 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1262 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1500,4 +1537,4 @@ CREATE TABLE `widget_settings` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-04-21 13:13:15
+-- Dump completed on 2026-04-29 11:42:52

@@ -72,6 +72,9 @@ export async function GET(request, { params }) {
       notes: staff.notes,
       isActive: staff.is_active,
       isVisible: staff.is_visible,
+      canPhysical: staff.can_physical,
+      canMobile: staff.can_mobile,
+      canVirtual: staff.can_virtual,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') {
@@ -111,6 +114,9 @@ export async function PUT(request, { params }) {
       isActive,
       isVisible,
       role,
+      canPhysical,
+      canMobile,
+      canVirtual,
     } = body;
 
     const updates = [];
@@ -176,6 +182,18 @@ export async function PUT(request, { params }) {
       updates.push('role = ?');
       values.push(role);
     }
+    if (canPhysical !== undefined) {
+      updates.push('can_physical = ?');
+      values.push(canPhysical ? 1 : 0);
+    }
+    if (canMobile !== undefined) {
+      updates.push('can_mobile = ?');
+      values.push(canMobile ? 1 : 0);
+    }
+    if (canVirtual !== undefined) {
+      updates.push('can_virtual = ?');
+      values.push(canVirtual ? 1 : 0);
+    }
 
     if (updates.length > 0) {
       values.push(staffId);
@@ -218,6 +236,9 @@ export async function PUT(request, { params }) {
       notes: updatedStaff.notes,
       isActive: updatedStaff.is_active,
       isVisible: updatedStaff.is_visible,
+      canPhysical: updatedStaff.can_physical,
+      canMobile: updatedStaff.can_mobile,
+      canVirtual: updatedStaff.can_virtual,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') {

@@ -1085,17 +1085,22 @@ export default function GeneralSettingsPage() {
                       return (
                         <FormItem>
                           <FormLabel className="text-sm font-semibold">
-                            Travel Buffer (minutes)
+                            Mobile Setup &amp; Parking Buffer (minutes)
                           </FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               min="0"
+                              max="120"
+                              step="5"
                               className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
                               {...field}
                               value={field.value ?? 0}
                             />
                           </FormControl>
+                          <FormDescription>
+                            Extra time added to every mobile appointment for parking, unloading, and setup. This buffer is factored into availability checks to prevent scheduling conflicts.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       );

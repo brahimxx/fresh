@@ -236,7 +236,7 @@ export function useToggleMarketplace() {
       var response = await fetch(
         "/api/salons/" + params.salonId + "/marketplace/" + action,
         {
-          method: "POST",
+          method: "PUT",
           credentials: "include",
         },
       );

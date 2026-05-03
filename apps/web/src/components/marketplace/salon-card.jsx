@@ -4,10 +4,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { generateSalonSlug } from '@/lib/utils';
 
-export function SalonCard({ salon, style, onMouseEnter, onMouseLeave }) {
+export function SalonCard({ salon, style, onMouseEnter, onMouseLeave, onCardClick }) {
     return (
         <Link
             href={`/salon/${generateSalonSlug(salon)}`}
+            onClick={(e) => {
+                if (onCardClick) {
+                    e.preventDefault();
+                    onCardClick(salon);
+                }
+            }}
             className="block h-full group"
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}

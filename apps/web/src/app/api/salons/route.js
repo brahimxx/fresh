@@ -297,9 +297,18 @@ export async function POST(request) {
 
     // Create default salon settings
     await query(
-      `INSERT INTO salon_settings (salon_id, cancellation_policy_hours, no_show_fee, deposit_required, deposit_percentage)
-       VALUES (?, 24, 0.00, 0, 0)`,
-      [result.insertId],
+      `INSERT INTO salon_settings (salon_id, cancellation_policy_hours, no_show_fee, deposit_required, deposit_percentage, online_booking_enabled)
+       VALUES (?, 24, 0.00, 0, 0, ?)`,
+      [result.insertId, isMarketplaceEnabled ? 1 : 0],
+    );
+
+    // Create default widget settings
+    await query(
+      `INSERT INTO widget_settings (
+        salon_id, enabled, primary_color, button_text, show_services, show_staff,
+        show_prices, require_phone, require_email, success_message
+      ) VALUES (?, ?, '#000000', 'Book Now', 1, 1, 1, 1, 1, 'Your booking has been confirmed!')`,
+      [result.insertId, isMarketplaceEnabled ? 1 : 0]
     );
 
     // Reissue the JWT cookie with role:'owner' so the browser immediately

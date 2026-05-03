@@ -15,6 +15,7 @@ import {
   RotateCcw,
   CreditCard,
   Banknote,
+  Car,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -318,6 +319,32 @@ export function BookingDetailSheet({
             </div>
           )}
 
+          {/* Travel Fee */}
+          {Number(booking.travel_fee_amount || booking.travelFeeAmount) > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Travel Fee
+              </h3>
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <Car className="h-5 w-5 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Mobile Setup &amp; Travel</p>
+                  {booking.travel_distance_km || booking.travelDistanceKm ? (
+                    <p className="text-xs text-muted-foreground">
+                      {Number(booking.travel_distance_km || booking.travelDistanceKm).toFixed(1)} km
+                    </p>
+                  ) : null}
+                </div>
+                <p className="font-semibold text-sm shrink-0">
+                  {formatCurrency(
+                    Number(booking.travel_fee_amount || booking.travelFeeAmount),
+                    salon?.currency,
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Price */}
           {(booking.total_price || booking.totalPrice) && (
             <div className="space-y-3">
@@ -344,10 +371,9 @@ export function BookingDetailSheet({
                       ) : (
                         <CreditCard className="w-3 h-3 mr-1" />
                       )}
-                      <span className="capitalize">{
-                        (booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
-                          ? 'Pay at Salon'
-                          : (booking.payment_method || booking.paymentMethod || booking.payment?.method)
+                      <span className="capitalize">{(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
+                        ? 'Pay at Salon'
+                        : (booking.payment_method || booking.paymentMethod || booking.payment?.method)
                       }</span>
                     </div>
                   )}

@@ -26,6 +26,11 @@ export async function GET(request, { params }) {
          AND st.is_active = 1 
          AND st.is_visible = 1 
          AND st.salon_id = s.salon_id
+         AND (
+           (s.can_physical = 1 AND st.can_physical = 1) OR 
+           (s.can_mobile = 1 AND st.can_mobile = 1) OR 
+           (s.can_virtual = 1 AND st.can_virtual = 1)
+         )
        WHERE s.salon_id = ? 
          AND s.is_active = 1 
          AND s.deleted_at IS NULL

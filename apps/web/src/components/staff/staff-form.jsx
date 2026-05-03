@@ -44,6 +44,9 @@ var staffSchema = z.object({
   title: z.string().optional(),
   bio: z.string().optional(),
   is_active: z.boolean().default(true),
+  can_physical: z.boolean().default(true),
+  can_mobile: z.boolean().default(false),
+  can_virtual: z.boolean().default(false),
 });
 
 export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
@@ -61,6 +64,9 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
       title: "",
       bio: "",
       is_active: true,
+      can_physical: true,
+      can_mobile: false,
+      can_virtual: false,
     },
   });
 
@@ -85,6 +91,9 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
             title: staff.title || "",
             bio: staff.bio || "",
             is_active: staff.isActive !== undefined ? staff.isActive : (staff.is_active !== undefined ? staff.is_active : true),
+            can_physical: staff.canPhysical !== undefined ? staff.canPhysical : (staff.can_physical !== undefined ? staff.can_physical : true),
+            can_mobile: staff.canMobile !== undefined ? staff.canMobile : (staff.can_mobile !== undefined ? staff.can_mobile : false),
+            can_virtual: staff.canVirtual !== undefined ? staff.canVirtual : (staff.can_virtual !== undefined ? staff.can_virtual : false),
           });
         } else {
           form.reset({
@@ -95,6 +104,9 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
             title: "",
             bio: "",
             is_active: true,
+            can_physical: true,
+            can_mobile: false,
+            can_virtual: false,
           });
         }
       }
@@ -108,6 +120,9 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
       salon_id: salonId,
       email: data.email || null,
       isActive: data.is_active,
+      canPhysical: data.can_physical,
+      canMobile: data.can_mobile,
+      canVirtual: data.can_virtual,
     };
 
     if (isEditing) {
@@ -267,6 +282,65 @@ export function StaffFormDialog({ open, onOpenChange, staff, salonId }) {
                 );
               }}
             />
+
+            <div className="space-y-3 pt-2">
+              <FormLabel className="text-sm font-semibold">Fulfillment Capabilities</FormLabel>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="can_physical"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal cursor-pointer text-sm">
+                        In-Salon
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="can_mobile"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal cursor-pointer text-sm">
+                        Mobile
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="can_virtual"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal cursor-pointer text-sm">
+                        Virtual
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
 
             {isEditing && (
               <FormField

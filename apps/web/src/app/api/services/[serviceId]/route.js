@@ -39,17 +39,16 @@ function deriveOfferingTypeFromFlags(canPhysical, canMobile, canVirtual) {
 }
 
 function flagsFromPayload(payload) {
-  if (
-    payload.canPhysical !== undefined ||
-    payload.canMobile !== undefined ||
-    payload.canVirtual !== undefined
-  ) {
+  // Accept both camelCase (canPhysical) and snake_case (can_physical)
+  const rawPhysical = payload.canPhysical !== undefined ? payload.canPhysical : payload.can_physical;
+  const rawMobile = payload.canMobile !== undefined ? payload.canMobile : payload.can_mobile;
+  const rawVirtual = payload.canVirtual !== undefined ? payload.canVirtual : payload.can_virtual;
+
+  if (rawPhysical !== undefined || rawMobile !== undefined || rawVirtual !== undefined) {
     return {
-      canPhysical:
-        payload.canPhysical !== undefined ? !!payload.canPhysical : true,
-      canMobile: payload.canMobile !== undefined ? !!payload.canMobile : true,
-      canVirtual:
-        payload.canVirtual !== undefined ? !!payload.canVirtual : true,
+      canPhysical: rawPhysical !== undefined ? !!rawPhysical : true,
+      canMobile: rawMobile !== undefined ? !!rawMobile : true,
+      canVirtual: rawVirtual !== undefined ? !!rawVirtual : true,
     };
   }
 
@@ -165,12 +164,7 @@ export async function PUT(request, { params }) {
       virtualPriceOverride,
     } = body;
 
-    const flags = flagsFromPayload({
-      offeringType,
-      canPhysical,
-      canMobile,
-      canVirtual,
-    });
+    const flags = flagsFromPayload(body);
 
     if (
       flags !== null &&

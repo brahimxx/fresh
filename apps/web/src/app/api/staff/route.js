@@ -116,6 +116,9 @@ export async function POST(request) {
       isVisible,
       serviceIds,
       emergencyContact,
+      canPhysical,
+      canMobile,
+      canVirtual,
     } = body;
 
     if (!salon_id) {
@@ -200,8 +203,8 @@ export async function POST(request) {
 
     // Create staff entry
     const result = await query(
-      `INSERT INTO staff (salon_id, user_id, role, title, bio, phone_secondary, color, country, birthday, start_date, end_date, employment_type, notes, is_active, is_visible)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      `INSERT INTO staff (salon_id, user_id, role, title, bio, phone_secondary, color, country, birthday, start_date, end_date, employment_type, notes, is_active, is_visible, can_physical, can_mobile, can_virtual)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [
         salon_id,
         user.id,
@@ -217,6 +220,9 @@ export async function POST(request) {
         employmentType || "employee",
         notes || null,
         isVisible !== false ? 1 : 0,
+        canPhysical !== undefined ? (canPhysical ? 1 : 0) : 1,
+        canMobile !== undefined ? (canMobile ? 1 : 0) : 0,
+        canVirtual !== undefined ? (canVirtual ? 1 : 0) : 0,
       ],
     );
 

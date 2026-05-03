@@ -41,6 +41,7 @@ export async function GET(request) {
              COALESCE(st.last_name, su.last_name) as staff_last_name,
              p.method as payment_method,
              p.status as payment_status_real,
+             p.amount as payment_amount,
              sc.is_active as client_is_active
       FROM bookings b
       JOIN users u ON u.id = b.client_id
@@ -139,36 +140,41 @@ export async function GET(request) {
       );
     }
 
-    const result = bookings.map((b) => ({
-      id: b.id,
-      salonId: b.salon_id,
-      salonName: b.salon_name,
-      client: {
-        id: b.client_id,
-        firstName: b.client_first_name,
-        lastName: b.client_last_name,
-        email: b.client_email,
-        phone: b.client_phone,
-      },
-      clientIsActive: b.client_is_active !== null ? b.client_is_active === 1 : true,
-      staff: b.staff_id
-        ? {
-          id: b.staff_id,
-          firstName: b.staff_first_name,
-          lastName: b.staff_last_name,
-        }
-        : null,
-      startDatetime: String(b.start_datetime).replace(' ', 'T'),
-      endDatetime: String(b.end_datetime).replace(' ', 'T'),
-      status: b.status,
-      source: b.source,
-      totalPrice: b.total_price,
-      paymentMethod: b.payment_method,
-      paymentStatus: b.payment_status_real || b.payment_status,
-      createdAt: b.created_at,
-      services: bookingServices
-        .filter((bs) => bs.booking_id === b.id)
-        .map((bs) => ({
+    const result = bookings.map((b) => {
+      const bServices = bookingServices.filter((bs) => bs.booking_id === b.id);
+      const computedTotal = bServices.reduce((sum, bs) => sum + parseFloat(bs.price || 0), 0) + parseFloat(b.travel_fee_amount || 0);
+
+      return {
+        id: b.id,
+        salonId: b.salon_id,
+        salonName: b.salon_name,
+        client: {
+          id: b.client_id,
+          firstName: b.client_first_name,
+          lastName: b.client_last_name,
+          email: b.client_email,
+          phone: b.client_phone,
+        },
+        clientIsActive: b.client_is_active !== null ? b.client_is_active === 1 : true,
+        staff: b.staff_id
+          ? {
+            id: b.staff_id,
+            firstName: b.staff_first_name,
+            lastName: b.staff_last_name,
+          }
+          : null,
+        startDatetime: String(b.start_datetime).replace(' ', 'T'),
+        endDatetime: String(b.end_datetime).replace(' ', 'T'),
+        status: b.status,
+        source: b.source,
+        fulfillmentType: b.fulfillment_type || 'physical',
+        travelFeeAmount: parseFloat(b.travel_fee_amount || 0),
+        travelDistanceKm: b.travel_distance_km ? parseFloat(b.travel_distance_km) : null,
+        totalPrice: b.payment_amount !== null && b.payment_amount !== undefined ? parseFloat(b.payment_amount) : computedTotal,
+        paymentMethod: b.payment_method,
+        paymentStatus: b.payment_status_real || b.payment_status,
+        createdAt: b.created_at,
+        services: bServices.map((bs) => ({
           id: bs.service_id,
           name: bs.service_name,
           price: bs.price,
@@ -177,7 +183,8 @@ export async function GET(request) {
           startDatetime: bs.start_datetime ? String(bs.start_datetime).replace(' ', 'T') : null,
           endDatetime: bs.end_datetime ? String(bs.end_datetime).replace(' ', 'T') : null,
         })),
-    }));
+      };
+    });
 
     return success({ bookings: result });
   } catch (err) {
@@ -222,6 +229,7 @@ export async function POST(request) {
       serviceLocationAddress = null,
       clientTimezone = null,
       virtualMeetingLink = null,
+      forceOverride = false,
     } = validation.data;
 
     // Get services to calculate total duration and price
@@ -383,6 +391,7 @@ export async function POST(request) {
       serviceLocationAddress,
       clientTimezone,
       virtualMeetingLink,
+      forceOverride,
     });
 
     const isConfirmed = status === "confirmed";

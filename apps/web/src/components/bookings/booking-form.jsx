@@ -53,6 +53,8 @@ var bookingSchema = z.object({
   date: z.date({ required_error: "Please select a date" }),
   time: z.string().min(1, "Please select a time"),
   notes: z.string().optional(),
+  fulfillmentType: z.enum(["physical", "mobile", "virtual"]).default("physical"),
+  serviceLocationAddress: z.string().optional(),
 });
 
 export function BookingFormDialog({
@@ -75,6 +77,8 @@ export function BookingFormDialog({
   var [isValidating, setIsValidating] = useState(false);
   var [staffAssignments, setStaffAssignments] = useState({});
   var [staffError, setStaffError] = useState("");
+  var [travelWarning, setTravelWarning] = useState("");
+  var [pendingBookingData, setPendingBookingData] = useState(null);
 
   var { data: services, isLoading: servicesLoading } = useServices(salonId);
   var { data: staff, isLoading: staffLoading } = useStaff(salonId);
@@ -102,6 +106,8 @@ export function BookingFormDialog({
       date: initialDate || new Date(),
       time: "",
       notes: "",
+      fulfillmentType: "physical",
+      serviceLocationAddress: "",
     },
   });
 
@@ -261,11 +267,12 @@ export function BookingFormDialog({
     setClientError("");
   }
 
-  async function onSubmit(data) {
+  async function submitBooking(data, isOverride = false) {
     setTimeError("");
     setClientError("");
     setFormError("");
     setStaffError("");
+    setTravelWarning("");
     setIsValidating(true);
 
     try {
@@ -372,6 +379,9 @@ export function BookingFormDialog({
         startDatetime: format(startDate, "yyyy-MM-dd'T'HH:mm:ss"),
         source: "direct",
         notes: data.notes || undefined,
+        fulfillmentType: data.fulfillmentType,
+        serviceLocationAddress: data.serviceLocationAddress || undefined,
+        forceOverride: isOverride,
       });
 
       onOpenChange(false);
@@ -383,7 +393,10 @@ export function BookingFormDialog({
 
       // Map every code that createSafeBooking (booking.js) or the route can throw
       // to the appropriate inline error field.
-      if (
+      if (code === "TRAVEL_NOT_FEASIBLE") {
+        setTravelWarning(error.message || "Insufficient travel time detected.");
+        setPendingBookingData(data);
+      } else if (
         code === "STAFF_NOT_WORKING" ||
         code === "OUTSIDE_WORKING_HOURS" ||
         code === "STAFF_UNAVAILABLE"
@@ -441,6 +454,10 @@ export function BookingFormDialog({
     } finally {
       setIsValidating(false);
     }
+  }
+
+  function onSubmit(data) {
+    submitBooking(data, false);
   }
 
   // Generate time slots
@@ -865,6 +882,40 @@ export function BookingFormDialog({
           </div>
           </div>
 
+          {/* Fulfillment Type */}
+          {!isReschedule && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Fulfillment Type</Label>
+                <Select
+                  value={form.watch("fulfillmentType")}
+                  onValueChange={function (val) {
+                    form.setValue("fulfillmentType", val);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="physical">In-Salon (Physical)</SelectItem>
+                    <SelectItem value="mobile">Mobile (Client Location)</SelectItem>
+                    <SelectItem value="virtual">Virtual (Online)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.watch("fulfillmentType") === "mobile" && (
+                <div className="space-y-2">
+                  <Label>Client Address *</Label>
+                  <Input
+                    placeholder="Enter full address for travel calculation..."
+                    {...form.register("serviceLocationAddress")}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Notes */}
           <div className="space-y-2">
             <Label>Notes</Label>
@@ -874,24 +925,45 @@ export function BookingFormDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={function () {
-                onOpenChange(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
-            >
-              {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
-                ? (isReschedule ? "Rescheduling..." : "Creating...")
-                : (isReschedule ? "Reschedule" : "Create Booking")}
-            </Button>
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0 items-end">
+            {travelWarning && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-sm text-amber-600 w-full mb-2 flex flex-col gap-2">
+                <span className="font-medium">⚠️ {travelWarning}</span>
+                <span className="text-xs">Do you want to override this warning and force the booking?</span>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 w-full">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={function () {
+                  onOpenChange(false);
+                }}
+              >
+                Cancel
+              </Button>
+              {travelWarning ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
+                  onClick={function() { submitBooking(pendingBookingData, true); }}
+                >
+                  {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
+                    ? "Proceeding..."
+                    : "Proceed Anyway"}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
+                >
+                  {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
+                    ? (isReschedule ? "Rescheduling..." : "Creating...")
+                    : (isReschedule ? "Reschedule" : "Create Booking")}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -100,6 +100,7 @@ export const createBookingSchema = z.object({
   source: z.enum(["marketplace", "direct", "widget"]).default("marketplace"),
   discountCode: z.string().max(50).optional().nullable(),
   giftCardCode: z.string().max(50).optional().nullable(),
+  forceOverride: z.boolean().optional(),
 });
 
 export const rescheduleBookingSchema = z.object({

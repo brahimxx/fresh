@@ -65,6 +65,53 @@ export function StaffSettingsTab({ staff, staffId, salonId }) {
             />
           </div>
 
+          <div className="pt-4 pb-2">
+            <h3 className="text-sm font-semibold text-foreground">Fulfillment Capabilities</h3>
+            <p className="text-xs text-muted-foreground mt-1">Select the service types this staff member is authorized to perform.</p>
+          </div>
+
+          <div className="flex items-center justify-between bg-muted/20 p-4 rounded-xl border border-border/50">
+            <div className="space-y-0.5">
+              <Label>In-Salon Services</Label>
+              <p className="text-sm text-muted-foreground">
+                Can perform services at the physical salon location
+              </p>
+            </div>
+            <Switch 
+              checked={staff.canPhysical || staff.can_physical} 
+              disabled={isUpdating}
+              onCheckedChange={(checked) => handleUpdate('canPhysical', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between bg-muted/20 p-4 rounded-xl border border-border/50">
+            <div className="space-y-0.5">
+              <Label>Mobile Services</Label>
+              <p className="text-sm text-muted-foreground">
+                Authorized to travel to client locations
+              </p>
+            </div>
+            <Switch 
+              checked={staff.canMobile || staff.can_mobile} 
+              disabled={isUpdating}
+              onCheckedChange={(checked) => handleUpdate('canMobile', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between bg-muted/20 p-4 rounded-xl border border-border/50">
+            <div className="space-y-0.5">
+              <Label>Virtual Services</Label>
+              <p className="text-sm text-muted-foreground">
+                Can conduct online consultations and sessions
+              </p>
+            </div>
+            <Switch 
+              checked={staff.canVirtual || staff.can_virtual} 
+              disabled={isUpdating}
+              onCheckedChange={(checked) => handleUpdate('canVirtual', checked)}
+            />
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Accept Online Bookings</Label>

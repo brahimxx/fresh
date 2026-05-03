@@ -21,7 +21,7 @@ export async function PUT(request, { params }) {
 
     // Disable marketplace: hide salon from search and disable online booking
     await query(
-      `UPDATE salons SET marketplace_enabled = 0, updated_at = NOW() WHERE id = ?`,
+      `UPDATE salons SET is_marketplace_enabled = 0 WHERE id = ?`,
       [id]
     );
 

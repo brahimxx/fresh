@@ -14,9 +14,9 @@ import {
   endOfMonth,
   addDays,
   subDays,
-  subHours,
 } from "date-fns";
 
+import { checkBidirectionalTravel, estimateTravelTimeFromDistance, SETUP_BUFFER_MINUTES } from "@/lib/travel";
 import {
   useCalendarBookings,
   useRescheduleBooking,
@@ -106,7 +106,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
   var calendarRef = useRef(null);
   var hasScrolledRef = useRef(false);
   var staffScrollRef = useRef(null);
-  var { salonId } = useSalon();
+  var { salonId, salon } = useSalon();
 
   var [currentDate, setCurrentDate] = useState(new Date());
   var [currentView, setCurrentView] = useState("timeGridDay");
@@ -200,8 +200,10 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             ? booking.client.firstName + " " + booking.client.lastName
             : "Walk-in");
 
+          var bookingEvents = [];
+
           if (booking.services && booking.services.length > 0) {
-            return booking.services
+            bookingEvents = booking.services
               .filter(function (s) {
                 var sStaffId = s.staffId || booking.staffId || booking.staff?.id;
                 if (!selectedStaff || selectedStaff.length === 0) return true;
@@ -239,35 +241,73 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                   },
                 };
             });
+          } else {
+            // Fallback if no services exist
+            var staffId = booking.staffId || booking.staff?.id;
+            if (!selectedStaff || selectedStaff.length === 0 || selectedStaff.includes(staffId)) {
+              var staffColor = staffColorMap[staffId] || { name: "blue", hex: "#3b82f6" };
+              var servicesText = "";
+              var startTime = new Date((booking.start || booking.startDatetime || "").replace(" ", "T"));
+              var endTime = new Date((booking.end || booking.endDatetime || "").replace(" ", "T"));
+              var timeText = format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
+              bookingEvents.push({
+                id: booking.id,
+                title: clientName,
+                start: (booking.start || booking.startDatetime || "").replace(" ", "T"),
+                end: (booking.end || booking.endDatetime || "").replace(" ", "T"),
+                backgroundColor: staffColor.hex,
+                borderColor: staffColor.hex,
+                extendedProps: {
+                  booking: booking,
+                  staffColor: staffColor.name,
+                  status: booking.status,
+                  servicesText: servicesText,
+                  timeText: timeText,
+                  staffName: booking.staffName || (booking.staff
+                    ? booking.staff.firstName + " " + booking.staff.lastName
+                    : ""),
+                },
+              });
+            }
           }
 
-          // Fallback if no services exist
-          var staffId = booking.staffId || booking.staff?.id;
-          if (selectedStaff && selectedStaff.length > 0 && !selectedStaff.includes(staffId)) return [];
+          if (booking.fulfillmentType === "mobile") {
+             var travelTimeMins = booking.travelDistanceKm 
+               ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
+               : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
 
-          var staffColor = staffColorMap[staffId] || { name: "blue", hex: "#3b82f6" };
-          var servicesText = "";
-          var startTime = new Date((booking.start || booking.startDatetime || "").replace(" ", "T"));
-          var endTime = new Date((booking.end || booking.endDatetime || "").replace(" ", "T"));
-          var timeText = format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
-          return [{
-            id: booking.id,
-            title: clientName,
-            start: (booking.start || booking.startDatetime || "").replace(" ", "T"),
-            end: (booking.end || booking.endDatetime || "").replace(" ", "T"),
-            backgroundColor: staffColor.hex,
-            borderColor: staffColor.hex,
-            extendedProps: {
-              booking: booking,
-              staffColor: staffColor.name,
-              status: booking.status,
-              servicesText: servicesText,
-              timeText: timeText,
-              staffName: booking.staffName || (booking.staff
-                ? booking.staff.firstName + " " + booking.staff.lastName
-                : ""),
-            },
-          }];
+             var bookingStartStr = booking.start || booking.startDatetime || "";
+             var bookingEndStr = booking.end || booking.endDatetime || "";
+             var bStart = new Date(bookingStartStr.replace(" ", "T"));
+             var bEnd = new Date(bookingEndStr.replace(" ", "T"));
+             
+             var arrStart = new Date(bStart.getTime() - travelTimeMins * 60000);
+             var depEnd = new Date(bEnd.getTime() + travelTimeMins * 60000);
+
+             bookingEvents.push({
+               id: booking.id + "-travel-arr",
+               title: "🚗 Travel (" + travelTimeMins + "m)",
+               start: format(arrStart, "yyyy-MM-dd'T'HH:mm:ss"),
+               end: format(bStart, "yyyy-MM-dd'T'HH:mm:ss"),
+               backgroundColor: "rgba(148, 163, 184, 0.2)",
+               borderColor: "rgba(148, 163, 184, 0.5)",
+               textColor: "#64748b",
+               extendedProps: { isTravel: true }
+             });
+
+             bookingEvents.push({
+               id: booking.id + "-travel-dep",
+               title: "🚗 Travel (" + travelTimeMins + "m)",
+               start: format(bEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+               end: format(depEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+               backgroundColor: "rgba(148, 163, 184, 0.2)",
+               borderColor: "rgba(148, 163, 184, 0.5)",
+               textColor: "#64748b",
+               extendedProps: { isTravel: true }
+             });
+          }
+
+          return bookingEvents;
         });
     },
     [bookings, selectedStaff, staffColorMap],
@@ -308,6 +348,48 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             groups[staffId] = groups[staffId] || [];
             groups[staffId].push(booking);
           }
+        }
+
+        if (booking.fulfillmentType === "mobile") {
+           var travelTimeMins = booking.travelDistanceKm 
+             ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
+             : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
+
+           var bookingStartStr = booking.start || booking.startDatetime || "";
+           var bookingEndStr = booking.end || booking.endDatetime || "";
+           var bookingStart = new Date(bookingStartStr.replace(" ", "T"));
+           var bookingEnd = new Date(bookingEndStr.replace(" ", "T"));
+           
+           var arrStart = new Date(bookingStart.getTime() - travelTimeMins * 60000);
+           var depEnd = new Date(bookingEnd.getTime() + travelTimeMins * 60000);
+
+           var tStaffId = booking.staffId || booking.staff?.id;
+           if (booking.services && booking.services.length > 0) {
+              tStaffId = booking.services[0].staffId || tStaffId; // Primary staff
+           }
+
+           if (tStaffId && groups[tStaffId]) {
+             groups[tStaffId].push({
+                subId: booking.id + "-travel-arr",
+                start: arrStart.toISOString(),
+                end: bookingStart.toISOString(),
+                startDatetime: arrStart.toISOString(),
+                endDatetime: bookingStart.toISOString(),
+                isTravel: true,
+                travelTimeMins: travelTimeMins,
+                originalBooking: booking
+             });
+             groups[tStaffId].push({
+                subId: booking.id + "-travel-dep",
+                start: bookingEnd.toISOString(),
+                end: depEnd.toISOString(),
+                startDatetime: bookingEnd.toISOString(),
+                endDatetime: depEnd.toISOString(),
+                isTravel: true,
+                travelTimeMins: travelTimeMins,
+                originalBooking: booking
+             });
+           }
         }
       });
     }
@@ -385,6 +467,62 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
       var booking = arg.event.extendedProps.booking;
       var newStart = arg.event.start;
       var newEnd = arg.event.end;
+
+      if (booking.fulfillment_type === "mobile" || booking.fulfillmentType === "mobile") {
+        var staffId = booking.staff_id || booking.staff?.id;
+        var staffBookings = (bookings || []).filter(function (b) {
+          return b.id !== booking.id && (b.staff_id === staffId || b.staff?.id === staffId);
+        });
+
+        var prevBooking = null;
+        var nextBooking = null;
+
+        staffBookings.forEach(function (b) {
+          var bEnd = new Date(String(b.end_datetime || b.endDatetime || b.startDatetime).replace(" ", "T"));
+          var bStart = new Date(String(b.start_datetime || b.startDatetime).replace(" ", "T"));
+
+          if (bEnd <= newStart && (!prevBooking || bEnd > new Date(String(prevBooking.end_datetime || prevBooking.endDatetime).replace(" ", "T")))) {
+            prevBooking = b;
+          }
+          if (bStart >= newEnd && (!nextBooking || bStart < new Date(String(nextBooking.start_datetime || nextBooking.startDatetime).replace(" ", "T")))) {
+            nextBooking = b;
+          }
+        });
+
+        var checkResult = checkBidirectionalTravel({
+          prevLat: prevBooking?.fulfillment_type === "mobile" ? Number(prevBooking.service_lat) : null,
+          prevLng: prevBooking?.fulfillment_type === "mobile" ? Number(prevBooking.service_lng) : null,
+          prevEndTime: prevBooking ? new Date(String(prevBooking.end_datetime || prevBooking.endDatetime).replace(" ", "T")) : null,
+          newLat: Number(booking.service_lat),
+          newLng: Number(booking.service_lng),
+          newStartTime: newStart,
+          newEndTime: newEnd,
+          nextLat: nextBooking?.fulfillment_type === "mobile" ? Number(nextBooking.service_lat) : null,
+          nextLng: nextBooking?.fulfillment_type === "mobile" ? Number(nextBooking.service_lng) : null,
+          nextStartTime: nextBooking ? new Date(String(nextBooking.start_datetime || nextBooking.startDatetime).replace(" ", "T")) : null,
+          baseLat: salon ? Number(salon.latitude) : null,
+          baseLng: salon ? Number(salon.longitude) : null,
+          salonBufferTime: salon?.travel_buffer_time,
+        });
+
+        if (!checkResult.feasible) {
+          var direction = !checkResult.arrivalFeasible ? "arrive at" : "depart from";
+          var travelMins = !checkResult.arrivalFeasible ? checkResult.arrivalTravelMinutes : checkResult.departureTravelMinutes;
+          var gapMins = !checkResult.arrivalFeasible ? checkResult.arrivalGapMinutes : checkResult.departureGapMinutes;
+
+          if (
+            !window.confirm(
+              "Warning: Insufficient travel time detected.\n\n" +
+                "Staff cannot " + direction + " location in time (need " + travelMins + " min, only " + Math.floor(gapMins) + " min available).\n\n" +
+                "Do you want to override this warning and force the reschedule?"
+            )
+          ) {
+            arg.revert();
+            return;
+          }
+        }
+      }
+
       rescheduleBooking.mutate(
         {
           id: booking.id,
@@ -393,7 +531,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
         { onError: function () { arg.revert(); } },
       );
     },
-    [rescheduleBooking],
+    [rescheduleBooking, bookings, salon],
   );
 
   // Staff filter toggle
@@ -797,6 +935,28 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                         var servicesText = booking.services
                           ? booking.services.map(function (s) { return s.name; }).join(", ")
                           : "";
+
+                        if (booking.isTravel) {
+                          return (
+                            <div
+                              key={booking.subId || booking.id}
+                              className="absolute z-0 px-0.5 pb-0.5 opacity-60"
+                              style={{
+                                top: top + "px",
+                                height: height + "px",
+                                left: leftPercent + "%",
+                                width: widthPercent + "%",
+                              }}
+                            >
+                              <div className="h-full rounded-sm border-2 border-dashed border-amber-500/40 flex flex-col items-center justify-center p-1 bg-[repeating-linear-gradient(45deg,rgba(245,158,11,0.05),rgba(245,158,11,0.05)_10px,rgba(245,158,11,0.1)_10px,rgba(245,158,11,0.1)_20px)]">
+                                <div className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-700 dark:text-amber-500 tracking-wide text-center leading-tight flex flex-col items-center gap-0.5">
+                                  <span>🚗 TRAVEL</span>
+                                  <span>({booking.travelTimeMins}m)</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
 
                         return (
                           <div

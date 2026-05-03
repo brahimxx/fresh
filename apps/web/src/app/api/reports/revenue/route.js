@@ -96,7 +96,33 @@ export async function GET(request) {
       [salonId, start, end]
     );
 
+    // Travel fee revenue — mobile bookings only
+    const [travelFeeRow] = await query(
+      `SELECT COALESCE(SUM(b.travel_fee_amount), 0) as total
+       FROM bookings b
+       WHERE b.salon_id = ? AND b.status = 'completed'
+       AND b.fulfillment_type = 'mobile'
+       AND DATE(b.start_datetime) BETWEEN ? AND ?`,
+      [salonId, start, end]
+    );
+
+    // Revenue by fulfillment type
+    const fulfillmentRevenue = await query(
+      `SELECT 
+         b.fulfillment_type,
+         COUNT(DISTINCT b.id) as bookings,
+         COALESCE(SUM(bs.price), 0) as services_revenue,
+         COALESCE(SUM(b.travel_fee_amount), 0) as travel_revenue
+       FROM bookings b
+       JOIN booking_services bs ON bs.booking_id = b.id
+       WHERE b.salon_id = ? AND b.status = 'completed'
+       AND DATE(b.start_datetime) BETWEEN ? AND ?
+       GROUP BY b.fulfillment_type`,
+      [salonId, start, end]
+    );
+
     const totalRevenue = revenueData.reduce((sum, d) => sum + parseFloat(d.revenue), 0);
+    const travelFeeRevenue = parseFloat(travelFeeRow?.total || 0);
 
     return success({
       period: { start, end, groupBy },
@@ -104,6 +130,7 @@ export async function GET(request) {
         totalRevenue,
         cardRevenue: parseFloat(methodBreakdown?.card_revenue || 0),
         cashRevenue: parseFloat(methodBreakdown?.cash_revenue || 0),
+        travelFeeRevenue,
       },
       timeline: revenueData.map((d) => ({
         period: d.period,
@@ -115,6 +142,13 @@ export async function GET(request) {
         name: s.service_name,
         revenue: parseFloat(s.revenue),
         count: s.count,
+      })),
+      byFulfillmentType: fulfillmentRevenue.map((r) => ({
+        type: r.fulfillment_type || 'physical',
+        bookings: r.bookings,
+        servicesRevenue: parseFloat(r.services_revenue),
+        travelRevenue: parseFloat(r.travel_revenue),
+        totalRevenue: parseFloat(r.services_revenue) + parseFloat(r.travel_revenue),
       })),
     });
   } catch (err) {

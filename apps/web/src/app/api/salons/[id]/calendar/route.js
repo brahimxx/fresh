@@ -39,11 +39,13 @@ export async function GET(request, { params }) {
     // Get bookings
     let bookingSql = `
       SELECT b.*, 
+             s.travel_buffer_time as salon_travel_buffer_time,
              u.first_name as client_first_name, u.last_name as client_last_name,
              u.email as client_email, u.phone as client_phone,
              sc.is_active as client_is_active,
              st.id as staff_id, su.first_name as staff_first_name, su.last_name as staff_last_name
       FROM bookings b
+      JOIN salons s ON s.id = b.salon_id
       JOIN users u ON u.id = b.client_id
       LEFT JOIN salon_clients sc ON sc.client_id = u.id AND sc.salon_id = b.salon_id
       LEFT JOIN staff st ON st.id = b.staff_id
@@ -136,6 +138,8 @@ export async function GET(request, { params }) {
         serviceLocationAddress: b.service_location_address || null,
         virtualMeetingLink: b.virtual_meeting_link || null,
         travelFeeAmount: parseFloat(b.travel_fee_amount || 0),
+        travelDistanceKm: b.travel_distance_km ? parseFloat(b.travel_distance_km) : null,
+        travelBufferTime: b.salon_travel_buffer_time ? Number(b.salon_travel_buffer_time) : 0,
       })),
       ...timeOff.map((to) => ({
         type: 'time_off',

@@ -205,8 +205,7 @@ function TeamContent({ params }) {
                   className="w-56 shadow-2xl rounded-2xl p-2 z-50 border-border/50"
                 >
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onSelect={() => {
                       router.push(
                         `/dashboard/salon/${encodeId(salonId)}/team/${encodeId(member.id)}`,
                       );
@@ -216,19 +215,13 @@ function TeamContent({ params }) {
                     <User className="h-4 w-4 text-primary" /> Launch Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(member);
-                    }}
+                    onSelect={() => handleEdit(member)}
                     className="rounded-xl font-medium gap-2 py-2"
                   >
                     <Pencil className="h-4 w-4" /> Edit Framework
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSchedule(member);
-                    }}
+                    onSelect={() => handleSchedule(member)}
                     className="rounded-xl font-medium gap-2 py-2"
                   >
                     <Calendar className="h-4 w-4" /> Operational Hours
@@ -236,10 +229,7 @@ function TeamContent({ params }) {
                   <DropdownMenuSeparator className="my-1.5" />
                   <DropdownMenuItem
                     className="rounded-xl text-red-600 focus:text-red-700 focus:bg-red-500/10 font-bold gap-2 py-2 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteStaff(member);
-                    }}
+                    onSelect={() => setDeleteStaff(member)}
                   >
                     <Trash2 className="h-4 w-4" /> Terminate Access
                   </DropdownMenuItem>
@@ -551,9 +541,11 @@ function TeamContent({ params }) {
             }
             setScheduleDialogOpen(open);
           }}
-          staffId={scheduleStaff.id}
+          staff={{
+            id: scheduleStaff.id,
+            name: `${scheduleStaff.firstName || ""} ${scheduleStaff.lastName || ""}`.trim()
+          }}
           salonId={salonId}
-          staffName={`${scheduleStaff.firstName || ""} ${scheduleStaff.lastName || ""}`.trim()}
         />
       )}
 

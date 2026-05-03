@@ -79,8 +79,11 @@ export async function createSafeBooking({
   giftCardCode = null,
   fulfillmentType = "physical",
   serviceLocationAddress = null,
+  serviceLat = null,
+  serviceLng = null,
   clientTimezone = null,
   virtualMeetingLink = null,
+  forceOverride = false,
 }) {
   // ── Step 1: Input validation ──────────────────────────────────────────────
 
@@ -306,12 +309,17 @@ export async function createSafeBooking({
       const svcStartFmt = formatDatetimeLocal(thisWindow.start);
       const svcEndFmt = formatDatetimeLocal(thisWindow.end);
 
-      // 1. Fetch staff who can perform THIS specific service
+      // 1. Fetch staff who can perform THIS specific service AND support the fulfillment type
+      let capabilityFilter = '';
+      if (fulfillmentType === 'mobile') capabilityFilter = 'AND staff.can_mobile = 1';
+      else if (fulfillmentType === 'virtual') capabilityFilter = 'AND staff.can_virtual = 1';
+      else if (fulfillmentType === 'physical') capabilityFilter = 'AND staff.can_physical = 1';
+
       const [capableStaffRows] = await pool.execute(
         `SELECT staff_id FROM service_staff 
          JOIN staff ON staff.id = service_staff.staff_id
          WHERE service_id = ?
-         AND staff.salon_id = ? AND staff.is_active = 1`,
+         AND staff.salon_id = ? AND staff.is_active = 1 ${capabilityFilter}`,
         [s.serviceId, salonId],
       );
 
@@ -320,7 +328,7 @@ export async function createSafeBooking({
       if (capableStaffIds.length === 0) {
         throw new BookingError(
           "NO_STAFF_AVAILABLE",
-          `No active staff can perform service #${s.serviceId}.`,
+          `No active staff can perform service #${s.serviceId} for ${fulfillmentType} fulfillment.`,
           409,
         );
       }
@@ -329,14 +337,26 @@ export async function createSafeBooking({
       //    AND in-flight assignments from this same booking request)
       const availableStaffIds = [];
       for (const staffId of capableStaffIds) {
+        let wh = null;
         const [whRows] = await pool.execute(
           `SELECT start_time, end_time FROM staff_working_hours WHERE staff_id = ? AND day_of_week = ? LIMIT 1`,
           [staffId, dayOfWeek],
         );
+        
+        if (whRows[0]) {
+          wh = whRows[0];
+        } else {
+          const [bhRows] = await pool.execute(
+            `SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0 LIMIT 1`,
+            [salonId, dayOfWeek]
+          );
+          if (bhRows[0]) wh = bhRows[0];
+        }
+
         if (
-          !whRows[0] ||
-          svcStartStr < whRows[0].start_time ||
-          svcEndStr > whRows[0].end_time
+          !wh ||
+          svcStartStr < wh.start_time ||
+          svcEndStr > wh.end_time
         ) {
           continue;
         }
@@ -477,6 +497,7 @@ export async function createSafeBooking({
   const dayOfWeek = startDate.getDay();
 
   for (const [staffId, windows] of staffWindows) {
+    let wh = null;
     const [whRows] = await pool.execute(
       `SELECT start_time, end_time
          FROM staff_working_hours
@@ -486,7 +507,15 @@ export async function createSafeBooking({
       [staffId, dayOfWeek],
     );
 
-    const wh = whRows[0];
+    if (whRows[0]) {
+      wh = whRows[0];
+    } else {
+      const [bhRows] = await pool.execute(
+        `SELECT open_time as start_time, close_time as end_time FROM business_hours WHERE salon_id = ? AND day_of_week = ? AND is_closed = 0 LIMIT 1`,
+        [salonId, dayOfWeek]
+      );
+      if (bhRows[0]) wh = bhRows[0];
+    }
 
     if (!wh) {
       throw new BookingError(
@@ -601,8 +630,11 @@ export async function createSafeBooking({
 
     for (const [staffId, windows] of staffWindows) {
       for (const win of windows) {
+        // Use raw service windows — travel feasibility between bookings is
+        // validated upstream (availability route + book route pre-check)
+        // using actual distance calculations, not a static buffer.
         const winStartFmt = formatDatetimeLocal(win.start);
-        const winEndFmt = formatDatetimeLocal(win.end);
+        const winEndFmt   = formatDatetimeLocal(win.end);
 
         const [conflicts] = await conn.execute(
           `SELECT b.id
@@ -623,6 +655,100 @@ export async function createSafeBooking({
             `Staff #${staffId} already has a booking that overlaps ${formatTime(toTimeString(win.start))}–${formatTime(toTimeString(win.end))}`,
             409,
           );
+        }
+
+        // ── Step 3.5: In-Transaction Travel Validation ───────────────────────
+        if (fulfillmentType === "mobile" && serviceLat !== null && serviceLng !== null) {
+          const threeHoursBefore = formatDatetimeLocal(new Date(win.start.getTime() - 3 * 60 * 60 * 1000));
+          const threeHoursAfter  = formatDatetimeLocal(new Date(win.end.getTime() + 3 * 60 * 60 * 1000));
+
+          const [adjacentRows] = await conn.execute(
+            `SELECT b.fulfillment_type, b.service_lat, b.service_lng,
+                    bs.start_datetime, bs.end_datetime
+               FROM bookings b
+               JOIN booking_services bs ON bs.booking_id = b.id
+              WHERE b.status IN ('pending', 'confirmed')
+                AND b.deleted_at IS NULL
+                AND COALESCE(bs.staff_id, b.staff_id) = ?
+                AND bs.start_datetime >= ?
+                AND bs.start_datetime <= ?
+              ORDER BY bs.start_datetime ASC
+              FOR UPDATE`,
+            [staffId, threeHoursBefore, threeHoursAfter],
+          );
+
+          // Find nearest previous and next from the locked rows
+          let prevBooking = null;
+          let nextBooking = null;
+
+          for (const row of adjacentRows) {
+            const rStart = new Date(String(row.start_datetime).replace(" ", "T"));
+            const rEnd = new Date(String(row.end_datetime).replace(" ", "T"));
+            
+            if (rEnd <= win.start) {
+              // Keep updating to get the latest one before win.start
+              prevBooking = row;
+            } else if (rStart >= win.end && !nextBooking) {
+              // Grab the first one after win.end
+              nextBooking = row;
+            }
+          }
+
+          if (prevBooking || nextBooking) {
+            const { checkBidirectionalTravel } = await import("@/lib/travel");
+            const { isValidCoordinatePair } = await import("@/lib/geo");
+            
+            const [staffBaseRows] = await conn.execute(
+              "SELECT home_lat, home_lng FROM staff WHERE id = ? LIMIT 1",
+              [staffId]
+            );
+            const [salonBaseRows] = await conn.execute(
+              "SELECT latitude, longitude FROM salons WHERE id = ? LIMIT 1",
+              [salonId]
+            );
+
+            const staffLat = Number(staffBaseRows[0]?.home_lat);
+            const staffLng = Number(staffBaseRows[0]?.home_lng);
+            const salLat = Number(salonBaseRows[0]?.latitude);
+            const salLng = Number(salonBaseRows[0]?.longitude);
+
+            const baseLat = isValidCoordinatePair(staffLat, staffLng) ? staffLat : (isValidCoordinatePair(salLat, salLng) ? salLat : null);
+            const baseLng = isValidCoordinatePair(staffLat, staffLng) ? staffLng : (isValidCoordinatePair(salLat, salLng) ? salLng : null);
+
+            const prevLat = prevBooking?.fulfillment_type === 'mobile' ? Number(prevBooking.service_lat) : null;
+            const prevLng = prevBooking?.fulfillment_type === 'mobile' ? Number(prevBooking.service_lng) : null;
+            const prevEndTime = prevBooking ? new Date(String(prevBooking.end_datetime).replace(' ', 'T')) : null;
+
+            const nextLat = nextBooking?.fulfillment_type === 'mobile' ? Number(nextBooking.service_lat) : null;
+            const nextLng = nextBooking?.fulfillment_type === 'mobile' ? Number(nextBooking.service_lng) : null;
+            const nextStartTime = nextBooking ? new Date(String(nextBooking.start_datetime).replace(' ', 'T')) : null;
+
+            const { feasible, arrivalFeasible, arrivalTravelMinutes, departureTravelMinutes, arrivalGapMinutes, departureGapMinutes } = checkBidirectionalTravel({
+              prevLat, prevLng, prevEndTime,
+              newLat: Number(serviceLat), newLng: Number(serviceLng),
+              newStartTime: win.start, newEndTime: win.end,
+              nextLat, nextLng, nextStartTime,
+              baseLat, baseLng, salonBufferTime: travelBufferMinutes
+            });
+
+            if (!feasible) {
+              const direction = !arrivalFeasible ? "arrive at" : "depart from";
+              const travelMins = !arrivalFeasible ? arrivalTravelMinutes : departureTravelMinutes;
+              const gapMins = !arrivalFeasible ? arrivalGapMinutes : departureGapMinutes;
+              
+              if (forceOverride) {
+                console.warn(`[In-Transaction Travel Validation Failed] Staff cannot ${direction} location in time (need ${travelMins} min, only ${Math.floor(gapMins)} min available). OVERRIDDEN by staff.`);
+              } else {
+                console.error(`[In-Transaction Travel Validation Failed] Staff cannot ${direction} location in time (need ${travelMins} min, only ${Math.floor(gapMins)} min available).`);
+                
+                throw new BookingError(
+                  "TRAVEL_NOT_FEASIBLE",
+                  "This time is no longer available due to travel constraints", // Simplified message for UX
+                  409
+                );
+              }
+            }
+          }
         }
       }
     }
@@ -754,13 +880,33 @@ export async function createSafeBooking({
     // client_timezone are persisted here so the booking record is self-contained
     // and can be rendered correctly without additional joins.
 
+    // Compute travel distance for mobile bookings and store it as a snapshot.
+    let travelDistanceKmSnapshot = null;
+    if (fulfillmentType === "mobile" && serviceLat !== null && serviceLng !== null) {
+      const [salonCoordsRow] = await conn.query(
+        "SELECT latitude, longitude FROM salons WHERE id = ? LIMIT 1",
+        [salonId],
+      );
+      const salonRow = salonCoordsRow[0];
+      if (salonRow?.latitude && salonRow?.longitude) {
+        const { haversineDistanceKm } = await import("@/lib/geo");
+        const dist = haversineDistanceKm(
+          Number(salonRow.latitude),
+          Number(salonRow.longitude),
+          Number(serviceLat),
+          Number(serviceLng),
+        );
+        travelDistanceKmSnapshot = parseFloat(dist.toFixed(2));
+      }
+    }
+
     const [bookingResult] = await conn.execute(
       `INSERT INTO bookings
          (salon_id, client_id, staff_id, start_datetime, end_datetime,
           status, source, notes,
-          fulfillment_type, service_location_address, virtual_meeting_link,
-          client_timezone, travel_fee_amount, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          fulfillment_type, service_location_address, service_lat, service_lng, virtual_meeting_link,
+          client_timezone, travel_fee_amount, travel_distance_km, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         salonId,
         clientId,
@@ -772,9 +918,12 @@ export async function createSafeBooking({
         notes,
         fulfillmentType || "physical",
         serviceLocationAddress || null,
+        serviceLat !== null ? Number(serviceLat) : null,
+        serviceLng !== null ? Number(serviceLng) : null,
         virtualMeetingLink || null,
         clientTimezone || null,
         0, // placeholder; updated below if mobile travel fee applies
+        travelDistanceKmSnapshot,
       ],
     );
 
@@ -853,7 +1002,7 @@ export async function createSafeBooking({
     let travelFeeAmount = 0;
     if (fulfillmentType === "mobile") {
       const [[salonFeeRow]] = await conn.query(
-        "SELECT travel_fee_type, travel_fee_amount FROM salons WHERE id = ? LIMIT 1",
+        "SELECT travel_fee_type, travel_fee_amount, latitude, longitude FROM salons WHERE id = ? LIMIT 1",
         [salonId],
       );
       if (
@@ -861,17 +1010,41 @@ export async function createSafeBooking({
         salonFeeRow.travel_fee_type &&
         salonFeeRow.travel_fee_type !== "none"
       ) {
-        travelFeeAmount = parseFloat(salonFeeRow.travel_fee_amount || 0);
-        await conn.execute(
-          `INSERT INTO booking_travel_fees (booking_id, fee_type, amount)
-           VALUES (?, ?, ?)`,
-          [bookingId, salonFeeRow.travel_fee_type, travelFeeAmount.toFixed(2)],
-        );
-        // Keep snapshot column on bookings row in sync
-        await conn.execute(
-          "UPDATE bookings SET travel_fee_amount = ? WHERE id = ?",
-          [travelFeeAmount.toFixed(2), bookingId],
-        );
+        if (salonFeeRow.travel_fee_type === "fixed") {
+          travelFeeAmount = parseFloat(salonFeeRow.travel_fee_amount || 0);
+        } else if (
+          salonFeeRow.travel_fee_type === "per_km" &&
+          serviceLat !== null &&
+          serviceLng !== null &&
+          salonFeeRow.latitude &&
+          salonFeeRow.longitude
+        ) {
+          const R = 6371; // km
+          const dLat = ((serviceLat - salonFeeRow.latitude) * Math.PI) / 180;
+          const dLon = ((serviceLng - salonFeeRow.longitude) * Math.PI) / 180;
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos((salonFeeRow.latitude * Math.PI) / 180) *
+              Math.cos((serviceLat * Math.PI) / 180) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distance = R * c;
+          travelFeeAmount = parseFloat(salonFeeRow.travel_fee_amount || 0) * distance;
+        }
+
+        if (travelFeeAmount > 0) {
+          await conn.execute(
+            `INSERT INTO booking_travel_fees (booking_id, fee_type, amount)
+             VALUES (?, ?, ?)`,
+            [bookingId, salonFeeRow.travel_fee_type, travelFeeAmount.toFixed(2)],
+          );
+          // Keep snapshot column on bookings row in sync
+          await conn.execute(
+            "UPDATE bookings SET travel_fee_amount = ? WHERE id = ?",
+            [travelFeeAmount.toFixed(2), bookingId],
+          );
+        }
       }
     }
 
