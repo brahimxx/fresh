@@ -126,26 +126,39 @@ export async function GET(request, { params }) {
       timeOffMap.get(timeOff.staff_id).push(timeOff);
     }
 
-    // BATCH QUERY 3: Get all bookings for all staff members at once
-    const allBookings = await query(
-      `SELECT b.staff_id, b.start_datetime, b.end_datetime 
+    const excludeBookingId = searchParams.get('excludeBookingId');
+
+    let allBookingsQuery = `SELECT b.staff_id, b.start_datetime, b.end_datetime 
        FROM bookings b
        WHERE b.staff_id IN (${staffIds.map(() => '?').join(',')})
        AND DATE(b.start_datetime) = ?
        AND b.status IN ('pending', 'confirmed')
-       AND b.deleted_at IS NULL
+       AND b.deleted_at IS NULL`;
        
-       UNION
-       
+    if (excludeBookingId) {
+      allBookingsQuery += ` AND b.id != ?`;
+    }
+    
+    allBookingsQuery += ` UNION 
        SELECT bs.staff_id, b.start_datetime, b.end_datetime 
        FROM bookings b
        JOIN booking_services bs ON bs.booking_id = b.id
        WHERE bs.staff_id IN (${staffIds.map(() => '?').join(',')})
        AND DATE(b.start_datetime) = ?
        AND b.status IN ('pending', 'confirmed')
-       AND b.deleted_at IS NULL`,
-      [...staffIds, date, ...staffIds, date]
-    );
+       AND b.deleted_at IS NULL`;
+       
+    if (excludeBookingId) {
+      allBookingsQuery += ` AND b.id != ?`;
+    }
+
+    const bookingsParams = [...staffIds, date];
+    if (excludeBookingId) bookingsParams.push(excludeBookingId);
+    bookingsParams.push(...staffIds, date);
+    if (excludeBookingId) bookingsParams.push(excludeBookingId);
+
+    // BATCH QUERY 3: Get all bookings for all staff members at once
+    const allBookings = await query(allBookingsQuery, bookingsParams);
     
     // Group bookings by staff_id
     const bookingsMap = new Map();

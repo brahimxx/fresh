@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { Clock, MapPin, Calendar } from "lucide-react";
+import { useState } from "react";
+import { Clock, MapPin, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { motion, AnimatePresence } from "framer-motion";
 
 const DAYS = [
   "Sunday",
@@ -15,6 +19,8 @@ const DAYS = [
 ];
 
 export default function SalonStickyBooking({ salon, isMobile = false }) {
+  const [hoursOpen, setHoursOpen] = useState(false);
+
   const formatTime = (time) => {
     if (!time) return "Closed";
     const parts = time.split(":");
@@ -27,17 +33,17 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
 
   const getStatus = (hours) => {
     if (salon?.is_closed_today) {
-      return { label: "Closed Today", color: "bg-red-500", isOpen: false };
+      return { isOpen: false, text: "Closed today", color: "text-red-500" };
     }
     if (!hours || hours.length === 0)
-      return { label: "Closed", color: "bg-red-500", isOpen: false };
-    
+      return { isOpen: false, text: "Closed", color: "text-red-500" };
+
     const now = new Date();
     const dayOfWeek = now.getDay();
     const currentDay = hours.find((h) => h.day_of_week === dayOfWeek);
 
     if (!currentDay || currentDay.is_closed)
-      return { label: "Closed", color: "bg-red-500", isOpen: false };
+      return { isOpen: false, text: "Closed today", color: "text-red-500" };
 
     const nowTotal = now.getHours() * 60 + now.getMinutes();
 
@@ -51,9 +57,14 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
     const closeTotal = parseTime(currentDay.close_time);
 
     if (nowTotal >= openTotal && nowTotal < closeTotal) {
-      return { label: "Open", color: "bg-green-500", isOpen: true };
+      return {
+        isOpen: true,
+        text: "Open",
+        color: "text-green-600 dark:text-green-500",
+        until: formatTime(currentDay.close_time),
+      };
     }
-    return { label: "Closed", color: "bg-red-500", isOpen: false };
+    return { isOpen: false, text: "Closed", color: "text-red-500" };
   };
 
   const status = getStatus(salon?.business_hours);
@@ -66,17 +77,15 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-base truncate">{salon.name}</h4>
             <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className={status.isOpen ? "text-green-500" : "text-red-500"}>
-                {status.label}
-              </span>
+              <span className={status.color}>{status.text} </span>
               <span className="text-muted-foreground truncate hidden sm:inline">
                 • {salon.address}
               </span>
             </div>
           </div>
           <Link href={`/book/${salon.id}`} className="shrink-0">
-            <Button size="lg" className="rounded-full shadow-lg font-bold px-8">
-              Book Now
+            <Button size="lg" className="rounded-full shadow-lg font-bold px-8 bg-primary text-primary-foreground hover:bg-primary/90">
+              Book now
             </Button>
           </Link>
         </div>
@@ -86,123 +95,120 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
 
   // DESKTOP VIEW
   return (
-    <Card className="sticky top-28 border-none !p-0 shadow-2xl rounded-[2.5rem] overflow-hidden group border-border">
-      <div className="bg-primary p-8 text-primary-foreground relative overflow-hidden ">
-        <div className="relative z-10 space-y-2">
-          <h3 className="text-2xl font-black">Experience Beauty</h3>
-          <p className="opacity-90 font-medium">Ready for your transformation?</p>
-        </div>
-        {/* Decorative Elements */}
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-black/10 rounded-full blur-2xl" />
-      </div>
-      <CardContent className="p-8 space-y-8 bg-card">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-sm font-bold opacity-70">
-            <span className={status.isOpen ? "text-green-500" : "text-red-500"}>
-              {status.isOpen ? "Available Now" : "Currently Closed"}
-            </span>
-            <span className="text-green-500 opacity-100">Fast Booking</span>
-          </div>
-          <Link href={`/book/${salon.id}`} className="block">
-            <Button
-              className="w-full py-8 text-xl font-black rounded-2xl shadow-xl shadow-primary/30 transition-all hover:scale-[1.02] active:scale-[0.98] gap-2"
-              size="lg"
-            >
-              <Calendar className="w-6 h-6" />
-              Book Appointment
-            </Button>
-          </Link>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-6">
-          <h4 className="font-bold text-sm uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            Working Hours
-          </h4>
+    <Card className="sticky top-28 border border-border shadow-xl shadow-black/5 rounded-[2rem] overflow-hidden bg-card">
+      <CardContent className="p-8 space-y-6">
+        {/* Header section */}
+        <div className="space-y-3">
+          <h2 className="text-4xl font-black tracking-tight">{salon.name}</h2>
           
-          {salon.is_closed_today && (
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
-              <span className="text-base leading-none mt-0.5">🚫</span>
-              <div className="text-xs font-semibold">
-                <p>Closed today</p>
-                {salon.closure_reason && (
-                  <p className="font-normal opacity-80 mt-0.5">{salon.closure_reason}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {salon.business_hours?.map((hours, idx) => {
-              const today = new Date().getDay();
-              const isToday = hours.day_of_week === today;
-              return (
-                <div
-                  key={idx}
-                  className={`flex justify-between items-center px-4 py-2.5 rounded-xl transition-all ${
-                    isToday
-                      ? "bg-primary/5 border border-primary/20 scale-105 shadow-sm"
-                      : "hover:bg-muted/30"
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-bold">{salon.rating?.toFixed(1) || "New"}</span>
+            <div className="flex gap-1">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`w-5 h-5 ${
+                    i < Math.round(salon.rating || 0)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "fill-muted text-muted"
                   }`}
-                >
-                  <span
-                    className={`text-sm font-bold ${
-                      isToday ? "text-primary" : "text-foreground"
-                    }`}
-                  >
-                    {DAYS[hours.day_of_week]}
-                  </span>
-                  <span
-                    className={`text-sm font-black ${
-                      isToday && salon.is_closed_today
-                        ? "text-red-500"
-                        : hours.is_closed
-                        ? "text-muted-foreground/50 line-through"
-                        : isToday
-                        ? "text-primary"
-                        : "text-foreground/80"
-                    }`}
-                  >
-                    {isToday && salon.is_closed_today
-                      ? "Closed (Special)"
-                      : hours.is_closed
-                      ? "Off"
-                      : `${formatTime(hours.open_time)} - ${formatTime(
-                          hours.close_time
-                        )}`}
-                  </span>
-                </div>
-              );
-            }) || (
-              <p className="text-muted-foreground">Hours not available</p>
-            )}
+                />
+              ))}
+            </div>
+            <span className="text-lg font-bold text-primary ml-1">
+              ({salon.review_count || 0})
+            </span>
           </div>
         </div>
 
-        <div className="space-y-6 pt-4">
-          <h4 className="font-bold text-sm uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
-            Our Location
-          </h4>
-          <div className="bg-muted/40 p-6 rounded-3xl border border-transparent hover:border-primary/20 transition-all space-y-4">
-            <div className="space-y-1">
-              <p className="font-black text-lg leading-tight">{salon.address}</p>
-              <p className="font-bold text-muted-foreground">
-                {salon.city}, {salon.state} {salon.postal_code}
-              </p>
+        {/* CTA Button */}
+        <Link href={`/book/${salon.id}`} className="block">
+          <Button
+            className="w-full py-7 text-lg font-bold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            size="lg"
+          >
+            Book now
+          </Button>
+        </Link>
+
+        <Separator className="my-6" />
+
+        {/* Hours Toggle */}
+        <div className="space-y-2">
+          <button
+            onClick={() => setHoursOpen(!hoursOpen)}
+            className="flex items-center gap-3 w-full text-left group cursor-pointer"
+          >
+            <Clock className="w-5 h-5 shrink-0 text-foreground" />
+            <div className="flex-1 flex items-center gap-1.5 text-base font-medium">
+              <span className={status.color}>{status.text}</span>
+              {status.isOpen && status.until && (
+                <span className="text-foreground">until {status.until}</span>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="flex-1 rounded-xl bg-background border-none shadow-sm hover:shadow-md"
+            {hoursOpen ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            )}
+          </button>
+
+          <AnimatePresence>
+            {hoursOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
               >
-                Get Directions
-              </Button>
-            </div>
+                <div className="pt-4 pl-8 space-y-3">
+                  {salon.is_closed_today && salon.closure_reason && (
+                    <div className="text-sm font-medium text-red-500 mb-2">
+                      Note: {salon.closure_reason}
+                    </div>
+                  )}
+                  {salon.business_hours?.map((hours, idx) => {
+                    const today = new Date().getDay();
+                    const isToday = hours.day_of_week === today;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex justify-between items-center text-sm ${
+                          isToday ? "font-bold text-foreground" : "font-medium text-muted-foreground"
+                        }`}
+                      >
+                        <span className="w-24">{DAYS[hours.day_of_week]}</span>
+                        <span>
+                          {isToday && salon.is_closed_today
+                            ? "Closed"
+                            : hours.is_closed
+                            ? "Off"
+                            : `${formatTime(hours.open_time)} - ${formatTime(hours.close_time)}`}
+                        </span>
+                      </div>
+                    );
+                  }) || (
+                    <p className="text-sm text-muted-foreground">Hours not available</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Location Info */}
+        <div className="flex items-start gap-3 pt-2">
+          <MapPin className="w-5 h-5 shrink-0 text-foreground mt-0.5" />
+          <div className="text-base">
+            <span className="text-foreground">{salon.address}, {salon.city} {salon.state}</span>
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(`${salon.name} ${salon.address} ${salon.city}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary font-bold ml-1.5 hover:underline"
+            >
+              Get directions
+            </a>
           </div>
         </div>
       </CardContent>

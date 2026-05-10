@@ -27,6 +27,7 @@ import {
   LineChart,
   FileText,
   LifeBuoy,
+  Images,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ const navigation = [
   { name: 'Marketing', href: '/marketing', icon: Megaphone },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Reviews', href: '/reviews', icon: Star },
+  { name: 'Gallery', href: '/gallery', icon: Images },
   { name: 'Support', href: '/support', icon: LifeBuoy },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

@@ -51,17 +51,17 @@ export function BookingConfirmation({
   var totalPrice =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-        var price = parseFloat(s.price);
-        return sum + (isNaN(price) ? 0 : price);
-      }, 0)
+          var price = parseFloat(s.price);
+          return sum + (isNaN(price) ? 0 : price);
+        }, 0)
       : 0;
 
   var totalDuration =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-        var duration = parseInt(s.duration) || 30;
-        return sum + duration;
-      }, 0)
+          var duration = parseInt(s.duration) || 30;
+          return sum + duration;
+        }, 0)
       : 0;
 
   function addToCalendar(type) {
@@ -74,11 +74,11 @@ export function BookingConfirmation({
 
     var details = encodeURIComponent(
       "Services: " +
-      selectedServices
-        .map(function (s) {
-          return s.name + (s.staffName ? " with " + s.staffName : "");
-        })
-        .join(", ")
+        selectedServices
+          .map(function (s) {
+            return s.name + (s.staffName ? " with " + s.staffName : "");
+          })
+          .join(", "),
     );
 
     var location = encodeURIComponent(salon.address || "");
@@ -146,7 +146,7 @@ export function BookingConfirmation({
               </div>
             </div>
 
-                        {/* Location or Fulfillment Method */}
+            {/* Location or Fulfillment Method */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                 {booking?.fulfillment_type === "virtual" ? (
@@ -161,18 +161,27 @@ export function BookingConfirmation({
                 {booking?.fulfillment_type === "virtual" ? (
                   <>
                     <p className="font-medium">Virtual Appointment</p>
-                    <p className="text-sm text-muted-foreground">The meeting link will be in your booking details.</p>
+                    <p className="text-sm text-muted-foreground">
+                      The meeting link will be in your booking details.
+                    </p>
                   </>
                 ) : booking?.fulfillment_type === "mobile" ? (
                   <>
-                    <p className="font-medium">Mobile Service (At your location)</p>
-                    <p className="text-sm text-muted-foreground">{booking?.service_location_address || "Address provided during booking"}</p>
+                    <p className="font-medium">
+                      Mobile Service (At your location)
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {booking?.service_location_address ||
+                        "Address provided during booking"}
+                    </p>
                   </>
                 ) : (
                   <>
                     <p className="font-medium">{salon.name}</p>
                     {salon.address && (
-                      <p className="text-sm text-muted-foreground">{salon.address}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {salon.address}
+                      </p>
                     )}
                   </>
                 )}
@@ -180,19 +189,23 @@ export function BookingConfirmation({
             </div>
 
             {/* Staff - show if there's one primary staff */}
-            {selectedServices && selectedServices.length === 1 && selectedServices[0].staffName && (
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-5 w-5 text-primary" />
+            {selectedServices &&
+              selectedServices.length === 1 &&
+              selectedServices[0].staffName && (
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">
+                      {selectedServices[0].staffName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Your stylist
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">{selectedServices[0].staffName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Your stylist
-                  </p>
-                </div>
-              </div>
-            )}
+              )}
           </div>
         </div>
 
@@ -223,11 +236,58 @@ export function BookingConfirmation({
                   </div>
                 );
               })}
+            {Number(
+              booking?.booking?.travel_fee_amount || booking?.travel_fee_amount,
+            ) > 0 && (
+              <div className="flex justify-between items-center text-muted-foreground">
+                <p className="font-medium">Travel Fee</p>
+                <p className="font-medium">
+                  {formatCurrency(
+                    booking?.booking?.travel_fee_amount ||
+                      booking?.travel_fee_amount,
+                    salon?.currency,
+                  )}
+                </p>
+              </div>
+            )}
+            {Number(
+              booking?.booking?.discount_amount || booking?.discount_amount,
+            ) > 0 && (
+              <div className="flex justify-between items-center text-emerald-600">
+                <p className="font-medium">Discount Applied</p>
+                <p className="font-medium">
+                  -
+                  {formatCurrency(
+                    booking?.booking?.discount_amount ||
+                      booking?.discount_amount,
+                    salon?.currency,
+                  )}
+                </p>
+              </div>
+            )}
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between items-center font-semibold">
             <span>Total</span>
-            <span>{formatCurrency(totalPrice, salon?.currency)}</span>
+            <span>
+              {formatCurrency(
+                Math.max(
+                  0,
+                  totalPrice +
+                    Number(
+                      booking?.booking?.travel_fee_amount ||
+                        booking?.travel_fee_amount ||
+                        0,
+                    ) -
+                    Number(
+                      booking?.booking?.discount_amount ||
+                        booking?.discount_amount ||
+                        0,
+                    ),
+                ),
+                salon?.currency,
+              )}
+            </span>
           </div>
         </div>
 

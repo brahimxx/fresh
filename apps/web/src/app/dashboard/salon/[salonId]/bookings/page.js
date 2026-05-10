@@ -91,6 +91,8 @@ export default function BookingsPage({ params }) {
   const [newBookingOpen, setNewBookingOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [rescheduleBooking, setRescheduleBooking] = useState(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
   const filters = {
     salonId,
@@ -121,6 +123,12 @@ export default function BookingsPage({ params }) {
   const handleViewBooking = useCallback((booking) => {
     setSelectedBooking(booking);
     setDetailOpen(true);
+  }, []);
+
+  const handleReschedule = useCallback((booking) => {
+    setDetailOpen(false);
+    setRescheduleBooking(booking);
+    setRescheduleOpen(true);
   }, []);
 
   const handleQuickConfirm = useCallback((bookingId) => {
@@ -439,7 +447,7 @@ export default function BookingsPage({ params }) {
                                     <DropdownMenuContent align="end" className="w-[180px] rounded-2xl" onClick={(e) => e.stopPropagation()}>
                                       <DropdownMenuItem onClick={() => handleViewBooking(booking)} className="font-medium gap-2">
                                         <Eye className="h-4 w-4 text-primary" />
-                                        Launch Profile
+                                        View Details
                                       </DropdownMenuItem>
                                       {booking.status === "pending" && (
                                         <DropdownMenuItem onClick={() => handleQuickConfirm(booking.id)} className="font-medium gap-2 focus:bg-emerald-500/10 focus:text-emerald-600 cursor-pointer">
@@ -515,10 +523,18 @@ export default function BookingsPage({ params }) {
         onOpenChange={setNewBookingOpen}
       />
 
+      <BookingFormDialog
+        salonId={salonId}
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+        initialBooking={rescheduleBooking}
+      />
+
       <BookingDetailSheet
         booking={selectedBooking}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+        onReschedule={handleReschedule}
       />
     </div>
   );

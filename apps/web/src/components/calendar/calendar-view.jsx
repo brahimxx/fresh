@@ -878,7 +878,15 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                 {activeStaff.map(function (member, index) {
                   var staffId = member.id;
                   var staffEvents = bookingsByStaff[staffId] || [];
-                  var layoutedEvents = layoutOverlappingEvents(staffEvents);
+
+                  // ── Separate travel blocks from real bookings ──────────────
+                  // Travel blocks must NOT enter layoutOverlappingEvents() because
+                  // the column-split algorithm would give them fractional widths/
+                  // offsets, making them appear as skinny partial strips instead
+                  // of the intended full-width translucent background.
+                  var travelEvents = staffEvents.filter(function (e) { return !!e.isTravel; });
+                  var realEvents   = staffEvents.filter(function (e) { return !e.isTravel; });
+                  var layoutedEvents = layoutOverlappingEvents(realEvents);
                   var color = member.color || getStaffColor(index).hex;
 
                   return (
@@ -917,7 +925,28 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                         </div>
                       )}
 
-                      {/* Events */}
+                      {/* Travel buffer backgrounds — rendered first, always full-width */}
+                      {travelEvents.map(function (booking) {
+                        var rawStart = booking.start || booking.startDatetime || "";
+                        var rawEnd = booking.end || booking.endDatetime || "";
+                        var top    = getTimePosition(rawStart, hourHeight);
+                        var height = getEventHeight(rawStart, rawEnd, hourHeight);
+                        return (
+                          <div
+                            key={booking.subId || booking.id}
+                            className="absolute z-0 inset-x-0 px-0.5 pb-0.5 pointer-events-none"
+                            style={{ top: top + "px", height: height + "px" }}
+                          >
+                            <div className="h-full rounded-sm border border-dashed border-amber-400/50 flex flex-col items-center justify-center p-1 bg-[repeating-linear-gradient(45deg,rgba(245,158,11,0.04),rgba(245,158,11,0.04)_8px,rgba(245,158,11,0.09)_8px,rgba(245,158,11,0.09)_16px)]">
+                              <div className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wide text-center leading-tight flex flex-col items-center gap-0.5 opacity-80">
+                                <span>🚗 Travel ({booking.travelTimeMins}m)</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Real booking events — layered on top with column layout */}
                       {layoutedEvents.map(function (item) {
                         var booking = item.event;
                         var rawStart = booking.start || booking.startDatetime || "";
@@ -926,7 +955,6 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                         var height = getEventHeight(rawStart, rawEnd, hourHeight);
                         var widthPercent = 100 / item.totalColumns;
                         var leftPercent = item.column * widthPercent;
-
                         var startTime = new Date(String(rawStart).replace(" ", "T"));
                         var endTime = new Date(String(rawEnd).replace(" ", "T"));
                         var clientName = booking.title || (booking.client
@@ -935,28 +963,6 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
                         var servicesText = booking.services
                           ? booking.services.map(function (s) { return s.name; }).join(", ")
                           : "";
-
-                        if (booking.isTravel) {
-                          return (
-                            <div
-                              key={booking.subId || booking.id}
-                              className="absolute z-0 px-0.5 pb-0.5 opacity-60"
-                              style={{
-                                top: top + "px",
-                                height: height + "px",
-                                left: leftPercent + "%",
-                                width: widthPercent + "%",
-                              }}
-                            >
-                              <div className="h-full rounded-sm border-2 border-dashed border-amber-500/40 flex flex-col items-center justify-center p-1 bg-[repeating-linear-gradient(45deg,rgba(245,158,11,0.05),rgba(245,158,11,0.05)_10px,rgba(245,158,11,0.1)_10px,rgba(245,158,11,0.1)_20px)]">
-                                <div className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-700 dark:text-amber-500 tracking-wide text-center leading-tight flex flex-col items-center gap-0.5">
-                                  <span>🚗 TRAVEL</span>
-                                  <span>({booking.travelTimeMins}m)</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
 
                         return (
                           <div
@@ -1082,55 +1088,35 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking }) {
             eventDrop={handleEventDrop}
             eventResize={handleEventDrop}
             eventContent={function (arg) {
-              var booking = arg.event.extendedProps.booking;
-              var servicesText = arg.event.extendedProps.servicesText;
-              var timeText = arg.event.extendedProps.timeText;
-              var staffName = arg.event.extendedProps.staffName;
-              var isTimeGrid = arg.view.type.includes("timeGrid");
-              var isPending = booking.status === "pending";
-              var isRestricted = booking.clientIsActive === false;
+              var isTravel = arg.event.extendedProps.isTravel;
               
-              return (
-                <EventTooltip booking={booking}>
-                  <div className="fc-event-main-frame w-full h-full relative group flex flex-col">
-                    <EventQuickActions
-                      booking={booking}
-                      onEdit={handleEditBooking}
-                      onConfirm={handleConfirmBooking}
-                      onComplete={handleCompleteBooking}
-                      onCancel={handleCancelBookingAction}
-                    />
-                    <div className="fc-event-time font-semibold flex items-center gap-1.5">
-                      {isPending && (
-                        <span className="relative flex h-1.5 w-1.5 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
-                        </span>
-                      )}
-                      {isTimeGrid ? arg.timeText : timeText}
+              if (isTravel) {
+                return (
+                  <div className="fc-event-main-frame w-full h-full relative flex flex-col justify-center items-center p-0.5 border-dashed border-amber-400/50 bg-[repeating-linear-gradient(45deg,rgba(245,158,11,0.04),rgba(245,158,11,0.04)_8px,rgba(245,158,11,0.09)_8px,rgba(245,158,11,0.09)_16px)]">
+                    <div className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wide text-center leading-tight flex flex-col items-center gap-0.5 opacity-80">
+                      <span>{arg.event.title}</span>
                     </div>
-                    <div className="fc-event-title font-medium truncate">
-                      {arg.event.title}
-                    </div>
-                    {isRestricted && isTimeGrid && (
-                      <div className="mt-0.5">
-                        <Badge variant="destructive" className="h-3 min-h-3 text-[0.5rem] px-1 py-0 font-bold uppercase tracking-wider leading-none">
-                          Restricted
-                        </Badge>
-                      </div>
-                    )}
-                    {isTimeGrid && servicesText && (
-                      <div className="fc-event-service text-[0.65rem] opacity-90 truncate mt-0.5">
-                        {servicesText}
-                      </div>
-                    )}
-                    {isTimeGrid && staffName && (
-                      <div className="fc-event-staff text-[0.6rem] opacity-75 truncate">
-                        {staffName}
-                      </div>
-                    )}
                   </div>
-                </EventTooltip>
+                );
+              }
+
+              var booking = arg.event.extendedProps.booking;
+              
+              if (!booking) {
+                return (
+                  <div className="p-1 bg-red-500 text-white text-xs h-full w-full">
+                    MISSING BOOKING
+                  </div>
+                );
+              }
+              
+              var timeText = arg.event.extendedProps.timeText;
+              
+              // Simplest possible render to debug
+              return (
+                <div className="w-full h-full bg-blue-500 text-white text-xs p-1 overflow-hidden">
+                  {timeText} - {arg.event.title}
+                </div>
               );
             }}
             eventDidMount={function (arg) {

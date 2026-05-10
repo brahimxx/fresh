@@ -18,7 +18,9 @@ export async function GET(request, { params }) {
     const services = await query(
       `SELECT 
         s.id, s.name, s.description, s.duration_minutes,
-        s.price, s.category_id, s.display_order, s.is_popular, sc.name as category_name
+        s.price, s.category_id, s.display_order, s.is_popular, sc.name as category_name,
+        s.can_physical, s.can_mobile, s.can_virtual,
+        s.mobile_price_override, s.virtual_price_override
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id
        INNER JOIN service_staff ss ON ss.service_id = s.id
@@ -42,6 +44,7 @@ export async function GET(request, { params }) {
     // Apply pricing gate server-side — never trust frontend to hide prices
     return success(services.map(s => ({
       ...s,
+      duration: s.duration_minutes,
       price: showPrices ? parseFloat(s.price) : null
     })));
 

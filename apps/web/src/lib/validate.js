@@ -101,6 +101,13 @@ export const createBookingSchema = z.object({
   discountCode: z.string().max(50).optional().nullable(),
   giftCardCode: z.string().max(50).optional().nullable(),
   forceOverride: z.boolean().optional(),
+  // Fulfillment fields
+  fulfillmentType: z.enum(["physical", "mobile", "virtual"]).default("physical"),
+  serviceLocationAddress: z.string().max(500).optional().nullable(),
+  serviceLocationLat: z.number().min(-90).max(90).optional().nullable(),
+  serviceLocationLng: z.number().min(-180).max(180).optional().nullable(),
+  clientTimezone: z.string().max(100).optional().nullable(),
+  virtualMeetingLink: z.string().max(500).optional().nullable(),
 });
 
 export const rescheduleBookingSchema = z.object({
@@ -398,6 +405,26 @@ export function validateShifts(shifts) {
 
   return { valid: true };
 }
+
+// ============================================================
+// Gallery Schemas
+// ============================================================
+
+export const gallerySchema = z.object({
+  image_url: z.string().min(1, "Image URL is required").max(500, "Image URL is too long"),
+  display_order: z.number().int().min(0).optional().default(0),
+});
+
+export const galleryReorderSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: idSchema,
+        display_order: z.number().int().min(0),
+      })
+    )
+    .min(1, "At least one item is required"),
+});
 
 // ============================================================
 // Checkout Schemas

@@ -490,11 +490,13 @@ export async function POST(request, { params }) {
         );
 
         const nextLat =
-          nextBookings?.fulfillment_type === "mobile" && nextBookings.service_lat
+          nextBookings?.fulfillment_type === "mobile" &&
+          nextBookings.service_lat
             ? Number(nextBookings.service_lat)
             : null;
         const nextLng =
-          nextBookings?.fulfillment_type === "mobile" && nextBookings.service_lng
+          nextBookings?.fulfillment_type === "mobile" &&
+          nextBookings.service_lng
             ? Number(nextBookings.service_lng)
             : null;
         const nextStartTime = nextBookings
@@ -523,7 +525,15 @@ export async function POST(request, { params }) {
               ? Number(salBase.longitude)
               : null;
 
-        const { feasible, arrivalFeasible, departureFeasible, arrivalTravelMinutes, departureTravelMinutes, arrivalGapMinutes, departureGapMinutes } = checkBidirectionalTravel({
+        const {
+          feasible,
+          arrivalFeasible,
+          departureFeasible,
+          arrivalTravelMinutes,
+          departureTravelMinutes,
+          arrivalGapMinutes,
+          departureGapMinutes,
+        } = checkBidirectionalTravel({
           prevLat,
           prevLng,
           prevEndTime,
@@ -541,8 +551,12 @@ export async function POST(request, { params }) {
 
         if (!feasible) {
           const direction = !arrivalFeasible ? "arrive at" : "depart from";
-          const travelMins = !arrivalFeasible ? arrivalTravelMinutes : departureTravelMinutes;
-          const gapMins = !arrivalFeasible ? arrivalGapMinutes : departureGapMinutes;
+          const travelMins = !arrivalFeasible
+            ? arrivalTravelMinutes
+            : departureTravelMinutes;
+          const gapMins = !arrivalFeasible
+            ? arrivalGapMinutes
+            : departureGapMinutes;
           return error(
             {
               code: "TRAVEL_NOT_FEASIBLE",
@@ -582,8 +596,20 @@ export async function POST(request, { params }) {
       virtualMeetingLink: resolvedMeetingLink,
     });
 
-    const { bookingId, isNewClient } = result;
-    const finalPrice = result.totalPrice || totalPrice;
+    const { bookingId, isNewClient, discountAmount } = result;
+
+    // Retrieve the exact travel fee snapshot created during the transaction
+    const bookingRow = await getOne(
+      "SELECT travel_fee_amount FROM bookings WHERE id = ?",
+      [bookingId],
+    );
+    const travelFeeAmount = parseFloat(bookingRow?.travel_fee_amount || 0);
+    const finalPrice = Math.max(
+      0,
+      (result.totalPrice || totalPrice) +
+        travelFeeAmount -
+        (discountAmount || 0),
+    );
 
     let checkoutUrl = null;
 
@@ -606,7 +632,7 @@ export async function POST(request, { params }) {
           line_items: [
             {
               price_data: {
-                currency: "eur", // Assuming eur, adjust if salon uses different currency
+                currency: salon.currency?.toLowerCase() || "eur",
                 product_data: {
                   name: `Booking at ${salon.name}`,
                 },
@@ -708,6 +734,9 @@ export async function POST(request, { params }) {
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString(),
         salonName: salon.name,
+        travel_fee_amount: travelFeeAmount,
+        discount_amount: discountAmount || 0,
+        total_price: finalPrice,
         services: serviceDetails.map((s) => ({
           id: s.serviceId,
           name: s.name,

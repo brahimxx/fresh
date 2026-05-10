@@ -104,6 +104,7 @@ var generalSchema = z.object({
   min_booking_amount: z.coerce.number().optional().nullable(),
   travel_buffer_time: z.coerce.number().optional().nullable(),
   covered_zip_codes: z.string().optional().nullable(),
+  isSameAsPhysical: z.boolean().optional(),
 });
 
 export default function GeneralSettingsPage() {
@@ -116,6 +117,9 @@ export default function GeneralSettingsPage() {
   var mobileCircleRef = useRef(null);
   var mobilePreviewRafRef = useRef(null);
   var [mobilePreviewCenter, setMobilePreviewCenter] = useState(null);
+  var [localMobileCenter, setLocalMobileCenter] = useState(null);
+  var [showManualAddress, setShowManualAddress] = useState(false);
+  var physicalMapRef = useRef(null);
   var [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   var [deleteBlockers, setDeleteBlockers] = useState(null);
   var [confirmDeleteText, setConfirmDeleteText] = useState("");
@@ -163,6 +167,7 @@ export default function GeneralSettingsPage() {
       min_booking_amount: 0,
       travel_buffer_time: 0,
       covered_zip_codes: "",
+      isSameAsPhysical: true,
     },
   });
 
@@ -204,6 +209,7 @@ export default function GeneralSettingsPage() {
           min_booking_amount: salon.min_booking_amount ?? 0,
           travel_buffer_time: salon.travel_buffer_time ?? 0,
           covered_zip_codes: salon.covered_zip_codes || "",
+          isSameAsPhysical: toBoolFlag(salon.is_physical, true) && (!salon.mobile_base_address || salon.mobile_base_address === salon.address),
         });
       }
     },
@@ -218,6 +224,10 @@ export default function GeneralSettingsPage() {
         variant: "destructive",
       });
       return;
+    }
+
+    if (data.isSameAsPhysical) {
+      data.mobile_base_address = data.address;
     }
 
     updateSettings.mutate(
@@ -354,14 +364,7 @@ export default function GeneralSettingsPage() {
     var nextLat = center.lat();
     var nextLng = center.lng();
     setMobilePreviewCenter({ lat: nextLat, lng: nextLng });
-    form.setValue("latitude", center.lat(), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("longitude", center.lng(), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+    setLocalMobileCenter({ lat: nextLat, lng: nextLng });
     updateMobileBaseAddressFromCoords(nextLat, nextLng);
   }
 
@@ -433,6 +436,8 @@ export default function GeneralSettingsPage() {
 
   var isMobileEnabled = !!form.watch("is_mobile");
   var isVirtualEnabled = !!form.watch("is_virtual");
+  var isPhysicalEnabled = !!form.watch("is_physical");
+  var isSameAsPhysical = !!form.watch("isSameAsPhysical");
   var travelRadius = Number(form.watch("travel_radius") || 0);
 
   function toFiniteCoord(value) {
@@ -441,46 +446,49 @@ export default function GeneralSettingsPage() {
     return Number.isFinite(num) ? num : null;
   }
 
-  var mobileCenterLat = toFiniteCoord(form.watch("latitude"));
-  var mobileCenterLng = toFiniteCoord(form.watch("longitude"));
-  var hasMobileCenterCoords =
-    mobileCenterLat !== null && mobileCenterLng !== null;
+  var physicalLat = toFiniteCoord(form.watch("latitude"));
+  var physicalLng = toFiniteCoord(form.watch("longitude"));
+  var hasPhysicalCoords = physicalLat !== null && physicalLng !== null;
 
   useEffect(
     function () {
-      if (hasMobileCenterCoords) {
-        setMobilePreviewCenter({ lat: mobileCenterLat, lng: mobileCenterLng });
+      if (isSameAsPhysical && hasPhysicalCoords) {
+        setMobilePreviewCenter({ lat: physicalLat, lng: physicalLng });
+      } else if (localMobileCenter) {
+        setMobilePreviewCenter(localMobileCenter);
+      } else if (hasPhysicalCoords) {
+        setMobilePreviewCenter({ lat: physicalLat, lng: physicalLng });
       } else {
         setMobilePreviewCenter(null);
       }
     },
-    [hasMobileCenterCoords, mobileCenterLat, mobileCenterLng],
+    [isSameAsPhysical, hasPhysicalCoords, physicalLat, physicalLng, localMobileCenter],
   );
 
   var mobileMapCenter = useMemo(
     function () {
-      return {
-        lat: hasMobileCenterCoords ? mobileCenterLat : 36.7056,
-        lng: hasMobileCenterCoords ? mobileCenterLng : 3.0906,
-      };
+      if (isSameAsPhysical && hasPhysicalCoords) {
+        return { lat: physicalLat, lng: physicalLng };
+      }
+      if (localMobileCenter) {
+        return localMobileCenter;
+      }
+      if (hasPhysicalCoords) {
+        return { lat: physicalLat, lng: physicalLng };
+      }
+      return { lat: 36.7056, lng: 3.0906 };
     },
-    [hasMobileCenterCoords, mobileCenterLat, mobileCenterLng],
+    [isSameAsPhysical, hasPhysicalCoords, physicalLat, physicalLng, localMobileCenter],
   );
+
   var mobileCircleCenter = useMemo(
     function () {
       if (mobilePreviewCenter) {
         return mobilePreviewCenter;
       }
-      return hasMobileCenterCoords
-        ? { lat: mobileCenterLat, lng: mobileCenterLng }
-        : null;
+      return mobileMapCenter;
     },
-    [
-      mobilePreviewCenter,
-      hasMobileCenterCoords,
-      mobileCenterLat,
-      mobileCenterLng,
-    ],
+    [mobilePreviewCenter, mobileMapCenter],
   );
 
   if (isLoading) {
@@ -749,119 +757,203 @@ export default function GeneralSettingsPage() {
             </div>
 
             <div className="space-y-6">
-              <FormField
-                control={form.control}
-                name="address"
-                render={function ({ field }) {
-                  return (
-                    <FormItem>
-                      <FormLabel className="text-sm font-semibold">
-                        Street Address
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          {...field}
-                          placeholder="123 Main Street"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
-
-              <div className="grid grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="city"
-                  render={function ({ field }) {
-                    return (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">
-                          City
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field}
-                            placeholder="City"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    );
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Storefront Location</label>
+                <AddressAutocomplete
+                  placeholder="Search for your storefront address"
+                  className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                  onChange={function (location) {
+                    form.setValue("address", location.full_address || "", { shouldDirty: true });
+                    form.setValue("city", location.city || "", { shouldDirty: true });
+                    form.setValue("state", location.state || "", { shouldDirty: true });
+                    form.setValue("zip_code", location.postal_code || "", { shouldDirty: true });
+                    form.setValue("country", location.country || "", { shouldDirty: true });
+                    if (location.lat !== undefined && location.lng !== undefined) {
+                      form.setValue("latitude", location.lat, { shouldDirty: true });
+                      form.setValue("longitude", location.lng, { shouldDirty: true });
+                    }
                   }}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="state"
-                  render={function ({ field }) {
-                    return (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">
-                          State / Province
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field}
-                            placeholder="State"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={function () {
+                      setShowManualAddress(!showManualAddress);
+                    }}
+                    className="text-xs text-primary hover:underline font-medium"
+                  >
+                    {showManualAddress ? "Hide manual inputs" : "Enter address manually"}
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="zip_code"
-                  render={function ({ field }) {
-                    return (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">
-                          ZIP / Postal Code
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field}
-                            placeholder="12345"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
+              {showManualAddress && (
+                <div className="space-y-6 p-4 rounded-xl border border-border/60 bg-muted/10">
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">
+                            Street Address
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                              {...field}
+                              placeholder="123 Main Street"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="country"
-                  render={function ({ field }) {
-                    return (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">
-                          Country
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            {...field}
-                            placeholder="Country"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={function ({ field }) {
+                        return (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">
+                              City
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                {...field}
+                                placeholder="City"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="state"
+                      render={function ({ field }) {
+                        return (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">
+                              State / Province
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                {...field}
+                                placeholder="State"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="zip_code"
+                      render={function ({ field }) {
+                        return (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">
+                              ZIP / Postal Code
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                {...field}
+                                placeholder="12345"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="country"
+                      render={function ({ field }) {
+                        return (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">
+                              Country
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                {...field}
+                                placeholder="Country"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {hasPhysicalCoords && (
+                <div className="mt-4">
+                  <div className="mb-2">
+                    <p className="text-sm font-semibold">Storefront Map</p>
+                    <p className="text-xs text-muted-foreground">
+                      Is the pin in the right location? Drag the pin to adjust your exact storefront entrance.
+                    </p>
+                  </div>
+                  <div className="w-full h-72 bg-muted border border-border rounded-xl relative overflow-hidden flex items-center justify-center cursor-crosshair">
+                    {isMapsLoaded ? (
+                      <GoogleMap
+                        mapContainerStyle={{ width: "100%", height: "100%" }}
+                        center={{ lat: physicalLat, lng: physicalLng }}
+                        zoom={15}
+                        options={MAP_OPTIONS}
+                        onLoad={function (map) {
+                          physicalMapRef.current = map;
+                        }}
+                        onUnmount={function () {
+                          physicalMapRef.current = null;
+                        }}
+                        onDragEnd={function () {
+                          if (!physicalMapRef.current) return;
+                          var center = physicalMapRef.current.getCenter();
+                          form.setValue("latitude", center.lat(), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          form.setValue("longitude", center.lng(), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-[#E5E3DF] opacity-50 flex items-center justify-center">
+                        <div className="text-muted-foreground/30 font-semibold text-lg flex flex-col items-center">
+                          <MapPin className="h-10 w-10 mb-2 opacity-50" />
+                          Loading Map...
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center pointer-events-none drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
+                      <MapPin className="h-10 w-10 text-black -mt-10" />
+                      <div className="h-2 w-3 bg-black/20 rounded-[100%] blur-[1px] mt-1" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -942,7 +1034,7 @@ export default function GeneralSettingsPage() {
                     name="travel_radius"
                     render={function ({ field }) {
                       return (
-                        <FormItem>
+                        <FormItem className="md:col-span-2">
                           <FormLabel className="text-sm font-semibold">
                             Travel Radius (km)
                           </FormLabel>
@@ -955,58 +1047,72 @@ export default function GeneralSettingsPage() {
                               value={field.value ?? 0}
                             />
                           </FormControl>
-                          <FormDescription>
-                            Set the radius first, then choose the center point
-                            on the map.
-                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       );
                     }}
                   />
 
-                  {travelRadius > 0 ? (
+                  {isPhysicalEnabled && (
                     <FormField
                       control={form.control}
-                      name="mobile_base_address"
+                      name="isSameAsPhysical"
                       render={function ({ field }) {
                         return (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel className="text-sm font-semibold">
-                              Mobile Service Center Address
-                            </FormLabel>
+                          <FormItem className="md:col-span-2 flex items-center justify-between rounded-xl border border-border/60 p-4">
+                            <div className="space-y-1">
+                              <FormLabel className="text-sm font-semibold">
+                                Use physical salon location as mobile base
+                              </FormLabel>
+                              <FormDescription>
+                                Your mobile service center will be locked to your physical storefront.
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                              <AddressAutocomplete
-                                value={field.value || ""}
-                                placeholder="Search your mobile service center"
-                                className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                                onChange={function (location) {
-                                  field.onChange(location.full_address || "");
-                                  if (
-                                    location.lat !== undefined &&
-                                    location.lng !== undefined
-                                  ) {
-                                    form.setValue("latitude", location.lat, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    });
-                                    form.setValue("longitude", location.lng, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    });
-                                  }
-                                }}
+                              <Switch
+                                checked={!!field.value}
+                                onCheckedChange={field.onChange}
                               />
                             </FormControl>
-                            <FormDescription>
-                              Same flow as onboarding: search an address, then
-                              fine-tune by dragging the map.
-                            </FormDescription>
-                            <FormMessage />
                           </FormItem>
                         );
                       }}
                     />
+                  )}
+
+                  {travelRadius > 0 ? (
+                    (!isPhysicalEnabled || !isSameAsPhysical) && (
+                      <FormField
+                        control={form.control}
+                        name="mobile_base_address"
+                        render={function ({ field }) {
+                          return (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel className="text-sm font-semibold">
+                                Mobile Service Center Address
+                              </FormLabel>
+                              <FormControl>
+                                <AddressAutocomplete
+                                  value={field.value || ""}
+                                  placeholder="Search your mobile service center"
+                                  className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                                  onChange={function (location) {
+                                    field.onChange(location.full_address || "");
+                                    if (
+                                      location.lat !== undefined &&
+                                      location.lng !== undefined
+                                    ) {
+                                      setLocalMobileCenter({ lat: location.lat, lng: location.lng });
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    )
                   ) : (
                     <div className="md:col-span-2 rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                       Choose a travel radius first to unlock center selection on
@@ -1021,9 +1127,10 @@ export default function GeneralSettingsPage() {
                           Service Area Map
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Drag the pin to adjust the center. Radius:{" "}
-                          {travelRadius}
-                          km.
+                          {isPhysicalEnabled && isSameAsPhysical 
+                            ? "Your mobile service area is locked to your physical storefront." 
+                            : "Search for your base address or drag the pin to adjust the center."}
+                          {" "}Radius: {travelRadius}km.
                         </p>
                       </div>
                       <div className="w-full h-72 bg-muted border border-border rounded-xl relative overflow-hidden flex items-center justify-center cursor-crosshair">
@@ -1034,8 +1141,11 @@ export default function GeneralSettingsPage() {
                               height: "100%",
                             }}
                             center={mobileMapCenter}
-                            zoom={hasMobileCenterCoords ? 12 : 10}
-                            options={MAP_OPTIONS}
+                            zoom={hasPhysicalCoords || localMobileCenter ? 12 : 10}
+                            options={{
+                              ...MAP_OPTIONS,
+                              gestureHandling: (isPhysicalEnabled && isSameAsPhysical) ? "none" : "greedy",
+                            }}
                             onLoad={function (map) {
                               mobileMapRef.current = map;
                             }}
@@ -1047,7 +1157,7 @@ export default function GeneralSettingsPage() {
                           >
                             {mobileCircleCenter && (
                               <CircleF
-                                key={`${travelRadius}:${mobileCenterLat}:${mobileCenterLng}`}
+                                key={`${travelRadius}:${mobileCircleCenter.lat}:${mobileCircleCenter.lng}`}
                                 center={mobileCircleCenter}
                                 radius={travelRadius * 1000}
                                 options={{
@@ -1162,32 +1272,7 @@ export default function GeneralSettingsPage() {
                     }}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="mobile_base_address"
-                    render={function ({ field }) {
-                      return (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel className="text-sm font-semibold">
-                            Mobile Service Center Address
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              className="h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                              placeholder="Used as center point for travel radius checks"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            If you do not have a physical salon, set your home
-                            or operating base address here.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
+
 
                   <FormField
                     control={form.control}

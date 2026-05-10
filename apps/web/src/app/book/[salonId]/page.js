@@ -52,9 +52,12 @@ function getAvailableFulfillmentTypes(salon) {
   if (!salon) return ["physical"];
 
   var types = [];
-  if (salon.is_physical === 1 && salon.has_physical_services !== false) types.push("physical");
-  if (salon.is_mobile === 1 && salon.has_mobile_services !== false) types.push("mobile");
-  if (salon.is_virtual === 1 && salon.has_virtual_services !== false) types.push("virtual");
+  if (salon.is_physical === 1 && salon.has_physical_services !== false)
+    types.push("physical");
+  if (salon.is_mobile === 1 && salon.has_mobile_services !== false)
+    types.push("mobile");
+  if (salon.is_virtual === 1 && salon.has_virtual_services !== false)
+    types.push("virtual");
 
   return types.length > 0 ? types : ["physical"];
 }
@@ -99,7 +102,7 @@ export default function BookingPage({ params }) {
     availableFulfillmentTypes.length === 1
       ? availableFulfillmentTypes[0]
       : null;
-      
+
   var shouldSkipLocationStep = !!singleFulfillmentType;
 
   // Auto-select single fulfillment type
@@ -109,7 +112,7 @@ export default function BookingPage({ params }) {
         setFulfillmentType(singleFulfillmentType);
       }
     },
-    [singleFulfillmentType, fulfillmentType]
+    [singleFulfillmentType, fulfillmentType],
   );
   var visibleSteps = shouldSkipLocationStep
     ? STEPS.filter(function (step) {
@@ -118,11 +121,14 @@ export default function BookingPage({ params }) {
     : STEPS;
 
   // Initialize step if we should skip location
-  useEffect(function() {
-    if (salon && shouldSkipLocationStep && currentStep === 0) {
-      setCurrentStep(1);
-    }
-  }, [salon, shouldSkipLocationStep, currentStep]);
+  useEffect(
+    function () {
+      if (salon && shouldSkipLocationStep && currentStep === 0) {
+        setCurrentStep(1);
+      }
+    },
+    [salon, shouldSkipLocationStep, currentStep],
+  );
 
   // Check for cancelled checkout redirect
   useEffect(
@@ -248,7 +254,18 @@ export default function BookingPage({ params }) {
               dateStr +
               "&services=" +
               encodeURIComponent(servicesParam) +
-              (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : ""),
+              (fulfillmentType ? "&fulfillmentType=" + fulfillmentType : "") +
+              // For mobile bookings, pass the client coordinates so the availability
+              // route applies the same travel feasibility filter it used in step 2.
+              // Without this, the returned slot list differs → valid slot appears gone.
+              (fulfillmentType === "mobile" &&
+              mobileLocationCoords?.lat &&
+              mobileLocationCoords?.lng
+                ? "&userLat=" +
+                  mobileLocationCoords.lat +
+                  "&userLng=" +
+                  mobileLocationCoords.lng
+                : ""),
           );
 
           if (res.ok) {
@@ -307,23 +324,32 @@ export default function BookingPage({ params }) {
       : 0;
 
   var travelFee = 0;
-  if (fulfillmentType === "mobile" && salon?.travel_fee_type && salon?.travel_fee_type !== "none") {
+  if (
+    fulfillmentType === "mobile" &&
+    salon?.travel_fee_type &&
+    salon?.travel_fee_type !== "none"
+  ) {
     if (salon.travel_fee_type === "fixed") {
       travelFee = parseFloat(salon.travel_fee_amount || 0);
-    } else if (
-      salon.travel_fee_type === "per_km" &&
-      mobileLocationCoords?.lat &&
-      mobileLocationCoords?.lng &&
-      salon.latitude &&
-      salon.longitude
-    ) {
-      var distance = calculateDistance(
-        parseFloat(salon.latitude),
-        parseFloat(salon.longitude),
-        mobileLocationCoords.lat,
-        mobileLocationCoords.lng
-      );
-      travelFee = parseFloat(salon.travel_fee_amount || 0) * distance;
+    } else if (salon.travel_fee_type === "per_km") {
+      var clientLat = Number(mobileLocationCoords?.lat);
+      var clientLng = Number(mobileLocationCoords?.lng);
+      var salonLat = Number(salon.latitude);
+      var salonLng = Number(salon.longitude);
+      if (
+        Number.isFinite(clientLat) &&
+        Number.isFinite(clientLng) &&
+        Number.isFinite(salonLat) &&
+        Number.isFinite(salonLng)
+      ) {
+        var distance = calculateDistance(
+          salonLat,
+          salonLng,
+          clientLat,
+          clientLng,
+        );
+        travelFee = parseFloat(salon.travel_fee_amount || 0) * distance;
+      }
     }
   }
   var discountAmount = appliedDiscount
@@ -418,7 +444,7 @@ export default function BookingPage({ params }) {
           selectedServices.every(function (s) {
             return s.staffId;
           });
-          
+
         return hasValidServices;
       case 2:
         return selectedDate && selectedTime;
@@ -801,7 +827,6 @@ export default function BookingPage({ params }) {
 
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
-
         {/* Error Alert */}
         {errorMsg && (
           <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -862,7 +887,7 @@ export default function BookingPage({ params }) {
                   selected={selectedServices}
                   onSelect={setSelectedServices}
                   fulfillmentType={fulfillmentType}
-                  onResetFulfillmentType={function() {
+                  onResetFulfillmentType={function () {
                     setFulfillmentType(null);
                     if (!shouldSkipLocationStep) {
                       setCurrentStep(0);
@@ -952,10 +977,14 @@ export default function BookingPage({ params }) {
                         <div className="py-2 border-b last:border-0">
                           <div className="flex justify-between">
                             <span className="font-medium">Travel Fee</span>
-                            <span>{formatCurrency(travelFee, salon?.currency)}</span>
+                            <span>
+                              {formatCurrency(travelFee, salon?.currency)}
+                            </span>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {salon?.travel_fee_type === "fixed" ? "Fixed location fee" : "Distance-based travel rate"}
+                            {salon?.travel_fee_type === "fixed"
+                              ? "Fixed location fee"
+                              : "Distance-based travel rate"}
                           </p>
                         </div>
                       )}
@@ -1150,7 +1179,8 @@ export default function BookingPage({ params }) {
                 <CardTitle className="text-lg">Booking Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {selectedServices.length > 0 ? (
+                {selectedServices.length > 0 ||
+                (fulfillmentType === "mobile" && travelFee > 0) ? (
                   <>
                     <div className="space-y-2">
                       {selectedServices.map(function (service) {
@@ -1177,16 +1207,28 @@ export default function BookingPage({ params }) {
                     </div>
 
                     <div className="border-t pt-4 space-y-1">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Duration</span>
-                        <span>{formatDuration(totalDuration)}</span>
-                      </div>
-                      {travelFee > 0 && (
-                        <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                          <span>Travel Fee</span>
-                          <span>{formatCurrency(travelFee, salon?.currency)}</span>
+                      {totalDuration > 0 && (
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Duration</span>
+                          <span>{formatDuration(totalDuration)}</span>
                         </div>
                       )}
+                      {fulfillmentType === "mobile" &&
+                        salon?.travel_fee_type &&
+                        salon.travel_fee_type !== "none" && (
+                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                            <span>Travel Fee</span>
+                            <span>
+                              {travelFee > 0
+                                ? formatCurrency(travelFee, salon?.currency)
+                                : salon.travel_fee_type === "per_km" &&
+                                    (!mobileLocationCoords?.lat ||
+                                      !salon.latitude)
+                                  ? "Calculated at checkout"
+                                  : formatCurrency(0, salon?.currency)}
+                            </span>
+                          </div>
+                        )}
                       {discountAmount > 0 && (
                         <>
                           <div className="flex justify-between text-sm text-muted-foreground">

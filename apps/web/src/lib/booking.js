@@ -487,10 +487,30 @@ export async function createSafeBooking({
   let travelBufferMinutes = 0;
   if (fulfillmentType === "mobile") {
     const [salonTbRows] = await pool.execute(
-      "SELECT travel_buffer_time FROM salons WHERE id = ? LIMIT 1",
+      "SELECT travel_buffer_time, travel_radius, latitude, longitude FROM salons WHERE id = ? LIMIT 1",
       [salonId],
     );
-    travelBufferMinutes = Number(salonTbRows[0]?.travel_buffer_time || 0);
+    const salonRow = salonTbRows[0];
+    travelBufferMinutes = Number(salonRow?.travel_buffer_time || 0);
+
+    if (serviceLat !== undefined && serviceLng !== undefined && serviceLat !== null && serviceLng !== null) {
+      if (salonRow?.travel_radius !== null && salonRow?.latitude && salonRow?.longitude) {
+        const { haversineDistanceKm } = await import("@/lib/geo");
+        const distance = haversineDistanceKm(
+          Number(salonRow.latitude),
+          Number(salonRow.longitude),
+          Number(serviceLat),
+          Number(serviceLng)
+        );
+        if (distance > salonRow.travel_radius) {
+          throw new BookingError(
+            "OUTSIDE_SERVICE_AREA",
+            `Sorry, this location is outside our service area (max ${salonRow.travel_radius}km).`,
+            400
+          );
+        }
+      }
+    }
   }
   const halfBuffer = Math.floor(travelBufferMinutes / 2);
 
@@ -1010,28 +1030,15 @@ export async function createSafeBooking({
         salonFeeRow.travel_fee_type &&
         salonFeeRow.travel_fee_type !== "none"
       ) {
-        if (salonFeeRow.travel_fee_type === "fixed") {
-          travelFeeAmount = parseFloat(salonFeeRow.travel_fee_amount || 0);
-        } else if (
-          salonFeeRow.travel_fee_type === "per_km" &&
-          serviceLat !== null &&
-          serviceLng !== null &&
-          salonFeeRow.latitude &&
-          salonFeeRow.longitude
-        ) {
-          const R = 6371; // km
-          const dLat = ((serviceLat - salonFeeRow.latitude) * Math.PI) / 180;
-          const dLon = ((serviceLng - salonFeeRow.longitude) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((salonFeeRow.latitude * Math.PI) / 180) *
-              Math.cos((serviceLat * Math.PI) / 180) *
-              Math.sin(dLon / 2) *
-              Math.sin(dLon / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const distance = R * c;
-          travelFeeAmount = parseFloat(salonFeeRow.travel_fee_amount || 0) * distance;
-        }
+        const { calculateTravelFee } = await import("@/lib/geo");
+        travelFeeAmount = calculateTravelFee(
+          salonFeeRow.travel_fee_type,
+          salonFeeRow.travel_fee_amount,
+          Number(salonFeeRow.latitude),
+          Number(salonFeeRow.longitude),
+          Number(serviceLat),
+          Number(serviceLng)
+        );
 
         if (travelFeeAmount > 0) {
           await conn.execute(

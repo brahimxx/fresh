@@ -227,15 +227,20 @@ export function ServiceFormDialog({
   );
 
   // Compute which staff are compatible with the CURRENT fulfillment selection.
-  // Staff must support ALL modes the service enables (not just one).
+  // Staff is compatible if they share AT LEAST ONE mode with the service (OR/intersection).
+  // e.g. a service with can_physical+can_mobile should accept staff who are physical-only.
   function getCompatibleStaffIds(staffList, canPhysical, canMobile, canVirtual) {
     if (!staffList) return [];
     return staffList
       .filter(function (member) {
-        if (canPhysical && !member.canPhysical) return false;
-        if (canMobile && !member.canMobile) return false;
-        if (canVirtual && !member.canVirtual) return false;
-        return true;
+        // If no mode is selected yet, all staff are eligible (don't block the form)
+        if (!canPhysical && !canMobile && !canVirtual) return true;
+        // Compatible = staff supports at least one of the same modes as the service
+        return (
+          (canPhysical && member.canPhysical) ||
+          (canMobile   && member.canMobile)   ||
+          (canVirtual  && member.canVirtual)
+        );
       })
       .map(function (m) { return m.id; });
   }
@@ -656,15 +661,15 @@ export function ServiceFormDialog({
                         var currentMobile = hasMultipleFulfillmentModes ? form.watch("can_mobile") : salonSupportsMobile;
                         var currentVirtual = hasMultipleFulfillmentModes ? form.watch("can_virtual") : salonSupportsVirtual;
                         
-                        // Staff must satisfy EVERY mode the service enables (AND logic, not OR).
+                        // Staff is compatible if they share AT LEAST ONE mode with the service.
                         // If nothing is selected yet, don't disable anyone.
                         var nothingSelected = !currentPhysical && !currentMobile && !currentVirtual;
                         var isCompatible =
                           nothingSelected ||
                           (
-                            (!currentPhysical || member.canPhysical) &&
-                            (!currentMobile   || member.canMobile) &&
-                            (!currentVirtual  || member.canVirtual)
+                            (currentPhysical && member.canPhysical) ||
+                            (currentMobile   && member.canMobile)   ||
+                            (currentVirtual  && member.canVirtual)
                           );
 
                         var isSelected = selectedStaffIds.includes(member.id);

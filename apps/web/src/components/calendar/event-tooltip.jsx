@@ -13,7 +13,7 @@ function notifySubscribers() {
   tooltipSubscribers.forEach(cb => cb());
 }
 import { format, isValid } from "date-fns";
-import { Clock, User, Scissors, FileText, CircleDot, AlertTriangle } from "lucide-react";
+import { Clock, User, Scissors, FileText, CircleDot, AlertTriangle, MapPin, Car, Store, Video } from "lucide-react";
 import { useSalon } from "@/providers/salon-provider";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDuration } from "@/lib/format";
@@ -21,33 +21,33 @@ import { formatCurrency, formatDuration } from "@/lib/format";
 var statusConfig = {
   pending: {
     label: "Pending",
-    dotColor: "bg-amber-500",
-    bgColor: "bg-amber-50/50 border border-amber-200",
-    textColor: "text-amber-600",
+    dotColor: "bg-yellow-500",
+    bgColor: "bg-yellow-500/10 border border-yellow-200/50",
+    textColor: "text-yellow-600 dark:text-yellow-400",
   },
   confirmed: {
     label: "Confirmed",
-    dotColor: "bg-slate-500",
-    bgColor: "bg-slate-50/50 border border-slate-200",
-    textColor: "text-slate-700",
+    dotColor: "bg-emerald-500",
+    bgColor: "bg-emerald-500/10 border border-emerald-200/50",
+    textColor: "text-emerald-600 dark:text-emerald-400",
   },
   completed: {
     label: "Completed",
-    dotColor: "bg-green-500",
-    bgColor: "bg-green-50/50 border border-green-200",
-    textColor: "text-green-600",
+    dotColor: "bg-blue-500",
+    bgColor: "bg-blue-500/10 border border-blue-200/50",
+    textColor: "text-blue-600 dark:text-blue-400",
   },
   cancelled: {
     label: "Cancelled",
     dotColor: "bg-red-500",
-    bgColor: "bg-red-50/50 border border-red-200",
-    textColor: "text-red-600",
+    bgColor: "bg-red-500/10 border border-red-200/50",
+    textColor: "text-red-600 dark:text-red-400",
   },
   no_show: {
     label: "No Show",
-    dotColor: "bg-orange-500",
-    bgColor: "bg-orange-50/50 border border-orange-200",
-    textColor: "text-orange-600",
+    dotColor: "bg-muted-foreground",
+    bgColor: "bg-muted border border-border",
+    textColor: "text-muted-foreground",
   },
 };
 
@@ -109,6 +109,9 @@ export function EventTooltip({ booking, children }) { var { salon } = useSalon()
         return sum + (parseFloat(s.price) || 0);
       }, 0)
       : null;
+      
+  var isMobile = booking.fulfillmentType === "mobile" || booking.fulfillment_type === "mobile";
+  var fulfillmentLabel = isMobile ? "Mobile (Client Location)" : (booking.fulfillmentType === "virtual" || booking.fulfillment_type === "virtual") ? "Virtual (Online)" : "In-Salon (Physical)";
 
   function handleMouseEnter(e) {
     clearTimeout(globalHideTimeout);
@@ -242,14 +245,36 @@ export function EventTooltip({ booking, children }) { var { salon } = useSalon()
                 >
                   {booking.status === 'pending' ? (
                     <span className="relative flex h-1.5 w-1.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                      <span className={"animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 " + status.dotColor}></span>
+                      <span className={"relative inline-flex rounded-full h-1.5 w-1.5 " + status.dotColor}></span>
                     </span>
                   ) : (
                     <span className={"w-1.5 h-1.5 rounded-full " + status.dotColor} />
                   )}
                   {status.label}
                 </span>
+              </div>
+
+              {/* Fulfillment & Location */}
+              <div className="flex flex-col gap-1.5 mb-3 px-3 py-2 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 text-xs">
+                  {isMobile ? (
+                    <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (booking.fulfillmentType === "virtual" || booking.fulfillment_type === "virtual") ? (
+                    <Video className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <Store className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="font-medium text-foreground">{fulfillmentLabel}</span>
+                </div>
+                {isMobile && (booking.serviceLocationAddress || booking.service_location_address) && (
+                  <div className="flex items-start gap-2 text-xs mt-0.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <span className="text-muted-foreground line-clamp-2">
+                      {booking.serviceLocationAddress || booking.service_location_address}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Time row */}

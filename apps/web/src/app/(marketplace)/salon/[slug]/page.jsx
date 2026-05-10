@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateSalonSlug } from "@/lib/utils";
 import { MapPin, Star, ChevronRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+
 
 // Hooks
 import {
@@ -23,6 +23,7 @@ import SalonNavigation from "@/components/marketplace/salon-navigation";
 import SalonServices from "@/components/marketplace/salon-services";
 import SalonReviews from "@/components/marketplace/salon-reviews";
 import SalonAbout from "@/components/marketplace/salon-about";
+import { SalonCard } from "@/components/marketplace/salon-card";
 import SalonLocation from "@/components/marketplace/salon-location";
 import SalonStickyBooking from "@/components/marketplace/salon-sticky-booking";
 
@@ -148,54 +149,16 @@ export default function SalonProfilePage({ params }) {
                   Explore more options in your area
                 </p>
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {salon.similar_salons.map((similar, idx) => (
-                  <Link
-                    key={idx}
-                    href={`/salon/${generateSalonSlug(similar)}`}
-                    className="block group h-full"
-                  >
-                    <Card className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-[2rem] overflow-hidden h-full flex flex-col">
-                      <div className="aspect-[4/3] relative overflow-hidden bg-muted shrink-0">
-                        {similar.cover_image_url ? (
-                          <img
-                            src={similar.cover_image_url}
-                            alt={similar.name}
-                            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700 ease-out"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                            No image
-                          </div>
-                        )}
-                        <div className="absolute top-4 right-4 bg-background/90 backdrop-blur tracking-wider font-bold text-xs uppercase px-3 py-1.5 rounded-full z-10 flex items-center shadow-sm">
-                          <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400 mr-1" />
-                          {similar.avg_rating}
-                        </div>
-                      </div>
-                      <CardContent className="p-6 space-y-4 bg-card flex-1 flex flex-col justify-between">
-                        <div>
-                          <h4 className="font-bold text-xl line-clamp-1 group-hover:text-primary transition-colors">
-                            {similar.name}
-                          </h4>
-                          <p className="text-muted-foreground font-medium flex items-center mt-1">
-                            <MapPin className="w-4 h-4 mr-1 opacity-70 shrink-0" />
-                            <span className="line-clamp-1 text-sm">
-                              {similar.address}, {similar.city}
-                            </span>
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between text-sm font-semibold pt-2">
-                          <span className="text-muted-foreground">
-                            {similar.review_count} Reviews
-                          </span>
-                          <span className="text-primary group-hover:translate-x-1 flex items-center transition-transform">
-                            View Profile <ChevronRight className="w-4 h-4 ml-0.5" />
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <SalonCard 
+                    key={idx} 
+                    salon={{ 
+                      ...similar, 
+                      rating: similar.avg_rating,
+                      category: salon.categories?.find((c) => c.is_primary)?.category_name || salon.categories?.[0]?.category_name
+                    }} 
+                  />
                 ))}
               </div>
             </div>

@@ -171,7 +171,8 @@ export function SalonMap({
   onToggleExpand = () => { },
   hoveredSalonId = null,
   onBoundsChange = null,
-  isMapSearch = false
+  isMapSearch = false,
+  isStatic = false
 }) {
   const mapRef = useRef(null);
   const isProgrammatic = useRef(false);
@@ -403,7 +404,10 @@ export function SalonMap({
           mapContainerStyle={MAP_CONTAINER_STYLE}
           center={center}
           zoom={DEFAULT_ZOOM}
-          options={MAP_OPTIONS}
+          options={{
+            ...MAP_OPTIONS,
+            ...(isStatic ? { gestureHandling: 'none', zoomControl: false } : {})
+          }}
           onLoad={onMapLoad}
           onDragEnd={handleBoundsChanged}
           onZoomChanged={handleBoundsChanged}
@@ -469,26 +473,30 @@ export function SalonMap({
       </div>
 
       {/* Expand/Shrink Toggle */}
-      <div className="absolute top-3 right-3 z-[1000]">
-        <button
-          className="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center hover:shadow-lg transition-all border border-black/5"
-          onClick={onToggleExpand}
-          title={isExpanded ? "Shrink map" : "Expand map"}
-        >
-          {isExpanded ? (
-            <Minimize2 className="h-4 w-4 text-gray-700" strokeWidth={2.5} />
-          ) : (
-            <Maximize2 className="h-4 w-4 text-gray-700" strokeWidth={2.5} />
-          )}
-        </button>
-      </div>
+      {!isStatic && (
+        <div className="absolute top-3 right-3 z-[1000]">
+          <button
+            className="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center hover:shadow-lg transition-all border border-black/5"
+            onClick={onToggleExpand}
+            title={isExpanded ? "Shrink map" : "Expand map"}
+          >
+            {isExpanded ? (
+              <Minimize2 className="h-4 w-4 text-gray-700" strokeWidth={2.5} />
+            ) : (
+              <Maximize2 className="h-4 w-4 text-gray-700" strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Salon count badge */}
-      <div className="absolute bottom-3 left-3 z-[1000]">
-        <div className="bg-white/90 backdrop-blur-md rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-md border border-black/5 text-gray-700">
-          📍 {salonsWithCoords.length} salons on map
+      {!isStatic && (
+        <div className="absolute bottom-3 left-3 z-[1000]">
+          <div className="bg-white/90 backdrop-blur-md rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-md border border-black/5 text-gray-700">
+            📍 {salonsWithCoords.length} salons on map
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

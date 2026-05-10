@@ -14,8 +14,10 @@ export async function GET(request, { params }) {
       `SELECT 
         s.id, s.name, s.description, s.logo_url, s.cover_image_url,
         s.address, s.city, s.state, s.postal_code, s.country,
+        s.latitude, s.longitude,
         s.phone, s.email, s.website, s.price_level,
         s.timezone, s.currency,
+        s.travel_fee_type, s.travel_fee_amount,
         AVG(r.rating) as rating,
         COUNT(DISTINCT r.id) as review_count,
         (
@@ -57,13 +59,30 @@ export async function GET(request, { params }) {
     // salon_amenities table doesn't exist in schema — return empty array
     const amenities = [];
 
-    const gallery = await query(
-      `SELECT id, image_url, is_cover
-       FROM salon_photos
+    // Primary source: salon_gallery (managed from dashboard, has display_order)
+    let gallery = await query(
+      `SELECT id, image_url, display_order
+       FROM salon_gallery
        WHERE salon_id = ?
-       ORDER BY is_cover DESC, id ASC`,
+       ORDER BY display_order ASC`,
       [id]
     );
+
+    // Fallback: if no gallery images, pull from legacy salon_photos table
+    if (gallery.length === 0) {
+      const legacyPhotos = await query(
+        `SELECT id, image_url, is_cover
+         FROM salon_photos
+         WHERE salon_id = ?
+         ORDER BY is_cover DESC, id ASC`,
+        [id]
+      );
+      gallery = legacyPhotos.map((p, idx) => ({
+        id: p.id,
+        image_url: p.image_url,
+        display_order: idx,
+      }));
+    }
 
     // Check if salon has a special closure today
     const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
@@ -84,7 +103,9 @@ export async function GET(request, { params }) {
       similar_salons = await query(
         `SELECT s.id, s.name, s.cover_image_url, s.city, s.address, s.currency,
                 COALESCE(AVG(r.rating), 0) as avg_rating,
-                COUNT(DISTINCT r.id) as review_count
+                COUNT(DISTINCT r.id) as review_count,
+                (SELECT image_url FROM salon_gallery sg WHERE sg.salon_id = s.id ORDER BY display_order ASC LIMIT 1) as new_gallery_cover,
+                (SELECT image_url FROM salon_photos sp WHERE sp.salon_id = s.id ORDER BY is_cover DESC, id ASC LIMIT 1) as legacy_gallery_cover
          FROM salons s
          JOIN salon_categories sc ON sc.salon_id = s.id
          LEFT JOIN reviews r ON r.salon_id = s.id AND r.status = 'approved'
@@ -111,6 +132,7 @@ export async function GET(request, { params }) {
         categories_json: undefined,
         similar_salons: similar_salons.map(s => ({
           ...s,
+          cover_image_url: s.new_gallery_cover || s.legacy_gallery_cover || s.cover_image_url,
           avg_rating: parseFloat(s.avg_rating).toFixed(1),
           review_count: parseInt(s.review_count) || 0
         })),
@@ -121,10 +143,9 @@ export async function GET(request, { params }) {
         is_closed_today: !!todayClosure,
         closure_reason: todayClosure?.reason || null,
         amenities: amenities.map(a => a.name),
-        gallery: gallery.map((g, index) => ({
+        gallery: gallery.map((g) => ({
           image_url: g.image_url,
-          display_order: index,
-          is_cover: g.is_cover === 1
+          display_order: g.display_order,
         }))
       }
     };

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Search, Plus, User, Check, UserCog } from "lucide-react";
+import { CalendarIcon, Search, Plus, User, Check, UserCog, MapPin, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDuration } from "@/lib/format";
+import { calculateTravelFee } from "@/lib/geo";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LocationModal } from "@/components/ui/location-modal";
 
 import { useSalon } from "@/providers/salon-provider";
 import { useServices } from "@/hooks/use-services";
@@ -79,6 +81,13 @@ export function BookingFormDialog({
   var [staffError, setStaffError] = useState("");
   var [travelWarning, setTravelWarning] = useState("");
   var [pendingBookingData, setPendingBookingData] = useState(null);
+  // Mobile location state (captures real GPS coords via LocationModal)
+  var [mobileCoords, setMobileCoords] = useState(null);
+  var [locationModalOpen, setLocationModalOpen] = useState(false);
+  // Real availability slots from the same API the widget uses
+  var [availableSlots, setAvailableSlots] = useState([]);
+  var [slotsLoading, setSlotsLoading] = useState(false);
+  var [slotsError, setSlotsError] = useState("");
 
   var { data: services, isLoading: servicesLoading } = useServices(salonId);
   var { data: staff, isLoading: staffLoading } = useStaff(salonId);
@@ -116,7 +125,7 @@ export function BookingFormDialog({
     if (open) {
       // Use initialBooking start time if available, otherwise fallback to initialDate or now
       var baseDateStr = initialBooking 
-        ? (initialBooking.start_datetime || initialBooking.startDateTime || initialBooking.start || initialBooking.startTime)
+        ? (initialBooking.startDatetime || initialBooking.start_datetime || initialBooking.startDateTime || initialBooking.start || initialBooking.startTime)
         : initialDate;
         
       var dateObj = baseDateStr ? new Date(typeof baseDateStr === 'string' ? baseDateStr.replace(' ', 'T') : baseDateStr) : new Date();
@@ -183,6 +192,8 @@ export function BookingFormDialog({
           notes: initialBooking.notes || "",
           date: dateObj,
           time: timeString,
+          fulfillmentType: initialBooking.fulfillmentType || initialBooking.fulfillment_type || "physical",
+          serviceLocationAddress: initialBooking.serviceLocationAddress || initialBooking.service_location_address || "",
         });
 
         if (clientId) {
@@ -208,6 +219,8 @@ export function BookingFormDialog({
           notes: "",
           date: dateObj,
           time: timeString,
+          fulfillmentType: "physical",
+          serviceLocationAddress: "",
         });
         setSelectedClient(null);
         setStaffAssignments({});
@@ -219,11 +232,104 @@ export function BookingFormDialog({
       setTimeError("");
       setFormError("");
       setStaffError("");
+      
+      if (initialBooking?.serviceLat && initialBooking?.serviceLng) {
+        setMobileCoords({ lat: initialBooking.serviceLat, lng: initialBooking.serviceLng });
+      } else {
+        setMobileCoords(null);
+      }
     }
   }, [open, initialDate, initialBooking, form]);
 
   var watchDate = form.watch("date");
   var watchServiceIds = form.watch("serviceIds") || [];
+  var watchFulfillmentType = form.watch("fulfillmentType");
+
+  // Fetch real availability slots whenever date, services, fulfillment, or mobile coords change
+  useEffect(function () {
+    if (!watchDate || watchServiceIds.length === 0 || !salonId) {
+      setAvailableSlots([]);
+      return;
+    }
+    // Build the services param: "serviceId:any" for each selected service
+    var servicesParam = watchServiceIds.map(function (sid) { return sid + ":any"; }).join(",");
+    var dateStr = format(watchDate, "yyyy-MM-dd");
+    var qsParams = {
+      date: dateStr,
+      services: servicesParam,
+      fulfillmentType: watchFulfillmentType || "physical",
+    };
+    
+    if (initialBooking?.id) {
+      qsParams.excludeBookingId = initialBooking.id;
+    }
+    
+    var qs = new URLSearchParams(qsParams);
+    
+    // Add mobile location coords if available
+    if (watchFulfillmentType === 'mobile' && mobileCoords?.lat && mobileCoords?.lng) {
+      qs.set("userLat", String(mobileCoords.lat));
+      qs.set("userLng", String(mobileCoords.lng));
+    }
+    setSlotsLoading(true);
+    setSlotsError("");
+    fetch("/api/widget/" + salonId + "/availability?" + qs.toString())
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.data?.closed) {
+          setAvailableSlots([]);
+          setSlotsError(data.data.message || "Salon is closed on this date.");
+        } else {
+          var slots = (data.data?.slots || []).map(function (s) {
+            return s.startTime.substring(11, 16); // "HH:MM"
+          });
+          setAvailableSlots(slots);
+          // Clear time if current selection is no longer in the new list
+          var current = form.getValues("time");
+          if (current && !slots.includes(current)) {
+            form.setValue("time", "");
+          }
+        }
+      })
+      .catch(function () { setSlotsError("Could not load availability."); })
+      .finally(function () { setSlotsLoading(false); });
+  }, [watchDate, watchServiceIds.join(","), watchFulfillmentType, mobileCoords, salonId]);
+
+  // Deselect services incompatible with the current fulfillment type
+  useEffect(function () {
+    if (!services || watchServiceIds.length === 0 || !watchFulfillmentType) return;
+    var incompatible = watchServiceIds.filter(function (sid) {
+      var svc = services.find(function (s) { return String(s.id) === sid; });
+      if (!svc) return false;
+      
+      // 1. Check if the service itself supports the fulfillment type
+      if (watchFulfillmentType === 'mobile' && !svc.canMobile) return true;
+      if (watchFulfillmentType === 'physical' && !svc.canPhysical) return true;
+      if (watchFulfillmentType === 'virtual' && !svc.canVirtual) return true;
+
+      // 2. Check if there is at least one staff who can perform it AND supports the fulfillment type
+      var capableStaff = getQualifiedStaffForService(svc.id);
+      var hasStaffForFulfillment = capableStaff.some(function(member) {
+        if (watchFulfillmentType === 'mobile') return member.canMobile;
+        if (watchFulfillmentType === 'physical') return member.canPhysical;
+        if (watchFulfillmentType === 'virtual') return member.canVirtual;
+        return false;
+      });
+
+      if (!hasStaffForFulfillment) return true;
+
+      return false;
+    });
+    if (incompatible.length > 0) {
+      var next = watchServiceIds.filter(function (sid) { return !incompatible.includes(sid); });
+      form.setValue('serviceIds', next, { shouldValidate: true });
+      setStaffAssignments(function (prev) {
+        var copy = Object.assign({}, prev);
+        incompatible.forEach(function (sid) { delete copy[sid]; });
+        return copy;
+      });
+    }
+  }, [watchFulfillmentType, staff]);
 
   // Helper: get staff qualified for a specific service
   function getQualifiedStaffForService(serviceId) {
@@ -302,6 +408,10 @@ export function BookingFormDialog({
               serviceIds: data.serviceIds,
               staffAssignments: staffAssignments,
               notes: data.notes || undefined,
+              fulfillmentType: data.fulfillmentType,
+              serviceLocationAddress: data.serviceLocationAddress || undefined,
+              serviceLocationLat: (data.fulfillmentType === "mobile" && mobileCoords?.lat) ? mobileCoords.lat : undefined,
+              serviceLocationLng: (data.fulfillmentType === "mobile" && mobileCoords?.lng) ? mobileCoords.lng : undefined,
             },
           });
           onOpenChange(false);
@@ -371,7 +481,7 @@ export function BookingFormDialog({
 
       // End time is computed server-side from DB service durations; never sent by client.
       await createBooking.mutateAsync({
-        salonId: salonId,
+        salonId: salon.id,
         clientId: clientId,
         staffId: Object.values(staffAssignments)[0] || "ANYONE_VIRTUAL",
         serviceIds: data.serviceIds,
@@ -381,6 +491,10 @@ export function BookingFormDialog({
         notes: data.notes || undefined,
         fulfillmentType: data.fulfillmentType,
         serviceLocationAddress: data.serviceLocationAddress || undefined,
+        // Pass real GPS coordinates so createSafeBooking can store service_lat/service_lng
+        // and use them for travel-time calculations in future availability checks.
+        serviceLocationLat: (data.fulfillmentType === "mobile" && mobileCoords?.lat) ? mobileCoords.lat : undefined,
+        serviceLocationLng: (data.fulfillmentType === "mobile" && mobileCoords?.lng) ? mobileCoords.lng : undefined,
         forceOverride: isOverride,
       });
 
@@ -460,19 +574,12 @@ export function BookingFormDialog({
     submitBooking(data, false);
   }
 
-  // Generate time slots
-  var timeSlots = [];
-  for (var h = 7; h < 21; h++) {
-    for (var m = 0; m < 60; m += 15) {
-      var hour = h.toString().padStart(2, "0");
-      var minute = m.toString().padStart(2, "0");
-      timeSlots.push(hour + ":" + minute);
-    }
-  }
+  // Strict availability matching: only show actual available slots returned by the API
+  var timeSlots = availableSlots;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl lg:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{isReschedule ? "Reschedule Booking" : "New Booking"}</DialogTitle>
           <DialogDescription>
@@ -496,7 +603,9 @@ export function BookingFormDialog({
               {formError}
             </div>
           )}
-          {/* Client Selection */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+{/* Client Selection */}
           <div className="space-y-2">
             <Label>Client</Label>
             {isReschedule ? (
@@ -658,7 +767,180 @@ export function BookingFormDialog({
             <p className="text-sm text-destructive -mt-2">{clientError}</p>
           )}
 
-          {/* Service Selection */}
+          {/* Fulfillment Type */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Fulfillment Type</Label>
+              <Select
+                value={form.watch("fulfillmentType")}
+                onValueChange={function (val) {
+                  form.setValue("fulfillmentType", val);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="physical">In-Salon (Physical)</SelectItem>
+                  <SelectItem value="mobile">Mobile (Client Location)</SelectItem>
+                  <SelectItem value="virtual">Virtual (Online)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {form.watch("fulfillmentType") === "mobile" && (
+              <div className="space-y-2">
+                <Label>Client Address *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    placeholder="Click to set client location..."
+                    value={form.watch("serviceLocationAddress") || ""}
+                    className="flex-1 cursor-pointer"
+                    onClick={function () { setLocationModalOpen(true); }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={function () { setLocationModalOpen(true); }}
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+                {mobileCoords && (
+                  <p className="text-xs text-muted-foreground">
+                    📍 Location captured — travel time will be calculated automatically.
+                  </p>
+                )}
+                <LocationModal
+                  open={locationModalOpen}
+                  onOpenChange={setLocationModalOpen}
+                  initialAddress={form.watch("serviceLocationAddress") || ""}
+                  initialCoords={mobileCoords}
+                  onLocationSubmit={function (address, lat, lng) {
+                    form.setValue("serviceLocationAddress", address);
+                    setMobileCoords({ lat: Number(lat), lng: Number(lng) });
+                    setLocationModalOpen(false);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Date & Time */}
+          <div className="space-y-4">
+            {isClosedDay && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive font-medium flex gap-2">
+                <span>🚫</span>
+                <span>
+                  {closureMessage || "The salon is closed on this date."}
+                </span>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      (!watchServiceIds.length || !watchFulfillmentType) && "opacity-50 cursor-not-allowed"
+                    )}
+                    disabled={!watchServiceIds.length || !watchFulfillmentType}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.watch("date")
+                      ? format(form.watch("date"), "PPP")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={form.watch("date")}
+                    onSelect={function (date) {
+                      form.setValue("date", date);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Time *</Label>
+              {slotsLoading ? (
+                <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/30">
+                  <Clock className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Checking availability...</span>
+                </div>
+              ) : slotsError ? (
+                <div className="text-sm text-destructive px-1">{slotsError}</div>
+              ) : (
+                <Select
+                  value={form.watch("time")}
+                  onValueChange={function (val) {
+                    form.setValue("time", val);
+                    setTimeError("");
+                  }}
+                  disabled={!watchServiceIds.length || !watchFulfillmentType || timeSlots.length === 0}
+                >
+                  <SelectTrigger className={timeError ? "border-destructive" : ""}>
+                    <SelectValue placeholder={timeSlots.length === 0 && watchServiceIds.length > 0 && watchFulfillmentType ? "No slots available" : "Select time"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea className="h-48">
+                      {timeSlots.map(function (slot) {
+                        return (
+                          <SelectItem key={slot} value={slot}>
+                            {slot}
+                          </SelectItem>
+                        );
+                      })}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
+              )}
+              {form.formState.errors.time && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.time.message}
+                </p>
+              )}
+              {timeError && (
+                <p className="text-sm text-destructive">{timeError}</p>
+              )}
+            </div>
+            {(!watchServiceIds.length || !watchFulfillmentType) ? (
+              <p className="col-span-2 text-xs text-muted-foreground italic mt-1">
+                Select at least one service and a fulfillment type to check availability and choose a time.
+              </p>
+            ) : timeSlots.length === 0 && !slotsLoading && !slotsError ? (
+              <div className="col-span-2 p-3 mt-2 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm rounded-lg flex gap-2">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <p>
+                  There are no available time slots on this date. Please select a different date, or adjust your selected services and fulfillment type.
+                </p>
+              </div>
+            ) : null}
+          </div>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              placeholder="Any special requests or notes..."
+              {...form.register("notes")}
+            />
+          </div>
+
+                      </div>
+            <div className="space-y-4">
+{/* Service Selection */}
           <div className="space-y-2">
             <Label>Services *</Label>
             {servicesLoading ? (
@@ -667,9 +949,30 @@ export function BookingFormDialog({
               <>
                 <ScrollArea className="h-52 rounded-md border">
                   <div className="p-1">
-                    {services.map(function (service) {
+                    {services.filter(function (service) {
+                      // 1. Service must support the fulfillment type
+                      if (watchFulfillmentType === 'mobile' && !service.canMobile) return false;
+                      if (watchFulfillmentType === 'physical' && !service.canPhysical) return false;
+                      if (watchFulfillmentType === 'virtual' && !service.canVirtual) return false;
+
+                      // 2. Hide services with no assigned staff
+                      var ids = service.staffIds || service.staff_ids || [];
+                      if (!Array.isArray(ids) || ids.length === 0) return false;
+
+                      // 3. Must have at least one staff who can perform it AND supports the fulfillment type
+                      var capableStaff = getQualifiedStaffForService(service.id);
+                      var hasStaffForFulfillment = capableStaff.some(function(member) {
+                        if (watchFulfillmentType === 'mobile') return member.canMobile;
+                        if (watchFulfillmentType === 'physical') return member.canPhysical;
+                        if (watchFulfillmentType === 'virtual') return member.canVirtual;
+                        return false;
+                      });
+
+                      return hasStaffForFulfillment;
+                    }).map(function (service) {
                       var sid = String(service.id);
                       var isSelected = watchServiceIds.includes(sid);
+                      
                       return (
                         <button
                           key={service.id}
@@ -678,8 +981,7 @@ export function BookingFormDialog({
                             var next = isSelected
                               ? watchServiceIds.filter(function (x) { return x !== sid; })
                               : [...watchServiceIds, sid];
-                            form.setValue("serviceIds", next, { shouldValidate: true });
-                            // Manage per-service staff assignments
+                            form.setValue('serviceIds', next, { shouldValidate: true });
                             if (isSelected) {
                               setStaffAssignments(function(prev) {
                                 var copy = Object.assign({}, prev);
@@ -688,21 +990,21 @@ export function BookingFormDialog({
                               });
                             } else {
                               setStaffAssignments(function(prev) {
-                                return Object.assign({}, prev, { [sid]: "ANYONE_VIRTUAL" });
+                                return Object.assign({}, prev, { [sid]: 'ANYONE_VIRTUAL' });
                               });
                             }
-                            setStaffError("");
+                            setStaffError('');
                           }}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors",
+                            'flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors',
                             isSelected
-                              ? "bg-primary text-primary-foreground"
-                              : "hover:bg-accent hover:text-accent-foreground"
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-accent hover:text-accent-foreground'
                           )}
                         >
                           <span className={cn(
-                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
-                            isSelected ? "border-primary-foreground bg-primary-foreground/20" : "border-muted-foreground"
+                            'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
+                            isSelected ? 'border-primary-foreground bg-primary-foreground/20' : 'border-muted-foreground'
                           )}>
                             {isSelected && <Check className="h-3 w-3" />}
                           </span>
@@ -711,7 +1013,7 @@ export function BookingFormDialog({
                             {formatDuration(service.duration_minutes || service.duration)}
                             {parseFloat(service.price) > 0
                               ? ` · ${formatCurrency(service.price, salonCurrency)}`
-                              : ""}
+                              : ''}
                           </span>
                         </button>
                       );
@@ -805,124 +1107,83 @@ export function BookingFormDialog({
             </div>
           )}
 
-          {/* Date & Time */}
-          <div className="space-y-4">
-            {isClosedDay && (
-              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive font-medium flex gap-2">
-                <span>🚫</span>
+          {/* Booking Summary */}
+          {watchServiceIds.length > 0 && services && (
+            <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+              <h4 className="font-medium text-sm">Booking Summary</h4>
+              <div className="space-y-1">
+                {watchServiceIds.map(function(sid) {
+                  var svc = services.find(function(s) { return String(s.id) === sid; });
+                  if (!svc) return null;
+                  return (
+                    <div key={sid} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{svc.name}</span>
+                      <span>
+                        {parseFloat(svc.price) > 0 ? formatCurrency(svc.price, salonCurrency) : 'Free'}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(function() {
+                  var travelFee = 0;
+                  if (watchFulfillmentType === 'mobile' && salon && mobileCoords) {
+                    travelFee = calculateTravelFee(
+                      salon.travel_fee_type,
+                      salon.travel_fee_amount,
+                      Number(salon.latitude),
+                      Number(salon.longitude),
+                      mobileCoords.lat,
+                      mobileCoords.lng
+                    );
+                  }
+                  if (travelFee > 0) {
+                    return (
+                      <div className="flex justify-between text-sm text-muted-foreground mt-1 pt-1 border-t border-dashed">
+                        <span>Travel Fee</span>
+                        <span>{formatCurrency(travelFee, salonCurrency)}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+              <div className="pt-2 mt-2 border-t flex justify-between font-medium">
+                <span>Total</span>
                 <span>
-                  {closureMessage || "The salon is closed on this date. You can still force-book if needed."}
+                  {(function() {
+                    var serviceTotal = watchServiceIds.reduce(function(acc, sid) {
+                      var svc = services.find(function(s) { return String(s.id) === sid; });
+                      return acc + (svc ? parseFloat(svc.price) : 0);
+                    }, 0);
+                    
+                    var travelFee = 0;
+                    if (watchFulfillmentType === 'mobile' && salon && mobileCoords) {
+                      travelFee = calculateTravelFee(
+                        salon.travel_fee_type,
+                        salon.travel_fee_amount,
+                        Number(salon.latitude),
+                        Number(salon.longitude),
+                        mobileCoords.lat,
+                        mobileCoords.lng
+                      );
+                    }
+                    
+                    return formatCurrency(serviceTotal + travelFee, salonCurrency);
+                  })()}
                 </span>
               </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Date *</Label>
-                <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.watch("date")
-                      ? format(form.watch("date"), "PPP")
-                      : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={form.watch("date")}
-                    onSelect={function (date) {
-                      form.setValue("date", date);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Time *</Label>
-              <Select
-                value={form.watch("time")}
-                onValueChange={function (val) {
-                  form.setValue("time", val);
-                  setTimeError(""); // Clear custom error when time changes
-                }}
-              >
-                <SelectTrigger
-                  className={timeError ? "border-destructive" : ""}
-                >
-                  <SelectValue placeholder="Select time" />
-                </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="h-48">
-                    {timeSlots.map(function (slot) {
-                      return (
-                        <SelectItem key={slot} value={slot}>
-                          {slot}
-                        </SelectItem>
-                      );
-                    })}
-                  </ScrollArea>
-                </SelectContent>
-              </Select>
-              {form.formState.errors.time && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.time.message}
-                </p>
-              )}
-              {timeError && (
-                <p className="text-sm text-destructive">{timeError}</p>
-              )}
-            </div>
-          </div>
-          </div>
-
-          {/* Fulfillment Type */}
-          {!isReschedule && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Fulfillment Type</Label>
-                <Select
-                  value={form.watch("fulfillmentType")}
-                  onValueChange={function (val) {
-                    form.setValue("fulfillmentType", val);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="physical">In-Salon (Physical)</SelectItem>
-                    <SelectItem value="mobile">Mobile (Client Location)</SelectItem>
-                    <SelectItem value="virtual">Virtual (Online)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="text-xs text-muted-foreground text-right">
+                Duration: {formatDuration(
+                  watchServiceIds.reduce(function(acc, sid) {
+                    var svc = services.find(function(s) { return String(s.id) === sid; });
+                    return acc + (svc ? parseInt(svc.duration_minutes || svc.duration) : 0);
+                  }, 0)
+                )}
               </div>
-
-              {form.watch("fulfillmentType") === "mobile" && (
-                <div className="space-y-2">
-                  <Label>Client Address *</Label>
-                  <Input
-                    placeholder="Enter full address for travel calculation..."
-                    {...form.register("serviceLocationAddress")}
-                  />
-                </div>
-              )}
             </div>
           )}
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              placeholder="Any special requests or notes..."
-              {...form.register("notes")}
-            />
+                      </div>
           </div>
 
           <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0 items-end">

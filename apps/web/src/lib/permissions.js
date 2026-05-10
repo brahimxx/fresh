@@ -114,6 +114,12 @@ export const PERMISSION_KEYS = {
     category: 'Settings',
     roleDefault: (role) => role === 'owner',
   },
+  gallery: {
+    label: 'Manage gallery',
+    description: 'Upload, reorder, and delete salon gallery images',
+    category: 'Management',
+    roleDefault: (role) => hasMinRole(role, 'manager'),
+  },
 };
 
 // ─── Core resolution function ──────────────────────────────────────────────
@@ -184,6 +190,7 @@ const SIDEBAR_PERMISSION_KEY = {
   Marketing: 'marketing',
   Reports: 'reports',
   Reviews: null,             // always visible (content is scoped)
+  Gallery: 'gallery',
   Support: null,             // always visible
   Settings: null,            // always visible (sub-pages are filtered)
 };
@@ -253,6 +260,7 @@ const PAGE_PERMISSION_KEY = {
   marketing: 'marketing',
   reports: 'reports',
   reviews: null,          // always accessible (content is scoped)
+  gallery: 'gallery',
   support: null,          // always accessible
   settings: null,         // base settings; sub-pages have own checks
 };
@@ -310,4 +318,9 @@ export function canAddLocation(staffRole, customPermissions) {
 /** Can the user access the danger zone (delete salon)? */
 export function canAccessDangerZone(staffRole) {
   return staffRole === 'owner';
+}
+
+/** Can the user manage the salon gallery? */
+export function canManageGallery(staffRole, customPermissions) {
+  return resolvePermission(staffRole, customPermissions, 'gallery');
 }

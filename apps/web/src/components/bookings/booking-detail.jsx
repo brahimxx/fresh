@@ -54,27 +54,27 @@ import { formatDuration } from "@/lib/format";
 var STATUS_CONFIG = {
   pending: {
     label: "Pending",
-    color: "bg-amber-50/50 text-amber-600 border-amber-200",
+    color: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-200/50",
     icon: Clock,
   },
   confirmed: {
     label: "Confirmed",
-    color: "bg-slate-50/50 text-slate-700 border-slate-200",
+    color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50",
     icon: Check,
   },
   completed: {
     label: "Completed",
-    color: "bg-green-50/50 text-green-600 border-green-200",
+    color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50",
     icon: Check,
   },
   cancelled: {
     label: "Cancelled",
-    color: "bg-red-50/50 text-red-600 border-red-200",
+    color: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50",
     icon: XCircle,
   },
   no_show: {
     label: "No Show",
-    color: "bg-orange-50/50 text-orange-600 border-orange-200",
+    color: "bg-muted text-muted-foreground border-border",
     icon: AlertCircle,
   },
 };
@@ -98,10 +98,10 @@ export function BookingDetailSheet({
   var StatusIcon = statusConfig.icon;
 
   var startTime = new Date(
-    (booking.start_datetime || booking.startDateTime || "").replace(" ", "T"),
+    (booking.startDatetime || booking.start_datetime || booking.startDateTime || "").replace(" ", "T"),
   );
   var endTime = new Date(
-    (booking.end_datetime || booking.endDateTime || "").replace(" ", "T"),
+    (booking.endDatetime || booking.end_datetime || booking.endDateTime || "").replace(" ", "T"),
   );
 
   // Check for invalid dates

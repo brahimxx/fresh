@@ -168,6 +168,9 @@ export async function GET(request) {
         status: b.status,
         source: b.source,
         fulfillmentType: b.fulfillment_type || 'physical',
+        serviceLocationAddress: b.service_location_address,
+        serviceLat: b.service_lat ? parseFloat(b.service_lat) : null,
+        serviceLng: b.service_lng ? parseFloat(b.service_lng) : null,
         travelFeeAmount: parseFloat(b.travel_fee_amount || 0),
         travelDistanceKm: b.travel_distance_km ? parseFloat(b.travel_distance_km) : null,
         totalPrice: b.payment_amount !== null && b.payment_amount !== undefined ? parseFloat(b.payment_amount) : computedTotal,
@@ -227,6 +230,8 @@ export async function POST(request) {
       // Fulfillment fields (optional — defaults to physical if omitted)
       fulfillmentType = 'physical',
       serviceLocationAddress = null,
+      serviceLocationLat = null,
+      serviceLocationLng = null,
       clientTimezone = null,
       virtualMeetingLink = null,
       forceOverride = false,
@@ -389,6 +394,8 @@ export async function POST(request) {
       // Fulfillment params — passed through to booking row and booking_travel_fees
       fulfillmentType,
       serviceLocationAddress,
+      serviceLat: serviceLocationLat,
+      serviceLng: serviceLocationLng,
       clientTimezone,
       virtualMeetingLink,
       forceOverride,

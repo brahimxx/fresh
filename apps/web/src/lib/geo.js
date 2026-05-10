@@ -65,3 +65,17 @@ export function haversineDistanceKm(lat1, lng1, lat2, lng2) {
 export function isValidCoordinatePair(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng);
 }
+
+export function calculateTravelFee(type, amount, salonLat, salonLng, clientLat, clientLng) {
+  if (type === "fixed") {
+    return parseFloat(amount || 0);
+  } else if (
+    type === "per_km" &&
+    isValidCoordinatePair(salonLat, salonLng) &&
+    isValidCoordinatePair(clientLat, clientLng)
+  ) {
+    var dist = haversineDistanceKm(salonLat, salonLng, clientLat, clientLng);
+    return parseFloat(amount || 0) * dist;
+  }
+  return 0;
+}

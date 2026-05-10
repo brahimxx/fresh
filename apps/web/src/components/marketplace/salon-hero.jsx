@@ -1,16 +1,20 @@
 import Link from "next/link";
-import { useState } from "react";
-import { 
-  Share2, 
-  Heart, 
-  MapPin, 
-  Star, 
-  Calendar, 
-  Phone, 
+import { useState, useCallback, useEffect } from "react";
+import {
+  Share2,
+  Heart,
+  MapPin,
+  Star,
+  Calendar,
+  Phone,
   Clock,
   Grid3X3,
   ArrowLeft,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Images,
+  Camera,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,21 +24,13 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  DialogHeader,
-  DialogClose
+  DialogClose,
 } from "@/components/ui/dialog";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 
 export default function SalonHero({ salon, servicesCount = 0 }) {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  const [viewMode, setViewMode] = useState("grid"); // "grid" | "carousel"
-  const [carouselStartIndex, setCarouselStartIndex] = useState(0);
+  const [viewMode, setViewMode] = useState("grid");
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const galleryImages =
     salon?.gallery?.length > 0
@@ -49,7 +45,7 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
     }
     if (!hours || hours.length === 0)
       return { label: "Closed", color: "bg-red-500" };
-    
+
     const now = new Date();
     const dayOfWeek = now.getDay();
     const currentDay = hours.find((h) => h.day_of_week === dayOfWeek);
@@ -76,68 +72,182 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
 
   const status = getStatus(salon?.business_hours);
 
-  const openGallery = (mode = "grid", index = 0) => {
+  const openGallery = useCallback((mode = "grid", index = 0) => {
     setViewMode(mode);
-    setCarouselStartIndex(index);
+    setActiveIndex(index);
     setIsGalleryOpen(true);
-  };
+  }, []);
 
+  const goNext = useCallback(() => {
+    setActiveIndex((i) => (i + 1) % galleryImages.length);
+  }, [galleryImages.length]);
+
+  const goPrev = useCallback(() => {
+    setActiveIndex((i) => (i - 1 + galleryImages.length) % galleryImages.length);
+  }, [galleryImages.length]);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!isGalleryOpen || viewMode !== "carousel") return;
+    const handler = (e) => {
+      if (e.key === "ArrowRight") goNext();
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "Escape") setIsGalleryOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isGalleryOpen, viewMode, goNext, goPrev]);
+
+  // ─── Inline Gallery Layouts ──────────────────────────────────────────────
   const renderInlineGallery = () => {
     if (galleryImages.length === 0) return null;
-    
+
     if (galleryImages.length === 1) {
       return (
-        <div 
-          className="mt-10 rounded-[2rem] overflow-hidden cursor-pointer h-[300px] sm:h-[400px] w-full relative group shadow-sm border border-border"
-          onClick={() => openGallery("carousel", 0)}
-        >
-           <img 
-              src={galleryImages[0]} 
+        <div className="mt-8 md:mt-10">
+          <div
+            className="rounded-2xl md:rounded-3xl overflow-hidden cursor-pointer h-[260px] sm:h-[360px] md:h-[420px] w-full relative group shadow-md"
+            onClick={() => openGallery("carousel", 0)}
+          >
+            <img
+              src={galleryImages[0]}
               alt={salon.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" 
+              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <ShowAllButton count={1} onClick={() => openGallery("grid", 0)} />
+          </div>
         </div>
       );
     }
-  
-    // Layout for 2+ images: First image large, next 3 small.
-    const displayCount = Math.min(galleryImages.length, 4);
-    const remainingCount = galleryImages.length - displayCount;
-  
+
+    if (galleryImages.length === 2) {
+      return (
+        <div className="mt-8 md:mt-10 grid grid-cols-2 gap-2 md:gap-3 h-[260px] sm:h-[360px] md:h-[420px]">
+          {galleryImages.slice(0, 2).map((img, idx) => (
+            <GalleryCell
+              key={idx}
+              src={img}
+              alt={`${salon.name} photo ${idx + 1}`}
+              className={idx === 0 ? "rounded-l-2xl md:rounded-l-3xl" : "rounded-r-2xl md:rounded-r-3xl"}
+              onClick={() => openGallery("carousel", idx)}
+            />
+          ))}
+          <ShowAllButton count={2} onClick={() => openGallery("grid", 0)} />
+        </div>
+      );
+    }
+
+    if (galleryImages.length === 3) {
+      return (
+        <div className="mt-8 md:mt-10 grid grid-cols-4 grid-rows-2 gap-2 md:gap-3 h-[260px] sm:h-[360px] md:h-[420px]">
+          <GalleryCell
+            src={galleryImages[0]}
+            alt={`${salon.name} photo 1`}
+            className="col-span-2 row-span-2 rounded-l-2xl md:rounded-l-3xl"
+            onClick={() => openGallery("carousel", 0)}
+          />
+          <GalleryCell
+            src={galleryImages[1]}
+            alt={`${salon.name} photo 2`}
+            className="col-span-2 rounded-tr-2xl md:rounded-tr-3xl"
+            onClick={() => openGallery("carousel", 1)}
+          />
+          <GalleryCell
+            src={galleryImages[2]}
+            alt={`${salon.name} photo 3`}
+            className="col-span-2 rounded-br-2xl md:rounded-br-3xl"
+            onClick={() => openGallery("carousel", 2)}
+          />
+          <ShowAllButton count={3} onClick={() => openGallery("grid", 0)} />
+        </div>
+      );
+    }
+
+    if (galleryImages.length === 4) {
+      return (
+        <div className="mt-8 md:mt-10 grid grid-cols-4 grid-rows-2 gap-2 md:gap-3 h-[260px] sm:h-[360px] md:h-[420px]">
+          <GalleryCell
+            src={galleryImages[0]}
+            alt={`${salon.name} photo 1`}
+            className="col-span-2 row-span-2 rounded-l-2xl md:rounded-l-3xl"
+            onClick={() => openGallery("carousel", 0)}
+          />
+          <GalleryCell
+            src={galleryImages[1]}
+            alt={`${salon.name} photo 2`}
+            className="col-span-1"
+            onClick={() => openGallery("carousel", 1)}
+          />
+          <GalleryCell
+            src={galleryImages[2]}
+            alt={`${salon.name} photo 3`}
+            className="col-span-1 rounded-tr-2xl md:rounded-tr-3xl"
+            onClick={() => openGallery("carousel", 2)}
+          />
+          <GalleryCell
+            src={galleryImages[3]}
+            alt={`${salon.name} photo 4`}
+            className="col-span-2 rounded-br-2xl md:rounded-br-3xl"
+            onClick={() => openGallery("carousel", 3)}
+          />
+          <ShowAllButton count={4} onClick={() => openGallery("grid", 0)} />
+        </div>
+      );
+    }
+
+    // 5+ images — Airbnb-style bento grid
+    const remaining = galleryImages.length - 5;
     return (
-      <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 h-[300px] sm:h-[400px]">
-        {galleryImages.slice(0, displayCount).map((img, idx) => {
-          const isFirst = idx === 0;
-          const isLast = idx === displayCount - 1;
-          const hasMore = remainingCount > 0;
-          return (
-            <div 
-              key={idx} 
-              className={`relative rounded-2xl overflow-hidden cursor-pointer group shadow-sm border border-border bg-muted ${
-                isFirst ? "col-span-2 row-span-2 md:col-span-2" : "col-span-1 row-span-1"
-              }`}
-              onClick={() => {
-                if (isLast && hasMore) openGallery("grid", 0);
-                else openGallery("carousel", idx);
-              }}
-            >
-              <img 
-                src={img} 
-                alt={`${salon.name} photo ${idx + 1}`}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" 
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-              {isLast && hasMore && (
-                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white font-bold group-hover:bg-black/50 transition-colors">
-                    <Grid3X3 className="w-8 h-8 mb-2" />
-                    <span className="text-lg">+{remainingCount} Photos</span>
-                 </div>
-              )}
+      <div className="mt-8 md:mt-10 grid grid-cols-4 grid-rows-2 gap-2 md:gap-3 h-[260px] sm:h-[360px] md:h-[420px]">
+        {/* Hero image — large left */}
+        <GalleryCell
+          src={galleryImages[0]}
+          alt={`${salon.name} photo 1`}
+          className="col-span-2 row-span-2 rounded-l-2xl md:rounded-l-3xl"
+          onClick={() => openGallery("carousel", 0)}
+        />
+        {/* Top-right pair */}
+        <GalleryCell
+          src={galleryImages[1]}
+          alt={`${salon.name} photo 2`}
+          className="col-span-1"
+          onClick={() => openGallery("carousel", 1)}
+        />
+        <GalleryCell
+          src={galleryImages[2]}
+          alt={`${salon.name} photo 3`}
+          className="col-span-1 rounded-tr-2xl md:rounded-tr-3xl"
+          onClick={() => openGallery("carousel", 2)}
+        />
+        {/* Bottom-right pair */}
+        <GalleryCell
+          src={galleryImages[3]}
+          alt={`${salon.name} photo 4`}
+          className="col-span-1"
+          onClick={() => openGallery("carousel", 3)}
+        />
+        <div
+          className="col-span-1 relative overflow-hidden cursor-pointer group rounded-br-2xl md:rounded-br-3xl bg-muted"
+          onClick={() => openGallery(remaining > 0 ? "grid" : "carousel", 4)}
+        >
+          <img
+            src={galleryImages[4]}
+            alt={`${salon.name} photo 5`}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+          />
+          {remaining > 0 && (
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex flex-col items-center justify-center text-white group-hover:bg-black/40 transition-colors duration-300">
+              <Grid3X3 className="w-6 h-6 mb-1.5 opacity-90" />
+              <span className="text-sm font-bold">+{remaining}</span>
             </div>
-          )
-        })}
+          )}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+        </div>
+
+        <ShowAllButton count={galleryImages.length} onClick={() => openGallery("grid", 0)} />
       </div>
-    )
+    );
   };
 
   return (
@@ -175,7 +285,7 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
                 <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">
                   {salon.name}
                 </h1>
-                
+
                 <div className="flex flex-wrap items-center justify-start gap-3 text-muted-foreground font-medium">
                   <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold">
                     {salon.category || "Beauty & Wellness"}
@@ -215,6 +325,19 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
                       Services
                     </span>
                   </div>
+                  {galleryImages.length > 0 && (
+                    <>
+                      <Separator orientation="vertical" className="h-8" />
+                      <div className="flex flex-col items-start">
+                        <span className="text-xl font-bold text-foreground">
+                          {galleryImages.length}
+                        </span>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                          Photos
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -265,102 +388,191 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
         </div>
       </div>
 
-      {/* Gallery Dialog Overlay */}
+      {/* ─── Gallery Dialog ─────────────────────────────────────────────── */}
       <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
-        <DialogContent className={`max-w-6xl w-full p-0 gap-0 overflow-hidden bg-background/95 backdrop-blur-xl border-none shadow-2xl transition-all duration-300 ${viewMode === 'carousel' ? 'h-[100dvh] sm:h-[90vh]' : 'h-[90vh]'}`}>
+        <DialogContent
+          className={`max-w-6xl w-full p-0 gap-0 overflow-hidden bg-background border-none shadow-2xl transition-all duration-300 ${
+            viewMode === "carousel"
+              ? "h-[100dvh] sm:h-[95vh] bg-background"
+              : "h-[90vh]"
+          }`}
+        >
           <DialogTitle className="sr-only">Salon Gallery</DialogTitle>
-          
+
           {viewMode === "grid" ? (
             <div className="flex flex-col h-full">
               {/* Header */}
-              <div className="flex items-center justify-between p-4 md:p-6 border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-10">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-2xl font-black">{salon.name} Gallery</h2>
-                  <Badge variant="secondary" className="font-bold">{galleryImages.length} Photos</Badge>
+              <div className="flex items-center justify-between p-5 md:p-6 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Camera className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold leading-tight">{salon.name}</h2>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      {galleryImages.length} photo{galleryImages.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
                 </div>
                 <DialogClose asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted">
-                    <X className="h-6 w-6" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full hover:bg-muted h-10 w-10"
+                  >
+                    <X className="h-5 w-5" />
                   </Button>
                 </DialogClose>
               </div>
-              
+
               {/* Masonry Grid */}
-              <div className="p-4 md:p-6 overflow-y-auto no-scrollbar">
-                <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+              <div className="p-4 md:p-6 overflow-y-auto flex-1">
+                <div className="columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
                   {galleryImages.map((img, idx) => (
-                    <div 
-                      key={idx} 
-                      className="relative rounded-xl overflow-hidden cursor-pointer group break-inside-avoid shadow-sm bg-muted"
+                    <div
+                      key={idx}
+                      className="relative rounded-xl overflow-hidden cursor-pointer group break-inside-avoid mb-3 md:mb-4 shadow-sm bg-muted"
                       onClick={() => {
-                        setCarouselStartIndex(idx);
+                        setActiveIndex(idx);
                         setViewMode("carousel");
                       }}
                     >
-                      <img 
-                        src={img} 
-                        alt={`Gallery ${idx + 1}`} 
-                        className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500 ease-out" 
+                      <img
+                        src={img}
+                        alt={`Gallery ${idx + 1}`}
+                        className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                         loading="lazy"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                      {/* Index indicator */}
+                      <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white text-[11px] font-bold px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                        {idx + 1}/{galleryImages.length}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col h-full bg-black">
-              {/* Top Controls Overlay */}
-              <div className="absolute top-0 left-0 right-0 p-4 md:p-6 flex items-center justify-between z-50 bg-gradient-to-b from-black/60 to-transparent">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+            // ─── Lightbox Carousel ───
+            <div className="flex flex-col h-full bg-background relative select-none">
+              {/* Top bar */}
+              <div className="absolute top-0 left-0 right-0 p-4 md:p-5 flex items-center justify-between z-50 bg-gradient-to-b from-background/90 via-background/50 to-transparent">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setViewMode("grid")}
-                  className="text-white hover:bg-white/20 hover:text-white rounded-full gap-2"
+                  className="text-foreground hover:bg-foreground/10 hover:text-foreground rounded-full gap-2 h-10 px-4"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline font-semibold">Back to Grid</span>
+                  <span className="hidden sm:inline font-semibold">All Photos</span>
                 </Button>
-                
-                <div className="text-white font-bold text-sm tracking-widest opacity-80">
-                  {salon.name}
+
+                <div className="bg-foreground/10 backdrop-blur-md text-foreground px-4 py-1.5 rounded-full text-sm font-bold tracking-wide border border-border/50">
+                  {activeIndex + 1} / {galleryImages.length}
                 </div>
 
                 <DialogClose asChild>
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full">
-                    <X className="h-6 w-6" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-foreground hover:bg-foreground/10 rounded-full h-10 w-10"
+                  >
+                    <X className="h-5 w-5" />
                   </Button>
                 </DialogClose>
               </div>
 
-              {/* Lightbox Carousel */}
-              <div className="flex-1 w-full h-full flex items-center justify-center relative">
-                <Carousel 
-                  opts={{ startIndex: carouselStartIndex, loop: true }}
-                  className="w-full h-full"
-                >
-                  <CarouselContent className="h-full ml-0">
-                    {galleryImages.map((img, idx) => (
-                      <CarouselItem key={idx} className="w-full h-full flex items-center justify-center pl-0">
-                        <div className="relative w-full h-full p-4 md:p-12 flex items-center justify-center">
-                          <img 
-                            src={img} 
-                            alt={`Gallery ${idx + 1}`} 
-                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
-                          />
-                        </div>
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md h-12 w-12" />
-                  <CarouselNext className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md h-12 w-12" />
-                </Carousel>
+              {/* Image area */}
+              <div className="flex-1 flex items-center justify-center relative px-4 md:px-16">
+                <img
+                  key={activeIndex}
+                  src={galleryImages[activeIndex]}
+                  alt={`Gallery ${activeIndex + 1}`}
+                  className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in fade-in duration-200"
+                />
+
+                {/* Nav arrows */}
+                {galleryImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={goPrev}
+                      className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-foreground/10 hover:bg-foreground/20 backdrop-blur-md text-foreground flex items-center justify-center transition-all hover:scale-110 border border-border/50"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </button>
+                    <button
+                      onClick={goNext}
+                      className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-foreground/10 hover:bg-foreground/20 backdrop-blur-md text-foreground flex items-center justify-center transition-all hover:scale-110 border border-border/50"
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </button>
+                  </>
+                )}
               </div>
+
+              {/* Bottom thumbnails strip */}
+              {galleryImages.length > 1 && (
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background/90 via-background/50 to-transparent">
+                  <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar py-1 px-4">
+                    {galleryImages.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveIndex(idx)}
+                        className={`shrink-0 h-14 w-14 md:h-16 md:w-16 rounded-lg overflow-hidden transition-all duration-200 ${
+                          idx === activeIndex
+                            ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 opacity-100"
+                            : "opacity-50 hover:opacity-80 hover:scale-105"
+                        }`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Thumb ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ─── Reusable Gallery Cell ─────────────────────────────────────────────────
+function GalleryCell({ src, alt, className = "", onClick }) {
+  return (
+    <div
+      className={`relative overflow-hidden cursor-pointer group bg-muted ${className}`}
+      onClick={onClick}
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+    </div>
+  );
+}
+
+// ─── Show All Photos Button ────────────────────────────────────────────────
+function ShowAllButton({ count, onClick }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="absolute bottom-4 right-4 z-10 flex items-center gap-2 bg-background/90 hover:bg-background backdrop-blur-md text-foreground text-sm font-bold px-4 py-2.5 rounded-xl border border-border shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+    >
+      <Images className="h-4 w-4" />
+      Show all {count} photos
+    </button>
   );
 }

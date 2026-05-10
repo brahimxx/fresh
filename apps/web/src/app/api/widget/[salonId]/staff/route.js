@@ -6,10 +6,23 @@ import { success, error } from "@/lib/response";
 export async function GET(request, { params }) {
   try {
     const { salonId: rawSalonId } = await params;
-  const salonId = decodeId(rawSalonId);
+    const salonId = decodeId(rawSalonId);
     const { searchParams } = new URL(request.url);
     const serviceIds =
       searchParams.get("services")?.split(",").filter(Boolean) || [];
+    const fulfillmentType = searchParams.get("fulfillmentType");
+
+    // Build a fulfillment capability filter so that, e.g., a client who selected
+    // "mobile" only sees staff with can_mobile = 1. Without this, in-salon-only
+    // staff would appear as valid choices and cause a booking error at submission.
+    let fulfillmentFilter = "";
+    if (fulfillmentType === "mobile") {
+      fulfillmentFilter = "AND s.can_mobile = 1";
+    } else if (fulfillmentType === "virtual") {
+      fulfillmentFilter = "AND s.can_virtual = 1";
+    } else if (fulfillmentType === "physical") {
+      fulfillmentFilter = "AND s.can_physical = 1";
+    }
 
     let staffQuery = `
       SELECT 
@@ -21,11 +34,14 @@ export async function GET(request, { params }) {
       JOIN users u ON u.id = s.user_id
       LEFT JOIN reviews r ON r.staff_id = s.id AND r.status = 'approved'
       WHERE s.salon_id = ? AND s.is_active = 1
+      ${fulfillmentFilter}
     `;
 
     const queryParams = [salonId];
 
-    // If specific services selected, filter by staff who can perform ALL of them
+    // If specific services are selected, filter by staff who can perform ALL of them.
+    // Service-staff membership (service_staff table) already reflects the allowed
+    // staff for each service based on how the owner configured the service.
     if (serviceIds.length > 0) {
       staffQuery += ` AND s.id IN (
           SELECT staff_id 
@@ -43,14 +59,11 @@ export async function GET(request, { params }) {
 
     const staff = await query(staffQuery, queryParams);
 
-    // Get specialties for each staff member
+    // Fetch service IDs each staff member can perform
     const staffWithDetails = await Promise.all(
       staff.map(async (member) => {
-        // Get service IDs they can perform
-        const serviceIds = await query(
-          `SELECT ss.service_id
-         FROM service_staff ss
-         WHERE ss.staff_id = ?`,
+        const memberServiceIds = await query(
+          `SELECT ss.service_id FROM service_staff ss WHERE ss.staff_id = ?`,
           [member.id]
         );
 
@@ -61,8 +74,8 @@ export async function GET(request, { params }) {
           avatar_url: member.avatar_url,
           rating: member.rating ? parseFloat(member.rating) : null,
           review_count: parseInt(member.review_count) || 0,
-          service_ids: serviceIds.map((s) => s.service_id),
-          specialties: serviceIds.map((s) => s.service_id), // Keep for backward compatibility if needed
+          service_ids: memberServiceIds.map((s) => s.service_id),
+          specialties: memberServiceIds.map((s) => s.service_id),
         };
       })
     );

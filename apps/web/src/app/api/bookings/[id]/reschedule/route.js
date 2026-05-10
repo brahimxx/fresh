@@ -43,7 +43,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { newStartTime, newStaffId, serviceIds, staffAssignments, notes } = body;
+    const { newStartTime, newStaffId, serviceIds, staffAssignments, notes, fulfillmentType, serviceLocationAddress, serviceLocationLat, serviceLocationLng } = body;
 
     if (!newStartTime) {
       return error('New start time is required');
@@ -290,9 +290,77 @@ export async function PUT(request, { params }) {
           end_datetime = ?,
           staff_id = ?,
           notes = COALESCE(?, notes),
-          status = 'pending'
+          status = 'pending',
+          fulfillment_type = COALESCE(?, fulfillment_type),
+          service_location_address = COALESCE(?, service_location_address),
+          service_lat = COALESCE(?, service_lat),
+          service_lng = COALESCE(?, service_lng)
          WHERE id = ?`,
-        [startDatetimeFormatted, endDatetimeFormatted, globalStaffId, notes || null, id]
+        [
+          startDatetimeFormatted, 
+          endDatetimeFormatted, 
+          globalStaffId, 
+          notes || null, 
+          fulfillmentType || null,
+          serviceLocationAddress || null,
+          serviceLocationLat || null,
+          serviceLocationLng || null,
+          id
+        ]
+      );
+
+      // ════════════════════════════════════════════════════════════════════
+      // TRAVEL FEES
+      // ════════════════════════════════════════════════════════════════════
+      
+      // First, delete any existing travel fee records
+      await connection.query('DELETE FROM booking_travel_fees WHERE booking_id = ?', [id]);
+      
+      let travelFeeAmount = 0;
+      let travelDistanceKmSnapshot = null;
+      
+      if (fulfillmentType === "mobile" && serviceLocationLat && serviceLocationLng) {
+        const [salonRows] = await connection.query(
+          "SELECT latitude, longitude, travel_fee_type, travel_fee_amount FROM salons WHERE id = ? LIMIT 1",
+          [lockedBooking.salon_id]
+        );
+        
+        const salonRow = salonRows[0];
+        if (salonRow && salonRow.latitude && salonRow.longitude) {
+          const { haversineDistanceKm, calculateTravelFee } = await import("@/lib/geo");
+          
+          travelDistanceKmSnapshot = parseFloat(
+            haversineDistanceKm(
+              Number(salonRow.latitude),
+              Number(salonRow.longitude),
+              Number(serviceLocationLat),
+              Number(serviceLocationLng)
+            ).toFixed(2)
+          );
+          
+          if (salonRow.travel_fee_type && salonRow.travel_fee_type !== "none") {
+            travelFeeAmount = calculateTravelFee(
+              salonRow.travel_fee_type,
+              salonRow.travel_fee_amount,
+              Number(salonRow.latitude),
+              Number(salonRow.longitude),
+              Number(serviceLocationLat),
+              Number(serviceLocationLng)
+            );
+            
+            if (travelFeeAmount > 0) {
+              await connection.query(
+                `INSERT INTO booking_travel_fees (booking_id, fee_type, amount) VALUES (?, ?, ?)`,
+                [id, salonRow.travel_fee_type, travelFeeAmount.toFixed(2)]
+              );
+            }
+          }
+        }
+      }
+
+      await connection.query(
+        "UPDATE bookings SET travel_fee_amount = ?, travel_distance_km = ? WHERE id = ?",
+        [travelFeeAmount.toFixed(2), travelDistanceKmSnapshot, id]
       );
 
       if (isServiceEdit) {
