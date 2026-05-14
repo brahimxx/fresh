@@ -174,7 +174,7 @@ function SearchBarContent({
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Save to recent searches
@@ -276,7 +276,7 @@ function SearchBarContent({
           try {
             const { latitude, longitude } = position.coords;
             let city = "Current Location";
-            
+
             try {
               if (window.google?.maps?.Geocoder) {
                 const geocoder = new window.google.maps.Geocoder();
@@ -712,8 +712,8 @@ function SearchBarContent({
 
   const matchedServices = debouncedSearchQuery.trim()
     ? ALL_SERVICES.filter((service) =>
-        service.toLowerCase().includes(debouncedSearchQuery.toLowerCase()),
-      )
+      service.toLowerCase().includes(debouncedSearchQuery.toLowerCase()),
+    )
     : [];
 
   const isLg = size === "lg";
@@ -733,7 +733,7 @@ function SearchBarContent({
       {/* Pill Container for Search */}
       <form
         onSubmit={handleSearchSubmit}
-        className={`flex items-center bg-background border border-border/50 transition-shadow ${isCompact ? "flex-row rounded-full p-0.5 shadow-sm hover:shadow-md" : isLg ? "flex-col md:flex-row rounded-[2rem] p-1.5 shadow-xl hover:shadow-2xl" : "flex-col md:flex-row rounded-2xl p-1 md:rounded-full shadow-xl hover:shadow-2xl"}`}
+        className={`dark:bg-black/40 dark:border-white/10 flex items-center bg-background border border-border/50 transition-shadow ${isCompact ? "flex-row rounded-full p-0.5 shadow-sm hover:shadow-md" : isLg ? "flex-col md:flex-row rounded-[2rem] p-1.5 shadow-xl hover:shadow-2xl" : "flex-col md:flex-row rounded-2xl p-1 md:rounded-full shadow-xl hover:shadow-2xl"}`}
       >
         {/* Service Input */}
         <div
@@ -808,8 +808,8 @@ function SearchBarContent({
             >
               {/* We removed the inline Add/Manage UI from here. It is now a Dialog overlay at the end of the component. */}
               {!locationQuery.trim() ||
-              isPresetLocationLabel ||
-              !debouncedLocationQuery.trim() ? (
+                isPresetLocationLabel ||
+                !debouncedLocationQuery.trim() ? (
                 <div className="flex flex-col w-full py-4 space-y-4">
                   {/* 1. High-Accuracy Current Location */}
                   <div className="px-6">
@@ -961,52 +961,52 @@ function SearchBarContent({
                   )}
                 </div>
               ) : /* Autocomplete state when typing */
-              isSearchingLocation ? (
-                <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                  Searching locations...
-                </div>
-              ) : locationSuggestions.length > 0 ? (
-                <div className="flex flex-col w-full py-2">
-                  <h4 className="text-[13px] font-bold text-popover-foreground px-4 pt-2 pb-1">
-                    Locations
-                  </h4>
-                  {locationSuggestions.map((loc, i) => (
-                    <button
-                      key={loc.label + i}
-                      type="button"
-                      onClick={() => handleLocationSuggestionClick(loc)}
-                      className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3 hover:bg-muted"
-                    >
-                      <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[15px] font-medium text-popover-foreground">
-                          {loc.city}
-                        </span>
-                        {loc.state && (
-                          <span className="text-[13px] text-muted-foreground ml-1">
-                            {loc.state}
+                isSearchingLocation ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                    Searching locations...
+                  </div>
+                ) : locationSuggestions.length > 0 ? (
+                  <div className="flex flex-col w-full py-2">
+                    <h4 className="text-[13px] font-bold text-popover-foreground px-4 pt-2 pb-1">
+                      Locations
+                    </h4>
+                    {locationSuggestions.map((loc, i) => (
+                      <button
+                        key={loc.label + i}
+                        type="button"
+                        onClick={() => handleLocationSuggestionClick(loc)}
+                        className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3 hover:bg-muted"
+                      >
+                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[15px] font-medium text-popover-foreground">
+                            {loc.city}
                           </span>
-                        )}
-                      </div>
-                      <span className="text-[12px] text-muted-foreground/70 shrink-0">
-                        {loc.salon_count}{" "}
-                        {loc.salon_count === 1 ? "salon" : "salons"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center">
-                  <MapPin className="h-7 w-7 mx-auto mb-2 text-muted-foreground/30" />
-                  <p className="text-sm font-semibold text-popover-foreground">
-                    No locations found
-                  </p>
-                  <p className="text-[13px] mt-1 text-muted-foreground">
-                    Try a different city or area
-                  </p>
-                </div>
-              )}
+                          {loc.state && (
+                            <span className="text-[13px] text-muted-foreground ml-1">
+                              {loc.state}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[12px] text-muted-foreground/70 shrink-0">
+                          {loc.salon_count}{" "}
+                          {loc.salon_count === 1 ? "salon" : "salons"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center">
+                    <MapPin className="h-7 w-7 mx-auto mb-2 text-muted-foreground/30" />
+                    <p className="text-sm font-semibold text-popover-foreground">
+                      No locations found
+                    </p>
+                    <p className="text-[13px] mt-1 text-muted-foreground">
+                      Try a different city or area
+                    </p>
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -1259,7 +1259,7 @@ function SearchBarContent({
                   userAddresses.map((addr) => {
                     const IconComponent =
                       { Home, Briefcase, Heart, MapPin, Building, Star }[
-                        addr.iconName
+                      addr.iconName
                       ] || MapPin;
                     return (
                       <div

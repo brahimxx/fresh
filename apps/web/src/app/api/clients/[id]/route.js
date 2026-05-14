@@ -120,7 +120,8 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id: clientId } = await params;
+    const { id: rawClientId } = await params;
+    const clientId = decodeId(rawClientId);
     const body = await request.json();
 
     const salonId = body.salonId || body.salon_id || null;
@@ -312,7 +313,8 @@ export async function PUT(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id: clientId } = await params;
+    const { id: rawClientId } = await params;
+    const clientId = decodeId(rawClientId);
     const body = await request.json();
     const salonId = body.salonId || body.salon_id || null;
     

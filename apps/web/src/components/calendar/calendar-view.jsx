@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { CalendarSkeleton } from "@/components/ui/loading-skeletons";
 import { DataError } from "@/components/ui/data-error";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronLeft, ChevronRight, Filter, Settings, CalendarPlus, Clock, CalendarDays, SlidersHorizontal, ChevronDown, ChevronUp, Calendar, ClipboardList, Globe, Coins, Tag, Heart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Settings, CalendarPlus, Clock, CalendarDays, SlidersHorizontal, ChevronDown, ChevronUp, Calendar, ClipboardList, Globe, Coins, Tag, Heart, Loader2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -150,7 +150,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
   var [currentView, setCurrentView] = useState("timeGridDay");
   var [selectedStaff, setSelectedStaff] = useState([]);
   var [hourHeight, setHourHeight] = useState(80);
-  
+
   var [filters, setFilters] = useState({
     status: [],
     type: [],
@@ -323,7 +323,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                 var endTime = new Date((s.endDatetime || booking.end || booking.endDatetime || "").replace(" ", "T"));
                 var timeText = format(startTime, "HH:mm") + " – " + format(endTime, "HH:mm");
                 var servicesText = s.name;
-                
+
                 var staffName = "";
                 if (staff && Array.isArray(staff)) {
                   var member = staff.find(st => st.id === staffId);
@@ -347,7 +347,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                     staffName: staffName,
                   },
                 };
-            });
+              });
           } else {
             // Fallback if no services exist
             var staffId = booking.staffId || booking.staff?.id;
@@ -379,39 +379,39 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
           }
 
           if (booking.fulfillmentType === "mobile") {
-             var travelTimeMins = booking.travelDistanceKm 
-               ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
-               : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
+            var travelTimeMins = booking.travelDistanceKm
+              ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
+              : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
 
-             var bookingStartStr = booking.start || booking.startDatetime || "";
-             var bookingEndStr = booking.end || booking.endDatetime || "";
-             var bStart = new Date(bookingStartStr.replace(" ", "T"));
-             var bEnd = new Date(bookingEndStr.replace(" ", "T"));
-             
-             var arrStart = new Date(bStart.getTime() - travelTimeMins * 60000);
-             var depEnd = new Date(bEnd.getTime() + travelTimeMins * 60000);
+            var bookingStartStr = booking.start || booking.startDatetime || "";
+            var bookingEndStr = booking.end || booking.endDatetime || "";
+            var bStart = new Date(bookingStartStr.replace(" ", "T"));
+            var bEnd = new Date(bookingEndStr.replace(" ", "T"));
 
-             bookingEvents.push({
-               id: booking.id + "-travel-arr",
-               title: "🚗 Travel (" + travelTimeMins + "m)",
-               start: format(arrStart, "yyyy-MM-dd'T'HH:mm:ss"),
-               end: format(bStart, "yyyy-MM-dd'T'HH:mm:ss"),
-               backgroundColor: "rgba(148, 163, 184, 0.2)",
-               borderColor: "rgba(148, 163, 184, 0.5)",
-               textColor: "#64748b",
-               extendedProps: { isTravel: true }
-             });
+            var arrStart = new Date(bStart.getTime() - travelTimeMins * 60000);
+            var depEnd = new Date(bEnd.getTime() + travelTimeMins * 60000);
 
-             bookingEvents.push({
-               id: booking.id + "-travel-dep",
-               title: "🚗 Travel (" + travelTimeMins + "m)",
-               start: format(bEnd, "yyyy-MM-dd'T'HH:mm:ss"),
-               end: format(depEnd, "yyyy-MM-dd'T'HH:mm:ss"),
-               backgroundColor: "rgba(148, 163, 184, 0.2)",
-               borderColor: "rgba(148, 163, 184, 0.5)",
-               textColor: "#64748b",
-               extendedProps: { isTravel: true }
-             });
+            bookingEvents.push({
+              id: booking.id + "-travel-arr",
+              title: "🚗 Travel (" + travelTimeMins + "m)",
+              start: format(arrStart, "yyyy-MM-dd'T'HH:mm:ss"),
+              end: format(bStart, "yyyy-MM-dd'T'HH:mm:ss"),
+              backgroundColor: "rgba(148, 163, 184, 0.2)",
+              borderColor: "rgba(148, 163, 184, 0.5)",
+              textColor: "#64748b",
+              extendedProps: { isTravel: true }
+            });
+
+            bookingEvents.push({
+              id: booking.id + "-travel-dep",
+              title: "🚗 Travel (" + travelTimeMins + "m)",
+              start: format(bEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+              end: format(depEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+              backgroundColor: "rgba(148, 163, 184, 0.2)",
+              borderColor: "rgba(148, 163, 184, 0.5)",
+              textColor: "#64748b",
+              extendedProps: { isTravel: true }
+            });
           }
 
           return bookingEvents;
@@ -446,22 +446,22 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
         // ── Real bookings ────────────────────────────────────────────────
         if (booking.services && booking.services.length > 0) {
           booking.services.forEach(function (s, i) {
-             var staffId = s.staffId || booking.staffId || booking.staff?.id;
-             var subBooking = Object.assign({}, booking, {
-                subId: booking.id + "-" + i,
-                startDatetime: s.startDatetime || booking.startDatetime || booking.start,
-                endDatetime: s.endDatetime || booking.endDatetime || booking.end,
-                start: s.startDatetime || booking.startDatetime || booking.start,
-                end: s.endDatetime || booking.endDatetime || booking.end,
-                services: [s], // only this service
-                originalBooking: booking
-             });
-             if (staffId && groups[staffId]) {
-               groups[staffId].push(subBooking);
-             } else if (staffId) {
-               groups[staffId] = groups[staffId] || [];
-               groups[staffId].push(subBooking);
-             }
+            var staffId = s.staffId || booking.staffId || booking.staff?.id;
+            var subBooking = Object.assign({}, booking, {
+              subId: booking.id + "-" + i,
+              startDatetime: s.startDatetime || booking.startDatetime || booking.start,
+              endDatetime: s.endDatetime || booking.endDatetime || booking.end,
+              start: s.startDatetime || booking.startDatetime || booking.start,
+              end: s.endDatetime || booking.endDatetime || booking.end,
+              services: [s], // only this service
+              originalBooking: booking
+            });
+            if (staffId && groups[staffId]) {
+              groups[staffId].push(subBooking);
+            } else if (staffId) {
+              groups[staffId] = groups[staffId] || [];
+              groups[staffId].push(subBooking);
+            }
           });
         } else {
           var staffId = booking.staffId || booking.staff?.id;
@@ -474,45 +474,45 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
         }
 
         if (booking.fulfillmentType === "mobile") {
-           var travelTimeMins = booking.travelDistanceKm 
-             ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
-             : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
+          var travelTimeMins = booking.travelDistanceKm
+            ? estimateTravelTimeFromDistance(booking.travelDistanceKm) + SETUP_BUFFER_MINUTES
+            : (booking.travelBufferTime ? Math.floor(booking.travelBufferTime / 2) : 30);
 
-           var bookingStartStr = booking.start || booking.startDatetime || "";
-           var bookingEndStr = booking.end || booking.endDatetime || "";
-           var bookingStart = new Date(bookingStartStr.replace(" ", "T"));
-           var bookingEnd = new Date(bookingEndStr.replace(" ", "T"));
-           
-           var arrStart = new Date(bookingStart.getTime() - travelTimeMins * 60000);
-           var depEnd = new Date(bookingEnd.getTime() + travelTimeMins * 60000);
+          var bookingStartStr = booking.start || booking.startDatetime || "";
+          var bookingEndStr = booking.end || booking.endDatetime || "";
+          var bookingStart = new Date(bookingStartStr.replace(" ", "T"));
+          var bookingEnd = new Date(bookingEndStr.replace(" ", "T"));
 
-           var tStaffId = booking.staffId || booking.staff?.id;
-           if (booking.services && booking.services.length > 0) {
-              tStaffId = booking.services[0].staffId || tStaffId; // Primary staff
-           }
+          var arrStart = new Date(bookingStart.getTime() - travelTimeMins * 60000);
+          var depEnd = new Date(bookingEnd.getTime() + travelTimeMins * 60000);
 
-           if (tStaffId && groups[tStaffId]) {
-             groups[tStaffId].push({
-                subId: booking.id + "-travel-arr",
-                start: arrStart.toISOString(),
-                end: bookingStart.toISOString(),
-                startDatetime: arrStart.toISOString(),
-                endDatetime: bookingStart.toISOString(),
-                isTravel: true,
-                travelTimeMins: travelTimeMins,
-                originalBooking: booking
-             });
-             groups[tStaffId].push({
-                subId: booking.id + "-travel-dep",
-                start: bookingEnd.toISOString(),
-                end: depEnd.toISOString(),
-                startDatetime: bookingEnd.toISOString(),
-                endDatetime: depEnd.toISOString(),
-                isTravel: true,
-                travelTimeMins: travelTimeMins,
-                originalBooking: booking
-             });
-           }
+          var tStaffId = booking.staffId || booking.staff?.id;
+          if (booking.services && booking.services.length > 0) {
+            tStaffId = booking.services[0].staffId || tStaffId; // Primary staff
+          }
+
+          if (tStaffId && groups[tStaffId]) {
+            groups[tStaffId].push({
+              subId: booking.id + "-travel-arr",
+              start: arrStart.toISOString(),
+              end: bookingStart.toISOString(),
+              startDatetime: arrStart.toISOString(),
+              endDatetime: bookingStart.toISOString(),
+              isTravel: true,
+              travelTimeMins: travelTimeMins,
+              originalBooking: booking
+            });
+            groups[tStaffId].push({
+              subId: booking.id + "-travel-dep",
+              start: bookingEnd.toISOString(),
+              end: depEnd.toISOString(),
+              startDatetime: bookingEnd.toISOString(),
+              endDatetime: depEnd.toISOString(),
+              isTravel: true,
+              travelTimeMins: travelTimeMins,
+              originalBooking: booking
+            });
+          }
         }
       });
     }
@@ -648,8 +648,8 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
           if (
             !window.confirm(
               "Warning: Insufficient travel time detected.\n\n" +
-                "Staff cannot " + direction + " location in time (need " + travelMins + " min, only " + Math.floor(gapMins) + " min available).\n\n" +
-                "Do you want to override this warning and force the reschedule?"
+              "Staff cannot " + direction + " location in time (need " + travelMins + " min, only " + Math.floor(gapMins) + " min available).\n\n" +
+              "Do you want to override this warning and force the reschedule?"
             )
           ) {
             arg.revert();
@@ -747,14 +747,23 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
 
   // Staff Day View: scroll to current time
   useEffect(function () {
-    if (!isDayView || !staffScrollRef.current) return;
+    if (!isDayView) return;
     var timeout = setTimeout(function () {
-      var container = staffScrollRef.current;
-      if (!container) return;
       var now = new Date();
-      var currentPos = (now.getHours() + now.getMinutes() / 60) * HOUR_HEIGHT;
-      container.scrollTop = currentPos - container.clientHeight / 3;
-    }, 200);
+      var isToday = format(currentDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
+      
+      if (isToday) {
+        var indicator = document.getElementById("current-time-indicator");
+        if (indicator) {
+          indicator.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+      } else {
+        var nineAm = document.getElementById("hour-9-indicator");
+        if (nineAm) {
+          nineAm.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+      }
+    }, 300);
     return function () { clearTimeout(timeout); };
   }, [isDayView, currentDate]);
 
@@ -791,10 +800,6 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
     [events, isDayView],
   );
 
-  if (bookingsLoading || staffLoading) {
-    return <CalendarSkeleton />;
-  }
-
   if (bookingsError || staffError) {
     return (
       <DataError
@@ -808,15 +813,15 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
 
   var activeStaff = staff && Array.isArray(staff) ? staff : [];
   if (filters.staff && filters.staff.length > 0) {
-     activeStaff = activeStaff.filter(s => filters.staff.includes(s.id));
+    activeStaff = activeStaff.filter(s => filters.staff.includes(s.id));
   }
   var hours = [];
   for (var h = START_HOUR; h < END_HOUR; h++) { hours.push(h); }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col relative min-h-[500px]">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 pt-4 border-b pb-4">
+      <div className="flex items-center justify-between px-4 py-4 border-b sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleToday}>
             Today
@@ -859,13 +864,13 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                           <Checkbox
                             id={"staff-" + member.id}
                             checked={filters.staff && filters.staff.includes(member.id)}
-                            onCheckedChange={function () { 
-                               setFilters(prev => ({
-                                  ...prev,
-                                  staff: prev.staff.includes(member.id) 
-                                    ? prev.staff.filter(id => id !== member.id)
-                                    : [...prev.staff, member.id]
-                               }));
+                            onCheckedChange={function () {
+                              setFilters(prev => ({
+                                ...prev,
+                                staff: prev.staff.includes(member.id)
+                                  ? prev.staff.filter(id => id !== member.id)
+                                  : [...prev.staff, member.id]
+                              }));
                             }}
                           />
                           <div
@@ -891,78 +896,78 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col p-0">
-               <SheetHeader className="p-6 pb-2">
-                 <div className="flex items-center justify-between">
-                   <SheetTitle className="text-xl">All filters</SheetTitle>
-                 </div>
-               </SheetHeader>
-               
-               <ScrollArea className="flex-1 px-6 py-4">
-                 <div className="space-y-4">
-                   <FilterSection 
-                      title="Appointment status" icon={<CalendarDays className="w-5 h-5" />}
-                      options={[{id: 'pending', label: 'Pending'}, {id: 'confirmed', label: 'Confirmed'}, {id: 'completed', label: 'Completed'}, {id: 'cancelled', label: 'Cancelled'}, {id: 'no-show', label: 'No-Show'}]}
-                      selected={draftFilters.status}
-                      onChange={(id) => setDraftFilters(p => ({...p, status: p.status.includes(id) ? p.status.filter(x => x !== id) : [...p.status, id]}))}
-                   />
-                   <FilterSection 
-                      title="Type" icon={<ClipboardList className="w-5 h-5" />}
-                      options={[{id: 'physical', label: 'In-Salon'}, {id: 'mobile', label: 'Mobile'}, {id: 'virtual', label: 'Virtual'}, {id: 'time_off', label: 'Time Off'}]}
-                      selected={draftFilters.type}
-                      onChange={(id) => setDraftFilters(p => ({...p, type: p.type.includes(id) ? p.type.filter(x => x !== id) : [...p.type, id]}))}
-                   />
-                   <FilterSection 
-                      title="Payment status" icon={<Coins className="w-5 h-5" />}
-                      options={[{id: 'pending', label: 'Pending'}, {id: 'partially_paid', label: 'Partially Paid'}, {id: 'paid', label: 'Paid'}]}
-                      selected={draftFilters.paymentStatus}
-                      onChange={(id) => setDraftFilters(p => ({...p, paymentStatus: p.paymentStatus.includes(id) ? p.paymentStatus.filter(x => x !== id) : [...p.paymentStatus, id]}))}
-                   />
-                   <FilterSection 
-                      title="Services" icon={<Tag className="w-5 h-5" />}
-                      options={(salonServices || []).map(s => ({ id: String(s.id), label: s.name }))}
-                      selected={draftFilters.services}
-                      onChange={(id) => setDraftFilters(p => ({...p, services: p.services.includes(id) ? p.services.filter(x => x !== id) : [...p.services, id]}))}
-                   />
-                   
-                   <Collapsible className="border-b py-3">
-                     <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
-                       <div className="flex items-center gap-3">
-                         <Calendar className="w-5 h-5 text-muted-foreground" />
-                         <span className="font-medium">Appointment creation date</span>
-                       </div>
-                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                     </CollapsibleTrigger>
-                     <CollapsibleContent className="pt-4 space-y-3">
-                       <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1">
-                           <Label>From</Label>
-                           <Input type="date" value={draftFilters.creationDate.start} onChange={e => setDraftFilters(p => ({...p, creationDate: {...p.creationDate, start: e.target.value}}))} />
-                         </div>
-                         <div className="space-y-1">
-                           <Label>To</Label>
-                           <Input type="date" value={draftFilters.creationDate.end} onChange={e => setDraftFilters(p => ({...p, creationDate: {...p.creationDate, end: e.target.value}}))} />
-                         </div>
-                       </div>
-                     </CollapsibleContent>
-                   </Collapsible>
+              <SheetHeader className="p-6 pb-2">
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="text-xl">All filters</SheetTitle>
+                </div>
+              </SheetHeader>
 
-                   <FilterSection 
-                      title="Requested team member" icon={<Heart className="w-5 h-5" />}
-                      options={(staff || []).map(s => ({ id: s.id, label: `${s.firstName} ${s.lastName}` }))}
-                      selected={draftFilters.staff}
-                      onChange={(id) => setDraftFilters(p => ({...p, staff: p.staff.includes(id) ? p.staff.filter(x => x !== id) : [...p.staff, id]}))}
-                   />
-                 </div>
-               </ScrollArea>
+              <ScrollArea className="flex-1 px-6 py-4">
+                <div className="space-y-4">
+                  <FilterSection
+                    title="Appointment status" icon={<CalendarDays className="w-5 h-5" />}
+                    options={[{ id: 'pending', label: 'Pending' }, { id: 'confirmed', label: 'Confirmed' }, { id: 'completed', label: 'Completed' }, { id: 'cancelled', label: 'Cancelled' }, { id: 'no-show', label: 'No-Show' }]}
+                    selected={draftFilters.status}
+                    onChange={(id) => setDraftFilters(p => ({ ...p, status: p.status.includes(id) ? p.status.filter(x => x !== id) : [...p.status, id] }))}
+                  />
+                  <FilterSection
+                    title="Type" icon={<ClipboardList className="w-5 h-5" />}
+                    options={[{ id: 'physical', label: 'In-Salon' }, { id: 'mobile', label: 'Mobile' }, { id: 'virtual', label: 'Virtual' }, { id: 'time_off', label: 'Time Off' }]}
+                    selected={draftFilters.type}
+                    onChange={(id) => setDraftFilters(p => ({ ...p, type: p.type.includes(id) ? p.type.filter(x => x !== id) : [...p.type, id] }))}
+                  />
+                  <FilterSection
+                    title="Payment status" icon={<Coins className="w-5 h-5" />}
+                    options={[{ id: 'pending', label: 'Pending' }, { id: 'partially_paid', label: 'Partially Paid' }, { id: 'paid', label: 'Paid' }]}
+                    selected={draftFilters.paymentStatus}
+                    onChange={(id) => setDraftFilters(p => ({ ...p, paymentStatus: p.paymentStatus.includes(id) ? p.paymentStatus.filter(x => x !== id) : [...p.paymentStatus, id] }))}
+                  />
+                  <FilterSection
+                    title="Services" icon={<Tag className="w-5 h-5" />}
+                    options={(salonServices || []).map(s => ({ id: String(s.id), label: s.name }))}
+                    selected={draftFilters.services}
+                    onChange={(id) => setDraftFilters(p => ({ ...p, services: p.services.includes(id) ? p.services.filter(x => x !== id) : [...p.services, id] }))}
+                  />
 
-               <div className="p-6 border-t bg-background flex items-center gap-4">
-                  <Button variant="outline" className="flex-1 rounded-full" onClick={() => setDraftFilters({ status: [], type: [], paymentStatus: [], services: [], creationDate: {start: "", end: ""}, staff: [] })}>
-                    Clear filters
-                  </Button>
-                  <Button className="flex-1 rounded-full" onClick={() => { setFilters(draftFilters); setIsFilterDrawerOpen(false); }}>
-                    Apply
-                  </Button>
-               </div>
+                  <Collapsible className="border-b py-3">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                      <div className="flex items-center gap-3">
+                        <Calendar className="w-5 h-5 text-muted-foreground" />
+                        <span className="font-medium">Appointment creation date</span>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label>From</Label>
+                          <Input type="date" value={draftFilters.creationDate.start} onChange={e => setDraftFilters(p => ({ ...p, creationDate: { ...p.creationDate, start: e.target.value } }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>To</Label>
+                          <Input type="date" value={draftFilters.creationDate.end} onChange={e => setDraftFilters(p => ({ ...p, creationDate: { ...p.creationDate, end: e.target.value } }))} />
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <FilterSection
+                    title="Requested team member" icon={<Heart className="w-5 h-5" />}
+                    options={(staff || []).map(s => ({ id: s.id, label: `${s.firstName} ${s.lastName}` }))}
+                    selected={draftFilters.staff}
+                    onChange={(id) => setDraftFilters(p => ({ ...p, staff: p.staff.includes(id) ? p.staff.filter(x => x !== id) : [...p.staff, id] }))}
+                  />
+                </div>
+              </ScrollArea>
+
+              <div className="p-6 border-t bg-background flex items-center gap-4">
+                <Button variant="outline" className="flex-1 rounded-full" onClick={() => setDraftFilters({ status: [], type: [], paymentStatus: [], services: [], creationDate: { start: "", end: "" }, staff: [] })}>
+                  Clear filters
+                </Button>
+                <Button className="flex-1 rounded-full" onClick={() => { setFilters(draftFilters); setIsFilterDrawerOpen(false); }}>
+                  Apply
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
 
@@ -1013,7 +1018,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                     max="140"
                     step="20"
                     value={hourHeight}
-                    onChange={function(e) { setHourHeight(parseInt(e.target.value)); }}
+                    onChange={function (e) { setHourHeight(parseInt(e.target.value)); }}
                     className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground font-medium">
@@ -1029,10 +1034,19 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
         </div>
       </div>
 
+      {/* Loading Overlay */}
+      {(bookingsLoading || staffLoading) && (
+        <div className="absolute inset-x-0 bottom-0 top-[69px] z-50 pointer-events-none">
+          <div className="sticky top-1/2 -translate-y-1/2 w-fit mx-auto bg-background/80 backdrop-blur-sm border shadow-sm rounded-full p-3">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        </div>
+      )}
+
       {/* ===== DAY VIEW: Staff Columns ===== */}
       {isDayView && (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex border-b bg-muted/40 shrink-0">
+        <div className="flex flex-col">
+          <div className="flex border-b bg-muted shrink-0 sticky top-[69px] z-20">
             <div className="w-16 shrink-0 border-r" />
             <div className="flex flex-1 overflow-x-auto">
               {activeStaff.map(function (member, index) {
@@ -1068,7 +1082,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
           </div>
 
           {/* Scrollable Time Grid */}
-          <div ref={staffScrollRef} className="flex-1 overflow-y-auto overflow-x-auto relative">
+          <div ref={staffScrollRef} className="overflow-x-auto relative">
             <div className="flex" style={{ height: TOTAL_HOURS * HOUR_HEIGHT + "px" }}>
               {/* Time Gutter */}
               <div className="w-16 shrink-0 border-r relative bg-background">
@@ -1076,6 +1090,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                   return (
                     <div
                       key={hour}
+                      id={"hour-" + hour + "-indicator"}
                       className="absolute w-full text-right pr-2 text-[11px] font-medium text-muted-foreground"
                       style={{ top: hour * HOUR_HEIGHT - 6 + "px" }}
                     >
@@ -1086,6 +1101,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                 {/* Now indicator label in time gutter */}
                 {nowPos != null && (
                   <div
+                    id="current-time-indicator"
                     className="absolute right-0 z-40 pointer-events-none"
                     style={{ top: nowPos - 10 + "px" }}
                   >
@@ -1108,7 +1124,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                   // offsets, making them appear as skinny partial strips instead
                   // of the intended full-width translucent background.
                   var travelEvents = staffEvents.filter(function (e) { return !!e.isTravel; });
-                  var realEvents   = staffEvents.filter(function (e) { return !e.isTravel; });
+                  var realEvents = staffEvents.filter(function (e) { return !e.isTravel; });
                   var layoutedEvents = layoutOverlappingEvents(realEvents);
                   var color = member.color || getStaffColor(index).hex;
 
@@ -1138,7 +1154,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                         return (
                           <div
                             key={hour}
-                            className={"absolute w-full border-b border-border/50 " + (!isBusinessHour ? "bg-muted/20 cursor-not-allowed" : "")}
+                            className={"absolute w-full border-b border-border/50 " + (!isBusinessHour ? "bg-muted dark:bg-muted/40 cursor-not-allowed" : "")}
                             style={{ top: hour * HOUR_HEIGHT + "px", height: HOUR_HEIGHT + "px" }}
                             data-blocked={!isBusinessHour ? "true" : undefined}
                           >
@@ -1159,9 +1175,9 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                       {(timeOffByStaff[staffId] || []).map(function (to) {
                         var rawStart = to.start || to.startDatetime || "";
                         var rawEnd = to.end || to.endDatetime || "";
-                        var top    = getTimePosition(rawStart, hourHeight);
+                        var top = getTimePosition(rawStart, hourHeight);
                         var height = getEventHeight(rawStart, rawEnd, hourHeight);
-                        var label  = to.reason || "Blocked";
+                        var label = to.reason || "Blocked";
                         return (
                           <div
                             key={to.id || to.subId}
@@ -1188,7 +1204,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                       {travelEvents.map(function (booking) {
                         var rawStart = booking.start || booking.startDatetime || "";
                         var rawEnd = booking.end || booking.endDatetime || "";
-                        var top    = getTimePosition(rawStart, hourHeight);
+                        var top = getTimePosition(rawStart, hourHeight);
                         var height = getEventHeight(rawStart, rawEnd, hourHeight);
                         return (
                           <div
@@ -1228,23 +1244,23 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                             key={booking.subId || booking.id}
                             className="absolute z-10 px-0.5 pb-0.5 transition-all duration-200"
                             data-booking-wrapper-id={booking.originalBooking?.id || booking.id}
-                            onMouseEnter={function() {
+                            onMouseEnter={function () {
                               var bId = booking.originalBooking?.id || booking.id;
                               if (!bId) return;
-                              document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function(el) {
+                              document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function (el) {
                                 el.classList.add('!z-50');
                               });
-                              document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function(el) {
+                              document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function (el) {
                                 el.classList.add('ring-[4px]', 'ring-inset', 'ring-foreground/60', 'brightness-110', 'shadow-xl', 'scale-[1.01]');
                               });
                             }}
-                            onMouseLeave={function() {
+                            onMouseLeave={function () {
                               var bId = booking.originalBooking?.id || booking.id;
                               if (!bId) return;
-                              document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function(el) {
+                              document.querySelectorAll('[data-booking-wrapper-id="' + bId + '"]').forEach(function (el) {
                                 el.classList.remove('!z-50');
                               });
-                              document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function(el) {
+                              document.querySelectorAll('[data-booking-inner-id="' + bId + '"]').forEach(function (el) {
                                 el.classList.remove('ring-[4px]', 'ring-inset', 'ring-foreground/60', 'brightness-110', 'shadow-xl', 'scale-[1.01]');
                               });
                             }}
@@ -1313,7 +1329,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
 
       {/* ===== WEEK VIEW: Custom Staff x Day Matrix ===== */}
       {isWeekView && (
-        <div className="flex-1 min-h-0 bg-background rounded-b-md border-x border-b overflow-hidden">
+        <div className="bg-background rounded-b-md border-x border-b">
           <div className="h-full overflow-auto">
             {/* Sticky table wrapper */}
             <table className="w-full border-collapse min-w-[700px]" style={{ tableLayout: "fixed" }}>
@@ -1472,7 +1488,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                                 var isPending = booking.status === "pending";
                                 var isRestricted = booking.clientIsActive === false;
                                 var servicesText = (booking.services || []).map(function (s) { return s.name; }).join(", ");
-                                
+
                                 // Rich tooltip data including the canonical booking object
                                 var tooltipBooking = Object.assign({}, booking, {
                                   client: booking.client || {
@@ -1547,12 +1563,12 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                   if (!selectedStaff || selectedStaff.length === 0) return true;
                   return selectedStaff.includes(m.id);
                 }).length === 0) && (
-                  <tr>
-                    <td colSpan={8} className="text-center py-16 text-muted-foreground text-sm">
-                      No staff members to display.
-                    </td>
-                  </tr>
-                )}
+                    <tr>
+                      <td colSpan={8} className="text-center py-16 text-muted-foreground text-sm">
+                        No staff members to display.
+                      </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           </div>
@@ -1562,7 +1578,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
       {/* ===== MONTH VIEW: FullCalendar ===== */}
       {!isDayView && !isWeekView && (
         <div
-          className="flex-1 min-h-0 bg-background rounded-b-md border-x border-b overflow-hidden"
+          className="bg-background rounded-b-md border-x border-b"
           style={{ "--fc-timegrid-slot-height": (hourHeight / 4) + "px" }}
         >
           <FullCalendar
@@ -1579,7 +1595,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
             weekends={true}
             nowIndicator={true}
             allDaySlot={false}
-            height="100%"
+            height="auto"
             dateClick={handleDateClick}
             eventClick={handleEventClick}
             eventContent={function (arg) {

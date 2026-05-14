@@ -47,7 +47,6 @@ import {
 import {
   useClient,
   useDeleteClient,
-  useClientBookings,
 } from "@/hooks/use-clients";
 import { ClientFormDialog } from "@/components/clients/client-form";
 import { ClientNotes } from "@/components/clients/client-notes";
@@ -121,9 +120,9 @@ export default function ClientDetailPage({ params }) {
 
   var name =
     (
-      (client.firstName || client.first_name || "") +
+      (client.firstName || "") +
       " " +
-      (client.lastName || client.last_name || "")
+      (client.lastName || "")
     ).trim() || "Unknown";
 
   return (
@@ -150,10 +149,10 @@ export default function ClientDetailPage({ params }) {
             <h1 className="text-2xl font-bold">{name}</h1>
             <p className="text-muted-foreground">
               Client since{" "}
-              {client.createdAt || client.created_at
+              {client.createdAt
                 ? format(
                     new Date(
-                      String(client.createdAt || client.created_at).replace(
+                      String(client.createdAt).replace(
                         " ",
                         "T",
                       ),
@@ -195,10 +194,7 @@ export default function ClientDetailPage({ params }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {client.salonStats?.totalVisits ??
-                client.total_visits ??
-                client.visit_count ??
-                0}
+              {client.salonStats?.totalVisits ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -210,10 +206,7 @@ export default function ClientDetailPage({ params }) {
             <div className="text-2xl font-bold">
               EUR{" "}
               {Number(
-                client.salonStats?.totalSpent ??
-                  client.total_spent ??
-                  client.lifetime_value ??
-                  0,
+                client.salonStats?.totalSpent ?? 0,
               ).toFixed(2)}
             </div>
           </CardContent>
@@ -224,11 +217,11 @@ export default function ClientDetailPage({ params }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {client.salonStats?.lastVisitDate || client.last_visit
+              {client.salonStats?.lastVisitDate
                 ? format(
                     new Date(
                       String(
-                        client.salonStats?.lastVisitDate || client.last_visit,
+                        client.salonStats?.lastVisitDate,
                       ).replace(" ", "T"),
                     ),
                     "MMM d",
@@ -244,11 +237,11 @@ export default function ClientDetailPage({ params }) {
           <CardContent>
             <div className="text-2xl font-bold">
               EUR{" "}
-              {(client.salonStats?.totalVisits ?? client.total_visits ?? 0) > 0
+              {(client.salonStats?.totalVisits ?? 0) > 0
                 ? (
                     Number(
-                      client.salonStats?.totalSpent ?? client.total_spent ?? 0,
-                    ) / (client.salonStats?.totalVisits ?? client.total_visits)
+                      client.salonStats?.totalSpent ?? 0,
+                    ) / (client.salonStats?.totalVisits)
                   ).toFixed(2)
                 : "0.00"}
             </div>
@@ -294,10 +287,9 @@ export default function ClientDetailPage({ params }) {
                   <div className="text-sm">
                     {client.address && <p>{client.address}</p>}
                     {(client.city ||
-                      client.postal_code ||
                       client.postalCode) && (
                       <p className="text-muted-foreground">
-                        {[client.city, client.postalCode || client.postal_code]
+                        {[client.city, client.postalCode]
                           .filter(Boolean)
                           .join(", ")}
                       </p>
@@ -305,14 +297,14 @@ export default function ClientDetailPage({ params }) {
                   </div>
                 </div>
               )}
-              {(client.dateOfBirth || client.date_of_birth) && (
+              {client.dateOfBirth && (
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">
                     {format(
                       new Date(
                         String(
-                          client.dateOfBirth || client.date_of_birth,
+                          client.dateOfBirth,
                         ).replace(" ", "T"),
                       ),
                       "MMMM d, yyyy",
@@ -349,7 +341,7 @@ export default function ClientDetailPage({ params }) {
           )}
 
           {/* Notes */}
-          <ClientNotes clientId={clientId} />
+          <ClientNotes clientId={clientId} salonId={salonId} />
         </div>
 
         {/* Right Column - Booking History */}

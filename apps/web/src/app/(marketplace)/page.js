@@ -94,9 +94,7 @@ export default function HomePage() {
                 transform: mounted ? 'translateY(0)' : 'translateY(30px)',
               }}
             >
-              <div className="relative z-50 bg-white/40 dark:bg-black/40 backdrop-blur-2xl p-2 md:p-3 rounded-3xl border border-white/40 dark:border-white/10 shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
-                <SearchBar size="lg" className="w-full" />
-              </div>
+              <SearchBar size="lg" className="w-full" />
 
               {/* Quick Search Pills */}
               <div className="relative z-10 flex flex-wrap justify-center gap-2 mt-6">

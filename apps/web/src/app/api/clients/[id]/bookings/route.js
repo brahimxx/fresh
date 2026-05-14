@@ -60,7 +60,8 @@ async function checkSalonAccess(salonId, userId, role) {
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
-    const { id: clientId } = await params;
+    const { id: rawClientId } = await params;
+    const clientId = decodeId(rawClientId);
     const { searchParams } = new URL(request.url);
 
     const rawSalonId = searchParams.get("salon_id") || searchParams.get("salonId");

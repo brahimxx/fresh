@@ -204,8 +204,8 @@ export default function ClientsPage({ params }) {
                 <TableBody>
                    <AnimatePresence>
                     {clients.map((client, i) => {
-                      const clientName = `${client.first_name} ${client.last_name || ""}`.trim();
-                      const lastBooking = client.last_booking_date ? new Date(client.last_booking_date) : null;
+                      const clientName = `${client.firstName || ""} ${client.lastName || ""}`.trim();
+                      const lastBooking = client.lastVisitDate ? new Date(client.lastVisitDate) : null;
 
                       return (
                         <motion.tr
@@ -230,7 +230,7 @@ export default function ClientsPage({ params }) {
                                 </p>
                                 <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-muted-foreground">
                                   <CalendarIcon className="h-3.5 w-3.5 opacity-50" />
-                                  <span>Acquired {format(new Date(client.created_at || new Date()), "MMM yyyy")}</span>
+                                  <span>Acquired {format(new Date(client.firstVisitDate || new Date()), "MMM yyyy")}</span>
                                 </div>
                                 {client.tags?.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5 mt-3">
@@ -288,7 +288,7 @@ export default function ClientsPage({ params }) {
                                   {format(lastBooking, "MMM d, yyyy")}
                                 </div>
                                 <span className="text-xs font-semibold text-muted-foreground block ml-6 truncate max-w-[150px]">
-                                  {client.last_service_name || "Standard Service"}
+                                  {client.lastServiceName || "Standard Service"}
                                 </span>
                               </div>
                             ) : (
@@ -303,10 +303,10 @@ export default function ClientsPage({ params }) {
                           <TableCell className="text-right align-top">
                              <div className="space-y-1 mt-1 flex flex-col items-end">
                                 <span className="text-[15px] font-extrabold text-foreground">
-                                  {client.total_bookings || 0} visits
+                                  {client.totalVisits || 0} visits
                                 </span>
                                 <span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                                  €{(client.total_revenue || 0).toLocaleString()} volume
+                                  €{(client.totalSpent || 0).toLocaleString()} volume
                                 </span>
                              </div>
                           </TableCell>

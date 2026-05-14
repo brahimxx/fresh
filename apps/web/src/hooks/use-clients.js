@@ -175,24 +175,26 @@ export function useClientBookings(clientId, salonId, options) {
   return useQuery({
     queryKey: clientKeys.bookings(clientId),
     queryFn: function () {
-      return api.get("/salons/" + salonId + "/clients/" + clientId);
+      return api.get("/clients/" + clientId + "/bookings", { salon_id: salonId });
     },
     enabled: !!clientId && !!salonId,
     select: function (response) {
-      return response.data?.bookings || [];
+      return response.data?.bookings || response.bookings || [];
     },
     ...options,
   });
 }
 
-export function useClientNotes(clientId, options) {
+export function useClientNotes(clientId, salonId, options) {
   if (!options) options = {};
   return useQuery({
-    queryKey: clientKeys.notes(clientId),
+    queryKey: [...clientKeys.notes(clientId), salonId],
     queryFn: function () {
-      return api.get("/clients/" + clientId + "/notes");
+      var url = "/clients/" + clientId + "/notes";
+      if (salonId) url += "?salon_id=" + salonId;
+      return api.get(url);
     },
-    enabled: !!clientId,
+    enabled: !!clientId && !!salonId,
     select: function (response) {
       return response.data || [];
     },
@@ -206,36 +208,38 @@ export function useAddClientNote() {
     mutationFn: function (params) {
       return api.post("/clients/" + params.clientId + "/notes", {
         content: params.content,
+        salon_id: params.salonId,
       });
     },
     onSuccess: function (response, variables) {
       queryClient.invalidateQueries({
         queryKey: clientKeys.notes(variables.clientId),
       });
-      toast.success("Note added");
+      toast.success("Note saved");
     },
     onError: function (error) {
-      toast.error(error.message || "Failed to add note");
+      toast.error(error.message || "Failed to save note");
     },
   });
 }
 
-export function useDeleteClientNote() {
+export function useUpdateClientNotes() {
   var queryClient = useQueryClient();
   return useMutation({
     mutationFn: function (params) {
-      return api.delete(
-        "/clients/" + params.clientId + "/notes/" + params.noteId,
-      );
+      return api.put("/clients/" + params.clientId + "/notes", {
+        content: params.content,
+        salon_id: params.salonId,
+      });
     },
     onSuccess: function (response, variables) {
       queryClient.invalidateQueries({
         queryKey: clientKeys.notes(variables.clientId),
       });
-      toast.success("Note deleted");
+      toast.success("Notes updated");
     },
     onError: function (error) {
-      toast.error(error.message || "Failed to delete note");
+      toast.error(error.message || "Failed to update notes");
     },
   });
 }

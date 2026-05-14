@@ -67,7 +67,7 @@ export default function CalendarPage({ params }) {
   }
 
   return (
-    <div className="-mx-4 sm:-mx-8 -my-8 h-[calc(100vh-var(--header-height,64px))]">
+    <div className="-mx-4 sm:-mx-8 -my-8">
       <CalendarView
         onDateClick={handleDateSelect}
         onEventClick={handleEventClick}
