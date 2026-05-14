@@ -38,7 +38,7 @@ export async function GET(request, { params }) {
 
     // Get bookings
     let bookingSql = `
-      SELECT b.*, 
+      SELECT b.*, b.created_at,
              s.travel_buffer_time as salon_travel_buffer_time,
              u.first_name as client_first_name, u.last_name as client_last_name,
              u.email as client_email, u.phone as client_phone,
@@ -106,6 +106,7 @@ export async function GET(request, { params }) {
         title: `${b.client_first_name} ${b.client_last_name}`,
         start: String(b.start_datetime).replace(' ', 'T'),
         end: String(b.end_datetime).replace(' ', 'T'),
+        createdAt: b.created_at ? String(b.created_at).replace(' ', 'T') : null,
         status: b.status,
         staffId: b.staff_id,
         staffName: b.staff_first_name ? `${b.staff_first_name} ${b.staff_last_name}` : null,
