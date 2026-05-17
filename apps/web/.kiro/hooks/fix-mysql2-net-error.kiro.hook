@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Fix mysql2 'net' Module Error",
+  "description": "When next.config.mjs is edited, checks that serverExternalPackages includes 'mysql2'. If missing, adds it automatically to prevent the 'Can't resolve net' bundling error.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "next.config.mjs",
+      "next.config.js"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Check if `serverExternalPackages` in next.config.mjs includes `'mysql2'`. If it is missing, add it at the top of the nextConfig object like this:\n\n```js\nserverExternalPackages: ['mysql2'],\n```\n\nThis prevents the \"Module not found: Can't resolve 'net'\" error caused by mysql2 being bundled for the browser. Only make the change if the entry is actually missing — do not modify anything else."
+  }
+}

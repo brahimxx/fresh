@@ -1,119 +1,267 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 
-// Query key factory for products
+// ─── Query key factory ─────────────────────────────────────────────────────
 export var productKeys = {
   all: ['products'],
-  lists: function() { return [...productKeys.all, 'list']; },
-  list: function(salonId, filters) { return [...productKeys.lists(), salonId, filters]; },
-  details: function() { return [...productKeys.all, 'detail']; },
-  detail: function(id) { return [...productKeys.details(), id]; },
-  categories: function(salonId) { return [...productKeys.all, 'categories', salonId]; },
-  lowStock: function(salonId) { return [...productKeys.all, 'low-stock', salonId]; },
+  lists: function () {
+    return [...productKeys.all, 'list'];
+  },
+  list: function (salonId, filters) {
+    return [...productKeys.lists(), salonId, filters || {}];
+  },
+  details: function () {
+    return [...productKeys.all, 'detail'];
+  },
+  detail: function (id) {
+    return [...productKeys.details(), id];
+  },
+  stats: function (salonId) {
+    return [...productKeys.all, 'stats', salonId];
+  },
+  statsAll: function () {
+    return [...productKeys.all, 'stats'];
+  },
+  stockHistory: function (productId, params) {
+    return [...productKeys.all, 'stock-history', productId, params || {}];
+  },
+  stockHistoryFor: function (productId) {
+    return [...productKeys.all, 'stock-history', productId];
+  },
+  lowStock: function (salonId) {
+    return [...productKeys.all, 'low-stock', salonId];
+  },
 };
 
-// Fetch all products for a salon
-export function useProducts(salonId, options) {
+// ─── Internal helpers ──────────────────────────────────────────────────────
+
+// Append a query param iff the value is meaningful (not null/undefined/'').
+// Booleans and zero are passed through unchanged.
+function appendParam(params, key, value) {
+  if (value === undefined || value === null || value === '') return;
+  params.append(key, value);
+}
+
+// Selector that normalises the listing envelope into `{ data, meta }`.
+// The API returns `{ success, data: { data: [...], meta: {...} } }` after
+// `api.get` parses the JSON body, so `response.data` is the inner pagination
+// payload. We tolerate the older flat shape so callers do not break during
+// the rollout window.
+function selectListEnvelope(response) {
+  var d = response && response.data;
+  if (d && Array.isArray(d.data)) {
+    return { data: d.data, meta: d.meta || null };
+  }
+  if (Array.isArray(d)) {
+    return { data: d, meta: null };
+  }
+  if (Array.isArray(response)) {
+    return { data: response, meta: null };
+  }
+  return { data: [], meta: null };
+}
+
+// ─── Listing ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetch a paginated, server-filtered product list for a salon.
+ *
+ * Filters supported (all server-side):
+ *   - search       string
+ *   - category_id  positive int
+ *   - stock        'in' | 'low' | 'out' | 'all'
+ *   - is_active    boolean / 'true' / 'false'
+ *   - sort         enum mapped server-side to ORDER BY
+ *   - page         positive int (default 1)
+ *   - limit        1..100 (default 25 server-side)
+ *
+ * Returns `{ data, meta }` where `meta` is `{ page, limit, total, totalPages }`
+ * for the new envelope (older flat array responses are tolerated and surface
+ * as `meta: null`).
+ */
+export function useProducts(salonId, filters) {
   return useQuery({
-    queryKey: productKeys.list(salonId, options),
-    queryFn: function() {
+    queryKey: productKeys.list(salonId, filters),
+    queryFn: function () {
       var params = new URLSearchParams();
       if (salonId) params.append('salon_id', salonId);
-      if (options?.category_id) params.append('category_id', options.category_id);
-      if (options?.search) params.append('search', options.search);
-      if (options?.in_stock !== undefined) params.append('in_stock', options.in_stock);
-      if (options?.includeInactive !== undefined) params.append('includeInactive', options.includeInactive);
+      if (filters) {
+        appendParam(params, 'search', filters.search);
+        appendParam(params, 'category_id', filters.category_id);
+        appendParam(params, 'stock', filters.stock);
+        appendParam(params, 'is_active', filters.is_active);
+        appendParam(params, 'sort', filters.sort);
+        appendParam(params, 'page', filters.page);
+        appendParam(params, 'limit', filters.limit);
+      }
       return api.get('/products?' + params.toString());
     },
-    select: function(response) {
-      // API returns { success: true, data: { data: [...] } }
-      // api.get returns the parsed JSON body
-      var d = response?.data;
-      if (Array.isArray(d)) return d;
-      if (d && Array.isArray(d.data)) return d.data;
-      if (Array.isArray(response)) return response;
-      return [];
-    },
+    select: selectListEnvelope,
     enabled: !!salonId,
+    // Keep the previous page's rows visible while the next page is in flight,
+    // so paginated UIs avoid the "blink to skeleton" between requests.
+    placeholderData: keepPreviousData,
   });
 }
 
-// Fetch single product
+/** Fetch a single product detail. */
 export function useProduct(productId) {
   return useQuery({
     queryKey: productKeys.detail(productId),
-    queryFn: function() {
+    queryFn: function () {
       return api.get('/products/' + productId);
     },
     enabled: !!productId,
   });
 }
 
-// Create product
+// ─── Stats (KPI cards) ─────────────────────────────────────────────────────
+
+/**
+ * Fetch the four product KPI aggregates for a salon. Cache key is keyed only
+ * by salonId; mutation hooks below invalidate `productKeys.statsAll()` so the
+ * card re-fetches after any create/update/delete.
+ */
+export function useProductStats(salonId) {
+  return useQuery({
+    queryKey: productKeys.stats(salonId),
+    queryFn: function () {
+      var params = new URLSearchParams();
+      if (salonId) params.append('salon_id', salonId);
+      return api.get('/products/stats?' + params.toString());
+    },
+    select: function (response) {
+      return (response && response.data) || null;
+    },
+    enabled: !!salonId,
+  });
+}
+
+// ─── Stock movement history ────────────────────────────────────────────────
+
+/**
+ * Fetch the paginated stock-movement history for a product.
+ * Returns `{ data, meta }` like `useProducts`.
+ */
+export function useStockHistory(productId, options) {
+  var page = (options && options.page) || 1;
+  var limit = (options && options.limit) || 20;
+
+  return useQuery({
+    queryKey: productKeys.stockHistory(productId, { page: page, limit: limit }),
+    queryFn: function () {
+      var params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+      return api.get('/products/' + productId + '/stock?' + params.toString());
+    },
+    select: selectListEnvelope,
+    enabled: !!productId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+// ─── Mutations ─────────────────────────────────────────────────────────────
+
+function invalidateProductCaches(qc, options) {
+  qc.invalidateQueries({ queryKey: productKeys.lists() });
+  qc.invalidateQueries({ queryKey: productKeys.statsAll() });
+  if (options && options.id) {
+    qc.invalidateQueries({ queryKey: productKeys.detail(options.id) });
+  }
+}
+
 export function useCreateProduct() {
   var queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: function(data) {
+    mutationFn: function (data) {
       return api.post('/products', data);
     },
-    onSuccess: function() {
-      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+    onSuccess: function () {
+      invalidateProductCaches(queryClient);
     },
   });
 }
 
-// Update product
 export function useUpdateProduct() {
   var queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: function(params) {
+    mutationFn: function (params) {
       return api.put('/products/' + params.id, params.data);
     },
-    onSuccess: function(data, variables) {
-      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+    onSuccess: function (_data, variables) {
+      invalidateProductCaches(queryClient, { id: variables && variables.id });
     },
   });
 }
 
-// Delete product
 export function useDeleteProduct() {
   var queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: function(id) {
+    mutationFn: function (id) {
       return api.delete('/products/' + id);
     },
-    onSuccess: function() {
-      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+    onSuccess: function () {
+      invalidateProductCaches(queryClient);
     },
   });
 }
 
-// Update product stock
+/**
+ * Adjust stock through the Stock_API. The body contract is:
+ *   { id, mode: 'set'|'add'|'subtract', quantity: int >= 0,
+ *     reason_code: manual code, reason_note?: string up to 500 chars }
+ *
+ * Invalidates the listing, the product detail, the stats card, and the
+ * stock-history pages for the affected product so the UI stays consistent.
+ */
 export function useUpdateProductStock() {
   var queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: function(params) {
-      return api.put('/products/' + params.id + '/stock', { quantity: params.quantity });
+    mutationFn: function (params) {
+      var body = {
+        mode: params.mode,
+        quantity: params.quantity,
+        reason_code: params.reason_code,
+      };
+      // Only include reason_note when the caller actually provided one — the
+      // server treats an explicit `null` and an absent key the same way, but
+      // omitting it keeps the wire payload lean and matches the validator's
+      // "optional" handling.
+      if (params.reason_note !== undefined && params.reason_note !== null) {
+        body.reason_note = params.reason_note;
+      }
+      return api.put('/products/' + params.id + '/stock', body);
     },
-    onSuccess: function(data, variables) {
-      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+    onSuccess: function (_data, variables) {
+      invalidateProductCaches(queryClient, { id: variables && variables.id });
+      if (variables && variables.id) {
+        queryClient.invalidateQueries({
+          queryKey: productKeys.stockHistoryFor(variables.id),
+        });
+      }
     },
   });
 }
 
-// Fetch low stock products
+// ─── Legacy: low-stock list ────────────────────────────────────────────────
+// Pre-existing helper kept for callers that still rely on the dedicated
+// low-stock endpoint shape. The KPI card now uses `useProductStats`.
 export function useLowStockProducts(salonId, threshold) {
   return useQuery({
     queryKey: productKeys.lowStock(salonId),
-    queryFn: function() {
+    queryFn: function () {
       var params = new URLSearchParams();
       params.append('salon_id', salonId);
       params.append('low_stock', 'true');
@@ -124,19 +272,7 @@ export function useLowStockProducts(salonId, threshold) {
   });
 }
 
-// Product category constants
-export var PRODUCT_CATEGORIES = [
-  { value: 'hair_care', label: 'Hair Care' },
-  { value: 'styling', label: 'Styling Products' },
-  { value: 'color', label: 'Hair Color' },
-  { value: 'skin_care', label: 'Skin Care' },
-  { value: 'nail_care', label: 'Nail Care' },
-  { value: 'tools', label: 'Tools & Equipment' },
-  { value: 'accessories', label: 'Accessories' },
-  { value: 'other', label: 'Other' },
-];
-
-// Stock status helper
+// ─── Stock status helper (UI badge) ────────────────────────────────────────
 export function getStockStatus(quantity, lowStockThreshold) {
   lowStockThreshold = lowStockThreshold || 5;
   if (quantity === 0) {
@@ -147,3 +283,9 @@ export function getStockStatus(quantity, lowStockThreshold) {
   }
   return { status: 'in', label: 'In Stock', color: 'success' };
 }
+
+// NOTE: The legacy `PRODUCT_CATEGORIES` constant and the static
+// `getCategoryLabel` lookup have been removed (Task 10.2). The dashboard
+// reads `category_name` from each API row directly, and the category Select
+// is bound to `useProductCategories(salonId)` — the per-salon source of
+// truth — via `src/hooks/use-product-categories.js`.

@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog';
 
 import { formatCurrency } from '@/hooks/use-payments';
-import { PRODUCT_CATEGORIES } from '@/hooks/use-products';
 
 export function AddProductDialog({ 
   open, 
@@ -36,9 +35,10 @@ export function AddProductDialog({
     return p.stock_quantity > 0;
   });
   
-  function getCategoryLabel(value) {
-    var found = PRODUCT_CATEGORIES.find(function(c) { return c.value === value; });
-    return found ? found.label : value;
+  function getCategoryLabel(product) {
+    if (product.category_name) return product.category_name;
+    if (product.category) return product.category; // fallback
+    return 'Uncategorized';
   }
   
   function handleAdd(product) {
@@ -76,7 +76,7 @@ export function AddProductDialog({
                       <p className="font-medium truncate">{product.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {product.brand ? product.brand + ' • ' : ''}
-                        {getCategoryLabel(product.category)}
+                        {getCategoryLabel(product)}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">

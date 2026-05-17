@@ -72,9 +72,21 @@ export const PERMISSION_KEYS = {
     category: 'Financial',
     roleDefault: (role) => hasMinRole(role, 'manager'),
   },
+  products_manage: {
+    label: 'Create / edit / delete products',
+    description: 'Mutate product records, categories, and stock movements',
+    category: 'Financial',
+    roleDefault: (role) => hasMinRole(role, 'manager'),
+  },
   sales: {
     label: 'View sales & payments',
     description: 'Access payment history and transaction records',
+    category: 'Financial',
+    roleDefault: (role) => hasMinRole(role, 'manager'),
+  },
+  sales_manage: {
+    label: 'Manage sales (refunds)',
+    description: 'Issue refunds and mutate payment records',
     category: 'Financial',
     roleDefault: (role) => hasMinRole(role, 'manager'),
   },
@@ -125,23 +137,37 @@ export const PERMISSION_KEYS = {
 // ─── Core resolution function ──────────────────────────────────────────────
 
 /**
+ * Dotted permission aliases used by callers (e.g. API routes, design docs).
+ * Mapped to the canonical underscore key before resolution so endpoint code
+ * can read like the spec ("products.manage") while the engine continues to
+ * key off the snake_case names stored in `staff.permissions`.
+ */
+const PERMISSION_ALIASES = {
+  'products.manage': 'products_manage',
+  'sales.manage': 'sales_manage',
+};
+
+/**
  * Resolve a single permission. Checks custom overrides first, then role default.
  * @param {string} staffRole - owner | manager | receptionist | staff
  * @param {object|null} customPermissions - The staff.permissions JSON (or null)
- * @param {string} key - The permission key (e.g. 'reports', 'sales')
+ * @param {string} key - The permission key (e.g. 'reports', 'sales', 'products.manage')
  * @returns {boolean}
  */
 export function resolvePermission(staffRole, customPermissions, key) {
   // Owners always have full access — cannot be restricted
   if (staffRole === 'owner') return true;
 
+  // Normalise dotted aliases (e.g. "products.manage" → "products_manage")
+  const resolvedKey = PERMISSION_ALIASES[key] || key;
+
   // Check for custom override
-  if (customPermissions && typeof customPermissions[key] === 'boolean') {
-    return customPermissions[key];
+  if (customPermissions && typeof customPermissions[resolvedKey] === 'boolean') {
+    return customPermissions[resolvedKey];
   }
 
   // Fall back to role default
-  const permDef = PERMISSION_KEYS[key];
+  const permDef = PERMISSION_KEYS[resolvedKey];
   if (permDef) {
     return permDef.roleDefault(staffRole);
   }
@@ -324,3 +350,5 @@ export function canAccessDangerZone(staffRole) {
 export function canManageGallery(staffRole, customPermissions) {
   return resolvePermission(staffRole, customPermissions, 'gallery');
 }
+
+

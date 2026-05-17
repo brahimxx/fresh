@@ -6,8 +6,22 @@
  *
  * Functions:
  *   calculateBookingTotal(bookingId, conn)
- *   addProductToBooking(bookingId, productId, quantity, conn)
- *   processCheckout(bookingId, { method, tipAmount }, conn)
+ *   addProductToBooking(bookingId, productId, quantity, conn, options?)
+ *   processCheckout(bookingId, { method, tipAmount, promoCode, performedBy }, conn)
+ *
+ * Stock movement integration (Task 3.2 — Requirements 4.5, 20.3, 22.1, 22.2):
+ *   `addProductToBooking` writes a `product_stock_movements` row in the same
+ *   `conn` as the `booking_products` INSERT and `products.stock_quantity`
+ *   UPDATE. A positive `quantity` (sale) records `reason_code='sale'` with
+ *   `change_type='subtract'` and a negative signed `delta`. A negative
+ *   `quantity` (refund reversal) records `reason_code='refund'` with
+ *   `change_type='add'` and a positive `delta`.
+ *
+ *   The movement INSERT is part of the surrounding transaction: any failure
+ *   rolls back the booking-product line, the stock update, AND the payment
+ *   write that `processCheckout` would otherwise commit. Sale and refund
+ *   paths intentionally do NOT touch `audit_logs` — booking and payment
+ *   activity is audited at a higher level.
  */
 
 // ---------------------------------------------------------------------------
@@ -97,17 +111,54 @@ export async function calculateBookingTotal(bookingId, conn) {
 // ---------------------------------------------------------------------------
 
 /**
- * Add a product line-item to a booking.
- * Validates the product exists, is active, belongs to the same salon,
- * and the booking is in a valid state for modifications.
+ * Add (or reverse) a product line-item on a booking.
+ *
+ * Positive `quantity` is the standard "add product at checkout" path:
+ *   - INSERT booking_products
+ *   - UPDATE products SET stock_quantity = stock_quantity - quantity
+ *   - INSERT product_stock_movements with reason_code='sale',
+ *     change_type='subtract', delta = -quantity
+ *
+ * Negative `quantity` is the refund-reversal path used by
+ * `/api/checkout/refund`. It restores stock and records a sale-driven movement
+ * so the history captures the reversal:
+ *   - INSERT booking_products row with the negative quantity (negative
+ *     total_price too) so the booking ledger reflects the reversal
+ *   - UPDATE products SET stock_quantity = stock_quantity + |quantity|
+ *   - INSERT product_stock_movements with reason_code='refund',
+ *     change_type='add', delta = +|quantity|
+ *
+ * The stock movement INSERT runs on the same `conn`, so a failure rolls back
+ * the surrounding transaction (booking_products, products, payments, …).
+ * The sale/refund paths SHALL NOT call into `audit_logs` — the booking and
+ * payment flow are audited at a higher level (Requirement 20.3).
  *
  * @param {number} bookingId
  * @param {number} productId
- * @param {number} quantity
+ * @param {number} quantity                 Signed; > 0 for sale, < 0 for refund
  * @param {import('mysql2/promise').PoolConnection} conn
- * @returns {Promise<{productRow, updatedTotal}>}
+ * @param {{ performedBy?: number|null }} [options]
+ * @returns {Promise<{product, ...breakdown}>}
  */
-export async function addProductToBooking(bookingId, productId, quantity, conn) {
+export async function addProductToBooking(
+  bookingId,
+  productId,
+  quantity,
+  conn,
+  options = {}
+) {
+  const { performedBy = null } = options;
+
+  if (!Number.isInteger(quantity) || quantity === 0) {
+    throw new CheckoutError(
+      "INVALID_QUANTITY",
+      "Quantity must be a non-zero integer"
+    );
+  }
+
+  const isRefund = quantity < 0;
+  const absQuantity = Math.abs(quantity);
+
   // 1. Lock the booking row and validate status
   const [[booking]] = await conn.query(
     "SELECT id, salon_id, status FROM bookings WHERE id = ? FOR UPDATE",
@@ -118,16 +169,22 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
     throw new CheckoutError("BOOKING_NOT_FOUND", "Booking not found", 404);
   }
 
-  if (booking.status !== "confirmed") {
+  // Sales must originate from a confirmed booking. Refund reversals can occur
+  // on a completed booking (after processCheckout flipped status to
+  // 'completed'), so we accept both for the negative-quantity path.
+  const allowedStatuses = isRefund
+    ? ["confirmed", "completed"]
+    : ["confirmed"];
+  if (!allowedStatuses.includes(booking.status)) {
     throw new CheckoutError(
       "INVALID_STATUS",
-      `Cannot add products to a booking with status: ${booking.status}. Must be 'confirmed'.`
+      `Cannot ${isRefund ? "refund" : "add"} products on a booking with status: ${booking.status}.`
     );
   }
 
-  // 2. Validate the product
+  // 2. Lock the product row, validate, and capture quantity_before
   const [[product]] = await conn.query(
-    "SELECT id, salon_id, name, price, stock_quantity, is_active FROM products WHERE id = ? AND deleted_at IS NULL",
+    "SELECT id, salon_id, name, price, stock_quantity, is_active FROM products WHERE id = ? AND deleted_at IS NULL FOR UPDATE",
     [productId]
   );
 
@@ -135,7 +192,7 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
     throw new CheckoutError("PRODUCT_NOT_FOUND", "Product not found", 404);
   }
 
-  if (!product.is_active) {
+  if (!isRefund && !product.is_active) {
     throw new CheckoutError("PRODUCT_INACTIVE", "Product is not available");
   }
 
@@ -146,14 +203,16 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
     );
   }
 
-  if (product.stock_quantity < quantity) {
+  if (!isRefund && product.stock_quantity < absQuantity) {
     throw new CheckoutError(
       "INSUFFICIENT_STOCK",
       `Only ${product.stock_quantity} units available`
     );
   }
 
-  // 3. Insert into booking_products using the DB price (never frontend price)
+  // 3. Insert into booking_products using the DB price (never frontend price).
+  //    For refunds, we record a negative quantity and negative total so the
+  //    booking ledger reflects the reversal.
   const unitPrice = parseFloat(product.price);
   const totalPrice = round2(unitPrice * quantity);
 
@@ -163,13 +222,46 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
     [bookingId, productId, quantity, unitPrice, totalPrice]
   );
 
-  // 4. Decrement stock
+  // 4. Adjust stock. Sale subtracts; refund adds. Use a signed expression so
+  //    the math is symmetric: `stock_quantity - quantity` (quantity already
+  //    carries the sign).
+  const quantityBefore = product.stock_quantity;
+  const quantityAfter = quantityBefore - quantity; // sale: subtract; refund: add
+
   await conn.query(
     "UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?",
     [quantity, productId]
   );
 
-  // 5. Return updated total
+  // 5. Record the stock movement in the same transaction. INSERT failure
+  //    rolls back the booking_products INSERT, the products UPDATE, and the
+  //    surrounding payment write that `processCheckout` would otherwise
+  //    commit (Requirements 22.1, 22.2). Sale/refund movements are NOT
+  //    audit-logged — booking/payment flow is audited at a higher level
+  //    (Requirement 20.3).
+  const reasonCode = isRefund ? "refund" : "sale";
+  const changeType = isRefund ? "add" : "subtract";
+  const delta = quantityAfter - quantityBefore; // signed: -qty for sale, +qty for refund
+
+  await conn.query(
+    `INSERT INTO product_stock_movements
+       (product_id, salon_id, change_type, quantity_before, quantity_after,
+        delta, reason_code, reason_note, performed_by, booking_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW())`,
+    [
+      product.id,
+      product.salon_id,
+      changeType,
+      quantityBefore,
+      quantityAfter,
+      delta,
+      reasonCode,
+      performedBy,
+      bookingId,
+    ]
+  );
+
+  // 6. Return updated total
   const updatedTotal = await calculateBookingTotal(bookingId, conn);
 
   return {
@@ -196,6 +288,16 @@ export async function addProductToBooking(bookingId, productId, quantity, conn) 
  *   4. Insert payment row
  *   5. Update booking status → 'completed'
  *   6. Return payment receipt
+ *
+ * Stock movements: this function does NOT INSERT into
+ * `product_stock_movements` directly. Sale-driven stock changes are recorded
+ * by `addProductToBooking` (the only path that mutates
+ * `products.stock_quantity` for a booking) at the moment the line-item is
+ * added. Because `processCheckout` runs inside the caller's transaction
+ * alongside any `addProductToBooking` call, a failure in the movement INSERT
+ * rolls back the entire checkout — no payment is marked paid, no stock
+ * decrement persists (Requirements 22.1, 22.2). The sale path SHALL NOT
+ * write to `audit_logs` (Requirement 20.3).
  *
  * Must be called inside db.transaction().
  *

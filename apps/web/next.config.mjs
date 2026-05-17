@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep mysql2 (and its Node.js built-ins like 'net', 'tls', 'dns') server-side only.
+  // This applies to both Webpack (production build) and Turbopack (next dev).
+  serverExternalPackages: ['mysql2'],
+
   // Performance optimizations
   reactStrictMode: true,
   poweredByHeader: false,
