@@ -52,3 +52,18 @@ export async function transaction(callback) {
     connection.release();
   }
 }
+
+/**
+ * Acquire a pooled connection, run the callback, and guarantee release.
+ * Use this when you need session-level settings (e.g. SET SESSION) without
+ * the overhead of a full transaction. The connection is released in `finally`
+ * so it cannot leak even if the callback throws.
+ */
+export async function withConnection(callback) {
+  const connection = await pool.getConnection();
+  try {
+    return await callback(connection);
+  } finally {
+    connection.release();
+  }
+}

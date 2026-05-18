@@ -1,10 +1,14 @@
 /**
- * /api/payments/[id] — Payment detail (Task 6.2, Requirements 13.1, 13.2, 13.3, 13.4).
+ * /api/payments/[id] — Payment detail (Task 6.2, Requirements 13.1, 13.2, 13.3, 13.4, 18.3).
  *
  * GET returns the canonical snake_case payment row plus the full breakdown
  * (services_amount, products_amount, subtotal, discount_amount, discount_code,
  * gift_card_amount, tip_amount, amount, refunded_amount, stripe_payment_intent_id)
  * computed identically to `calculateBookingTotal()` in `src/lib/checkout.js`.
+ *
+ * Additionally includes `line_items: { services: [...], products: [...] }` with
+ * individual booking_services and booking_products rows shaped as
+ * `{ name, quantity, unit_price, line_total }` for the receipt drill-down (Req 18.3).
  *
  * PUT changes the payment status, restricted to the canonical 4-value enum.
  *
@@ -169,6 +173,29 @@ export async function GET(_request, { params }) {
     );
     const discountCode = discountRow?.discount_code || null;
 
+    // Fetch individual line items for the receipt drill-down (Req 18.3).
+    // Services: join `services` for the name.
+    const serviceItems = await query(
+      `SELECT s.name, bs.price AS unit_price, 1 AS quantity, bs.price AS line_total
+         FROM booking_services bs
+         JOIN services s ON s.id = bs.service_id
+        WHERE bs.booking_id = ?
+        ORDER BY bs.start_datetime ASC`,
+      [row.booking_id],
+    );
+
+    // Products: join `products` for the name. Exclude refund-reversal rows
+    // (negative quantity) from the line-item display — they are reflected in
+    // the refunded_amount aggregate instead.
+    const productItems = await query(
+      `SELECT p.name, bp.unit_price, bp.quantity, bp.total_price AS line_total
+         FROM booking_products bp
+         JOIN products p ON p.id = bp.product_id
+        WHERE bp.booking_id = ? AND bp.quantity > 0
+        ORDER BY bp.created_at ASC`,
+      [row.booking_id],
+    );
+
     const client = mapClient(row);
 
     const body = {
@@ -195,6 +222,25 @@ export async function GET(_request, { params }) {
       discount_code: discountCode,
       gift_card_amount: breakdown.giftCardsTotal,
       stripe_payment_intent_id: row.stripe_payment_id || null,
+      // Individual line items (Req 18.3) ----------------------------------
+      line_items: {
+        services: serviceItems.map(function (r) {
+          return {
+            name: r.name,
+            quantity: Number(r.quantity),
+            unit_price: num(r.unit_price),
+            line_total: num(r.line_total),
+          };
+        }),
+        products: productItems.map(function (r) {
+          return {
+            name: r.name,
+            quantity: Number(r.quantity),
+            unit_price: num(r.unit_price),
+            line_total: num(r.line_total),
+          };
+        }),
+      },
     };
 
     return success(body);

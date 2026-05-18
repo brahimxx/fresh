@@ -5,8 +5,11 @@
  *        Spec: products-and-sales-improvements (Task 5.1).
  *        Authorization mirrors the CSV export endpoint via `assertSalonAccess`.
  *
- * POST — Create a single product. Authorization preserved from the prior
- *        implementation; full refactor lands in Task 5.2.
+ * POST — Create a single product. Authorization via `assertSalonAccess` with
+ *        `products.manage` permission. Validates brand, category_id (same-salon
+ *        check), image_url, and all other fields with the same rigour as PUT.
+ *        Returns the canonical snake_case product shape.
+ *        Implements Requirements 2.1, 5.2, 5.3, 5.5, 6.10, 7.7.
  */
 
 import { decodeId } from '@/lib/id';
@@ -257,7 +260,7 @@ export async function GET(request) {
               p.updated_at,
               pc.name AS category_name
          FROM products p
-         LEFT JOIN product_categories pc ON pc.id = p.category_id
+         LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.deleted_at IS NULL
         ${whereSql}
         ORDER BY ${SORT_MAP[sortKey]}, p.id ASC
         LIMIT ? OFFSET ?`,
@@ -272,101 +275,250 @@ export async function GET(request) {
 }
 
 // ─── POST /api/products ────────────────────────────────────────────────────
-// Carry-over from the previous implementation; full refactor lands in Task 5.2.
-// Kept functional so callers creating products are not blocked by Task 5.1.
+// Refactored to align with the PUT handler's validation, authorization, and
+// response shape. Uses `assertSalonAccess` with `products.manage`, validates
+// brand / category_id (same-salon check) / image_url, and returns the
+// canonical snake_case product shape.
+//
+// Implements Requirements 2.1, 5.2, 5.3, 5.5, 6.10, 7.7.
 
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [
-    salonId,
-  ]);
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager') AND is_active = 1",
-    [salonId, userId],
+// ─── POST validation constants ─────────────────────────────────────────────
+const NAME_MAX = 255;
+const BRAND_MAX = 120;
+const SKU_MAX = 100;
+const BARCODE_MAX = 100;
+const IMAGE_URL_MAX = 500;
+const PRICE_MAX_DECIMALS = 2;
+
+function postBadRequest(parameter, message) {
+  return error(
+    { message, code: 'ERROR_400', details: { parameter } },
+    400,
   );
-  return !!staff;
+}
+
+function isFiniteNumber(n) {
+  return typeof n === 'number' && Number.isFinite(n);
+}
+
+function hasAtMostNDecimals(n, max) {
+  return Number(n.toFixed(max)) === n;
+}
+
+function validatePostName(raw) {
+  if (raw === undefined || raw === null) {
+    return { error: 'name is required' };
+  }
+  if (typeof raw !== 'string') {
+    return { error: 'name must be a string' };
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > NAME_MAX) {
+    return { error: `name must be between 1 and ${NAME_MAX} characters` };
+  }
+  return { value: trimmed };
+}
+
+function validatePostBrand(raw) {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') {
+    return { error: 'brand must be a string or null' };
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { value: null };
+  if (trimmed.length > BRAND_MAX) {
+    return { error: `brand must be ${BRAND_MAX} characters or fewer` };
+  }
+  return { value: trimmed };
+}
+
+function validatePostImageUrl(raw) {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') {
+    return { error: 'image_url must be a string or null' };
+  }
+  if (raw.length === 0) return { value: null };
+  if (raw.length > IMAGE_URL_MAX) {
+    return { error: `image_url must be ${IMAGE_URL_MAX} characters or fewer` };
+  }
+  return { value: raw };
+}
+
+function validatePostCategoryId(raw) {
+  if (raw === undefined || raw === null || raw === '') return { value: null };
+  const asNumber = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(asNumber) || !Number.isInteger(asNumber) || asNumber <= 0) {
+    return { error: 'category_id must be a positive integer or null' };
+  }
+  return { value: asNumber };
+}
+
+function validatePostPrice(raw, parameter, { allowNull = false } = {}) {
+  if (raw === undefined || raw === null) {
+    return allowNull ? { value: null } : { value: 0 };
+  }
+  const asNumber = typeof raw === 'number' ? raw : Number(raw);
+  if (!isFiniteNumber(asNumber) || asNumber < 0) {
+    return { error: `${parameter} must be a non-negative number` };
+  }
+  if (!hasAtMostNDecimals(asNumber, PRICE_MAX_DECIMALS)) {
+    return { error: `${parameter} must have at most ${PRICE_MAX_DECIMALS} decimal places` };
+  }
+  return { value: asNumber };
+}
+
+function validatePostNonNegativeInt(raw, parameter, defaultValue) {
+  if (raw === undefined || raw === null) return { value: defaultValue };
+  const asNumber = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(asNumber) || !Number.isInteger(asNumber) || asNumber < 0) {
+    return { error: `${parameter} must be a non-negative integer` };
+  }
+  return { value: asNumber };
+}
+
+function validatePostNullableString(raw, parameter, max) {
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') {
+    return { error: `${parameter} must be a string or null` };
+  }
+  if (parameter === 'description') {
+    if (raw.length > 65535) return { error: `${parameter} is too long` };
+    return { value: raw };
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { value: null };
+  if (trimmed.length > max) {
+    return { error: `${parameter} must be ${max} characters or fewer` };
+  }
+  return { value: trimmed };
 }
 
 export async function POST(request) {
+  // 1. Auth — require a session (Req 1.1, 2.5).
+  let session;
   try {
-    const session = await requireAuth();
-    const body = await request.json();
-    const {
-      salon_id,
-      category_id,
-      name,
-      description,
-      price,
-      cost_price,
-      sku,
-      barcode,
-      stock_quantity,
-      low_stock_threshold,
-      image_url,
-    } = body;
+    session = await requireAuth();
+  } catch (err) {
+    if (err && err.message === 'Unauthorized') return unauthorized();
+    throw err;
+  }
 
-    if (!salon_id) {
-      return error('salon_id is required', 400);
+  try {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return postBadRequest('body', 'Invalid JSON body');
+    }
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      return postBadRequest('body', 'Request body must be a JSON object');
     }
 
-    if (!name) {
-      return error('Product name is required', 400);
+    // 2. salon_id — required, decoded, validated via assertSalonAccess with
+    //    `products.manage` permission (Req 2.1, 2.2).
+    const rawSalonId = body.salon_id ?? body.salonId;
+    if (rawSalonId === undefined || rawSalonId === null || rawSalonId === '') {
+      return error(
+        { code: 'MISSING_SALON_ID', message: 'salon_id is required' },
+        400,
+      );
+    }
+    const decodedSalonId = typeof rawSalonId === 'string'
+      ? decodeId(rawSalonId)
+      : rawSalonId;
+
+    const access = await assertSalonAccess({
+      session,
+      salonId: decodedSalonId,
+      perm: 'products.manage',
+    });
+    if (!access.ok) {
+      if (access.code === 'UNAUTHORIZED') return unauthorized();
+      if (access.code === 'FORBIDDEN') return forbidden();
+      return error({ code: access.code, message: access.code }, access.status);
     }
 
-    const decodedSalonId =
-      typeof salon_id === 'string' ? decodeId(salon_id) : salon_id;
+    // 3. Validate all fields with the same rigour as the PUT handler.
+    const checks = {
+      name: validatePostName(body.name),
+      description: validatePostNullableString(body.description, 'description'),
+      brand: validatePostBrand(body.brand),
+      sku: validatePostNullableString(body.sku, 'sku', SKU_MAX),
+      barcode: validatePostNullableString(body.barcode, 'barcode', BARCODE_MAX),
+      price: validatePostPrice(body.price, 'price'),
+      cost_price: validatePostPrice(
+        body.cost_price ?? body.costPrice,
+        'cost_price',
+        { allowNull: true },
+      ),
+      stock_quantity: validatePostNonNegativeInt(
+        body.stock_quantity ?? body.stockQuantity,
+        'stock_quantity',
+        0,
+      ),
+      low_stock_threshold: validatePostNonNegativeInt(
+        body.low_stock_threshold ?? body.lowStockThreshold,
+        'low_stock_threshold',
+        5,
+      ),
+      image_url: validatePostImageUrl(body.image_url ?? body.imageUrl),
+      category_id: validatePostCategoryId(body.category_id ?? body.categoryId),
+    };
 
-    const hasAccess = await checkSalonAccess(
-      decodedSalonId,
-      session.userId,
-      session.role,
-    );
-    if (!hasAccess) {
-      return forbidden('Not authorized to add products to this salon');
+    for (const [parameter, result] of Object.entries(checks)) {
+      if (result.error) return postBadRequest(parameter, result.error);
     }
 
+    // 4. Same-salon ownership check for category_id (Requirement 6.10).
+    if (checks.category_id.value !== null) {
+      const category = await getOne(
+        'SELECT id, salon_id FROM product_categories WHERE id = ? AND deleted_at IS NULL',
+        [checks.category_id.value],
+      );
+      if (!category || category.salon_id !== access.salonId) {
+        return postBadRequest('category_id', 'category_id must belong to the same salon');
+      }
+    }
+
+    // 5. Insert the product.
     const result = await query(
-      `INSERT INTO products (salon_id, category_id, name, description, price, cost_price, sku, barcode, stock_quantity, low_stock_threshold, image_url, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO products
+         (salon_id, category_id, brand, name, description, price, cost_price,
+          sku, barcode, stock_quantity, low_stock_threshold, image_url, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
-        decodedSalonId,
-        category_id || null,
-        name,
-        description || null,
-        price || 0,
-        cost_price || null,
-        sku || null,
-        barcode || null,
-        stock_quantity || 0,
-        low_stock_threshold || 5,
-        image_url || null,
+        access.salonId,
+        checks.category_id.value,
+        checks.brand.value,
+        checks.name.value,
+        checks.description.value,
+        checks.price.value,
+        checks.cost_price.value,
+        checks.sku.value,
+        checks.barcode.value,
+        checks.stock_quantity.value,
+        checks.low_stock_threshold.value,
+        checks.image_url.value,
       ],
     );
 
+    // 6. Read back the full row with joined category_name and return the
+    //    canonical snake_case shape (same as the listing and PUT responses).
     const newProduct = await getOne(
-      `SELECT p.*, pc.name as category_name
+      `SELECT p.id, p.salon_id, p.category_id, p.brand, p.name, p.description,
+              p.price, p.cost_price, p.sku, p.barcode, p.stock_quantity,
+              p.low_stock_threshold, p.is_active, p.image_url,
+              p.created_at, p.updated_at,
+              pc.name AS category_name
          FROM products p
-         LEFT JOIN product_categories pc ON pc.id = p.category_id
+         LEFT JOIN product_categories pc ON pc.id = p.category_id AND pc.deleted_at IS NULL
         WHERE p.id = ?`,
       [result.insertId],
     );
 
-    return created({
-      id: newProduct.id,
-      salonId: newProduct.salon_id,
-      categoryId: newProduct.category_id,
-      categoryName: newProduct.category_name,
-      name: newProduct.name,
-      description: newProduct.description,
-      price: newProduct.price,
-      costPrice: newProduct.cost_price,
-      sku: newProduct.sku,
-      stockQuantity: newProduct.stock_quantity,
-      isActive: newProduct.is_active,
-    });
+    return created(serialiseProduct(newProduct));
   } catch (err) {
+    if (err && err.message === 'Unauthorized') return unauthorized();
     console.error('Create product error:', err);
     return error('Failed to create product', 500);
   }

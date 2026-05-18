@@ -15,23 +15,25 @@ export var giftCardKeys = {
   detail: function(salonId, id) { return [...giftCardKeys.details(), salonId, id]; },
 };
 
-// Gift card statuses
+// Gift card statuses — styled to match the booking page status badges
 export var GIFT_CARD_STATUSES = {
-  active: { label: 'Active', color: 'bg-green-50/50 text-green-600 border-green-200' },
-  redeemed: { label: 'Redeemed', color: 'bg-slate-50/50 text-slate-700 border-slate-200' },
-  expired: { label: 'Expired', color: 'bg-destructive/10 text-destructive border-destructive/20' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-50/50 text-red-600 border-red-200' },
+  pending: { label: 'Pending Payment', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50' },
+  active: { label: 'Active', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50' },
+  redeemed: { label: 'Redeemed', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50' },
+  expired: { label: 'Expired', color: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-200/50' },
+  cancelled: { label: 'Cancelled', color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50' },
 };
 
 // Get gift card status
 export function getGiftCardStatus(giftCard) {
   if (giftCard.status === 'cancelled') return 'cancelled';
+  if (giftCard.status === 'pending') return 'pending';
   
-  var balance = Number(giftCard.balance || 0);
+  var balance = Number(giftCard.balance || giftCard.remaining_balance || giftCard.remainingBalance || 0);
   if (balance <= 0) return 'redeemed';
   
-  if (giftCard.expires_at) {
-    var expiryDate = new Date(giftCard.expires_at);
+  if (giftCard.expires_at || giftCard.expiresAt) {
+    var expiryDate = new Date(giftCard.expires_at || giftCard.expiresAt);
     if (expiryDate < new Date()) return 'expired';
   }
   
@@ -70,7 +72,24 @@ export function useGiftCards(salonId, filters) {
       var res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch gift cards');
       var json = await res.json();
-      return json.data?.giftCards || json.data?.gift_cards || json.data?.data || (Array.isArray(json.data) ? json.data : []);
+      var raw = json.data?.giftCards || json.data?.gift_cards || json.data?.data || (Array.isArray(json.data) ? json.data : []);
+      // Normalize field names so the UI can use consistent keys regardless
+      // of which API endpoint shape is returned.
+      return raw.map(function(card) {
+        return {
+          ...card,
+          // Canonical UI field names
+          initial_value: Number(card.initial_value || card.initialBalance || card.initial_balance || 0),
+          balance: Number(card.balance || card.remainingBalance || card.remaining_balance || 0),
+          // Keep snake_case versions too for components that use them
+          initial_balance: Number(card.initial_balance || card.initialBalance || card.initial_value || 0),
+          remaining_balance: Number(card.remaining_balance || card.remainingBalance || card.balance || 0),
+          recipient_name: card.recipient_name || card.recipientName || null,
+          recipient_email: card.recipient_email || card.recipientEmail || null,
+          expires_at: card.expires_at || card.expiresAt || null,
+          created_at: card.created_at || card.createdAt || null,
+        };
+      });
     },
     enabled: !!salonId,
   });

@@ -21,6 +21,7 @@
  */
 
 import pool from "@/lib/db";
+import { recordGiftCardTransaction } from "@/lib/gift-card-ledger";
 
 // ---------------------------------------------------------------------------
 // BookingError — typed error for expected booking failures
@@ -1002,7 +1003,7 @@ export async function createSafeBooking({
       await conn.execute(
         `UPDATE gift_cards
             SET remaining_balance = remaining_balance - ?,
-                status = CASE WHEN remaining_balance - ? <= 0 THEN 'used' ELSE status END
+                status = CASE WHEN (remaining_balance - ?) <= 0 THEN 'used' ELSE status END
           WHERE id = ?`,
         [
           giftCardAmountUsed.toFixed(2),
@@ -1010,6 +1011,20 @@ export async function createSafeBooking({
           appliedGiftCard.id,
         ],
       );
+
+      // Record in audit ledger
+      const newBalance = parseFloat(appliedGiftCard.remaining_balance) - parseFloat(giftCardAmountUsed);
+      await recordGiftCardTransaction({
+        giftCardId: appliedGiftCard.id,
+        type: 'redemption',
+        amount: -parseFloat(giftCardAmountUsed),
+        balanceAfter: Math.max(0, newBalance),
+        referenceType: 'booking',
+        referenceId: bookingId,
+        notes: `Redeemed during booking #${bookingId}`,
+        createdBy: clientId,
+        conn,
+      });
     }
 
     // ── Travel fee line item (mobile bookings only) ───────────────────────

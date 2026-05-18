@@ -70,6 +70,8 @@ export async function POST(request, { params }) {
       serviceLng,
       clientTimezone,
       virtualMeetingLink,
+      discountCode,
+      giftCardCode,
     } = body;
 
     // Validate services array
@@ -594,9 +596,11 @@ export async function POST(request, { params }) {
       serviceLng: serviceLng ? Number(serviceLng) : null,
       clientTimezone: clientTimezone || null,
       virtualMeetingLink: resolvedMeetingLink,
+      discountCode: discountCode || null,
+      giftCardCode: giftCardCode || null,
     });
 
-    const { bookingId, isNewClient, discountAmount } = result;
+    const { bookingId, isNewClient, discountAmount, giftCardAmountUsed } = result;
 
     // Retrieve the exact travel fee snapshot created during the transaction
     const bookingRow = await getOne(
@@ -608,12 +612,13 @@ export async function POST(request, { params }) {
       0,
       (result.totalPrice || totalPrice) +
         travelFeeAmount -
-        (discountAmount || 0),
+        (discountAmount || 0) -
+        (giftCardAmountUsed || 0),
     );
 
     let checkoutUrl = null;
 
-    if (paymentMethod === "stripe") {
+    if (paymentMethod === "stripe" && finalPrice > 0) {
       try {
         const origin =
           request.headers.get("origin") ||
@@ -623,7 +628,7 @@ export async function POST(request, { params }) {
         // Insert a pending payment record
         await query(
           "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'card', 'pending')",
-          [bookingId, finalPrice || 0],
+          [bookingId, finalPrice],
         );
 
         // Create Stripe checkout session
@@ -636,7 +641,7 @@ export async function POST(request, { params }) {
                 product_data: {
                   name: `Booking at ${salon.name}`,
                 },
-                unit_amount: Math.round((finalPrice || 0) * 100), // Stripe expects amounts in cents
+                unit_amount: Math.round(finalPrice * 100), // Stripe expects amounts in cents
               },
               quantity: 1,
             },
@@ -656,12 +661,26 @@ export async function POST(request, { params }) {
         console.error("Stripe session creation failed:", stripeErr);
         // Continue, the booking is created. They can pay later.
       }
-    } else if (paymentMethod === "cash") {
-      // Insert a pending cash payment
+    } else if (paymentMethod === "stripe" && finalPrice <= 0) {
+      // Gift card covered the full amount — no Stripe charge needed, mark as paid
       await query(
-        "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'cash', 'pending')",
-        [bookingId, finalPrice || 0],
+        "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, 0, 'gift_card', 'paid')",
+        [bookingId],
       );
+    } else if (paymentMethod === "cash") {
+      if (finalPrice > 0) {
+        // Insert a pending cash payment for the remaining amount
+        await query(
+          "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, ?, 'cash', 'pending')",
+          [bookingId, finalPrice],
+        );
+      } else {
+        // Gift card covered the full amount — mark as paid
+        await query(
+          "INSERT INTO payments (booking_id, amount, method, status) VALUES (?, 0, 'gift_card', 'paid')",
+          [bookingId],
+        );
+      }
     }
 
     // Notification for salon owner — runs OUTSIDE the booking transaction.
@@ -713,6 +732,10 @@ export async function POST(request, { params }) {
             virtualMeetingLink:
               fulfillmentType === "virtual" ? salon.virtual_meeting_link : null,
             clientTimezone: clientTimezone || "UTC",
+            giftCardCode: giftCardCode || null,
+            giftCardAmountUsed: giftCardAmountUsed || 0,
+            discountAmount: discountAmount || 0,
+            totalPrice: finalPrice,
           });
         }
       }
@@ -736,6 +759,8 @@ export async function POST(request, { params }) {
         salonName: salon.name,
         travel_fee_amount: travelFeeAmount,
         discount_amount: discountAmount || 0,
+        gift_card_amount_used: giftCardAmountUsed || 0,
+        gift_card_code: giftCardCode || null,
         total_price: finalPrice,
         services: serviceDetails.map((s) => ({
           id: s.serviceId,

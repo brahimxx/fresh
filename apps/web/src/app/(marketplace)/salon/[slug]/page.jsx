@@ -109,6 +109,31 @@ export default function SalonProfilePage({ params }) {
           {/* Main Content Area */}
           <div className="lg:col-span-8 space-y-16">
             <SalonNavigation />
+
+            {/* Gift Card Banner */}
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-200/50 dark:border-purple-800/50">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                  <Star className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Gift Cards Available</p>
+                  <p className="text-xs text-muted-foreground">Give the gift of self-care</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href={'/salon/' + resolvedParams.slug + '/gift-cards/check'}>
+                  <Button variant="ghost" size="sm" className="text-xs">
+                    Check Balance
+                  </Button>
+                </Link>
+                <Link href={'/salon/' + resolvedParams.slug + '/gift-cards'}>
+                  <Button size="sm" className="text-xs rounded-full">
+                    Buy Gift Card
+                  </Button>
+                </Link>
+              </div>
+            </div>
             
             <section id="services" className="scroll-mt-28">
               <SalonServices salon={salon} services={services} />

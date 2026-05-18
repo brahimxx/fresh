@@ -24,6 +24,7 @@ import {
     FileText,
     Hash,
     Star,
+    Gift,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { generateSalonSlug } from "@/lib/utils";
@@ -445,9 +446,20 @@ function BookingsContent() {
                                         </div>
 
                                         {/* Total */}
-                                        {selectedBooking.totalPrice && (
+                                        {(selectedBooking.totalPrice || selectedBooking.giftCardAmountUsed > 0) && (
                                             <>
                                                 <Separator className="my-3" />
+                                                {selectedBooking.giftCardAmountUsed > 0 && (
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-sm text-purple-600 flex items-center gap-1.5">
+                                                            <Gift className="h-3.5 w-3.5" />
+                                                            Gift Card ({selectedBooking.giftCardCode})
+                                                        </span>
+                                                        <span className="text-sm font-medium text-purple-600">
+                                                            -{formatPrice(selectedBooking.giftCardAmountUsed, selectedBooking.salonCurrency)}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-bold text-sm">Total</span>
                                                     <span className="font-bold text-sm text-foreground">{formatPrice(selectedBooking.totalPrice, selectedBooking.salonCurrency)}</span>

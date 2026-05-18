@@ -91,7 +91,7 @@ export async function POST(request, { params }) {
     const result = await query(
       `INSERT INTO gift_cards (
         salon_id, code, initial_balance, remaining_balance, purchased_by,
-        recipient_email, recipient_name, message, expires_at, created_at
+        recipient_email, recipient_name, recipient_message, expires_at, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         id,

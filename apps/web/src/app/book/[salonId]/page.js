@@ -96,6 +96,12 @@ export default function BookingPage({ params }) {
   var [discountError, setDiscountError] = useState("");
   var [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
 
+  // Gift card state
+  var [giftCardInput, setGiftCardInput] = useState("");
+  var [appliedGiftCard, setAppliedGiftCard] = useState(null);
+  var [giftCardError, setGiftCardError] = useState("");
+  var [isValidatingGiftCard, setIsValidatingGiftCard] = useState(false);
+
   var availableFulfillmentTypes = getAvailableFulfillmentTypes(salon);
 
   var singleFulfillmentType =
@@ -355,7 +361,10 @@ export default function BookingPage({ params }) {
   var discountAmount = appliedDiscount
     ? parseFloat(appliedDiscount.calculatedAmount || 0)
     : 0;
-  var finalTotal = Math.max(0, totalPrice + travelFee - discountAmount);
+  var giftCardAmount = appliedGiftCard
+    ? Math.min(parseFloat(appliedGiftCard.remainingBalance || 0), totalPrice + travelFee - discountAmount)
+    : 0;
+  var finalTotal = Math.max(0, totalPrice + travelFee - discountAmount - giftCardAmount);
 
   async function handleApplyDiscount() {
     if (!discountInput.trim()) return;
@@ -395,6 +404,43 @@ export default function BookingPage({ params }) {
     setAppliedDiscount(null);
     setDiscountError("");
     setDiscountInput("");
+  }
+
+  async function handleApplyGiftCard() {
+    if (!giftCardInput.trim()) return;
+    setIsValidatingGiftCard(true);
+    setGiftCardError("");
+    try {
+      var res = await fetch("/api/gift-cards/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: giftCardInput.trim().toUpperCase(),
+          salonId: salonId,
+        }),
+      });
+      var json = await res.json();
+      if (res.ok && json.data?.isActive) {
+        setAppliedGiftCard(json.data);
+        setGiftCardInput("");
+      } else if (res.ok && json.data && !json.data.isActive) {
+        setGiftCardError(
+          json.data.isExpired ? "This gift card has expired." : "This gift card has no remaining balance."
+        );
+      } else {
+        setGiftCardError(json.message || json.error || "Gift card not found.");
+      }
+    } catch (e) {
+      setGiftCardError("Could not validate gift card. Please try again.");
+    } finally {
+      setIsValidatingGiftCard(false);
+    }
+  }
+
+  function handleRemoveGiftCard() {
+    setAppliedGiftCard(null);
+    setGiftCardError("");
+    setGiftCardInput("");
   }
 
   function handleNext() {
@@ -502,6 +548,7 @@ export default function BookingPage({ params }) {
               ? mobileLocationCoords.lng
               : undefined,
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
+          giftCardCode: appliedGiftCard ? appliedGiftCard.code : undefined,
         }),
       });
 
@@ -1095,6 +1142,70 @@ export default function BookingPage({ params }) {
                       )}
                     </div>
 
+                    {/* Gift Card */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <label className="font-medium text-sm flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Gift Card
+                      </label>
+                      {appliedGiftCard ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
+                          <div>
+                            <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 font-mono">
+                              {appliedGiftCard.code}
+                            </p>
+                            <p className="text-xs text-purple-600 dark:text-purple-400">
+                              {formatCurrency(giftCardAmount, salon?.currency)} applied
+                              {" ("}
+                              {formatCurrency(appliedGiftCard.remainingBalance - giftCardAmount, salon?.currency)}
+                              {" remaining)"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleRemoveGiftCard}
+                            className="text-purple-500 hover:text-purple-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            className="flex-1 px-3 py-2 border rounded-md text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Enter gift card code"
+                            value={giftCardInput}
+                            onChange={function (e) {
+                              setGiftCardInput(e.target.value.toUpperCase());
+                              setGiftCardError("");
+                            }}
+                            onKeyDown={function (e) {
+                              if (e.key === "Enter") handleApplyGiftCard();
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleApplyGiftCard}
+                            disabled={
+                              !giftCardInput.trim() || isValidatingGiftCard
+                            }
+                          >
+                            {isValidatingGiftCard ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              "Apply"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                      {giftCardError && (
+                        <p className="text-xs text-destructive">
+                          {giftCardError}
+                        </p>
+                      )}
+                    </div>
+
                     {/* Payment Method */}
                     <div className="space-y-4 pt-2 border-t">
                       <label className="font-medium text-sm">
@@ -1247,6 +1358,17 @@ export default function BookingPage({ params }) {
                             </span>
                           </div>
                         </>
+                      )}
+                      {giftCardAmount > 0 && (
+                        <div className="flex justify-between text-sm text-purple-600">
+                          <span className="flex items-center gap-1">
+                            <CreditCard className="h-3 w-3" />
+                            Gift Card
+                          </span>
+                          <span>
+                            -{formatCurrency(giftCardAmount, salon?.currency)}
+                          </span>
+                        </div>
                       )}
                       <div className="flex justify-between font-semibold pt-1 border-t">
                         <span>Total</span>

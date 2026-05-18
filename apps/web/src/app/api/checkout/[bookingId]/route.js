@@ -2,6 +2,7 @@ import { decodeId } from '@/lib/id';
 import { query, getOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -71,7 +72,10 @@ export async function GET(request, { params }) {
 
     // Get applied gift card
     const giftCardPayment = await getOne(
-      'SELECT * FROM booking_gift_cards WHERE booking_id = ?',
+      `SELECT bgc.*, gc.code as gift_card_code 
+       FROM booking_gift_cards bgc 
+       JOIN gift_cards gc ON gc.id = bgc.gift_card_id 
+       WHERE bgc.booking_id = ?`,
       [bookingId]
     );
 
@@ -211,18 +215,84 @@ export async function POST(request, { params }) {
         await conn.execute('UPDATE discounts SET current_uses = current_uses + 1 WHERE id = ?', [discountId]);
       }
 
-      // Apply gift card if provided
-      if (giftCardCode && giftCardAmount) {
-        await conn.execute(
-          'INSERT INTO booking_gift_cards (booking_id, gift_card_code, amount_used) VALUES (?, ?, ?)',
-          [bookingId, giftCardCode, giftCardAmount]
+      // Apply gift card if provided — validate server-side (never trust frontend amount)
+      if (giftCardCode) {
+        // Check if a gift card was already applied during booking creation
+        const [existingGc] = await conn.execute(
+          'SELECT id FROM booking_gift_cards WHERE booking_id = ?',
+          [bookingId]
+        );
+        if (existingGc.length > 0) {
+          throw new Error('A gift card has already been applied to this booking');
+        }
+
+        // Lock the gift card row and validate it's usable
+        const [gcRows] = await conn.execute(
+          `SELECT id, remaining_balance FROM gift_cards
+           WHERE code = ?
+             AND status = 'active'
+             AND remaining_balance > 0
+             AND (expires_at IS NULL OR expires_at > NOW())
+           FOR UPDATE`,
+          [giftCardCode.toUpperCase()]
+        );
+        const giftCard = gcRows[0];
+        if (!giftCard) {
+          throw new Error('Gift card is invalid, expired, or depleted');
+        }
+
+        // Calculate the actual amount to deduct server-side (never trust frontend)
+        const [svcRes] = await conn.execute(
+          'SELECT COALESCE(SUM(price), 0) as total FROM booking_services WHERE booking_id = ?',
+          [bookingId]
+        );
+        const [prdRes] = await conn.execute(
+          'SELECT COALESCE(SUM(unit_price * quantity), 0) as total FROM booking_products WHERE booking_id = ?',
+          [bookingId]
+        );
+        const [dscRes] = await conn.execute(
+          'SELECT COALESCE(SUM(amount_saved), 0) as total FROM booking_discounts WHERE booking_id = ?',
+          [bookingId]
+        );
+        const totalAfterDiscount = Math.max(0,
+          parseFloat(svcRes[0].total) + parseFloat(prdRes[0].total) - parseFloat(dscRes[0].total)
         );
 
-        // Deduct from gift card balance
-        await conn.execute(
-          'UPDATE gift_cards SET remaining_balance = remaining_balance - ? WHERE code = ?',
-          [giftCardAmount, giftCardCode]
+        const serverGiftCardAmount = Math.min(
+          parseFloat(giftCard.remaining_balance),
+          totalAfterDiscount
         );
+
+        if (serverGiftCardAmount > 0) {
+          // Insert using gift_card_id (the actual FK column)
+          await conn.execute(
+            'INSERT INTO booking_gift_cards (booking_id, gift_card_id, amount_used) VALUES (?, ?, ?)',
+            [bookingId, giftCard.id, serverGiftCardAmount.toFixed(2)]
+          );
+
+          // Deduct from gift card balance and auto-set status when depleted
+          await conn.execute(
+            `UPDATE gift_cards
+                SET remaining_balance = remaining_balance - ?,
+                    status = CASE WHEN (remaining_balance - ?) <= 0 THEN 'used' ELSE status END
+              WHERE id = ?`,
+            [serverGiftCardAmount.toFixed(2), serverGiftCardAmount.toFixed(2), giftCard.id]
+          );
+
+          // Record in audit ledger
+          const newBalance = parseFloat(giftCard.remaining_balance) - serverGiftCardAmount;
+          await recordGiftCardTransaction({
+            giftCardId: giftCard.id,
+            type: 'redemption',
+            amount: -serverGiftCardAmount,
+            balanceAfter: Math.max(0, newBalance),
+            referenceType: 'checkout',
+            referenceId: bookingId,
+            notes: `Redeemed during checkout for booking #${bookingId}`,
+            createdBy: session.userId,
+            conn,
+          });
+        }
       }
 
       // Calculate final total

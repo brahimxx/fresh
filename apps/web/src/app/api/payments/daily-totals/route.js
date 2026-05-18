@@ -25,7 +25,7 @@
 import { decodeId } from '@/lib/id';
 import { getSession } from '@/lib/auth';
 import { assertSalonAccess } from '@/lib/permissions-server';
-import pool from '@/lib/db';
+import { withConnection } from '@/lib/db';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
 
 const SALON_ID_INT_MAX = Number.MAX_SAFE_INTEGER;
@@ -195,22 +195,22 @@ export async function GET(request) {
   // 6. Execute on a single pooled connection so the SET SESSION takes effect
   //    for the recursive CTE (`cte_max_recursion_depth` defaults to 1000 on
   //    MySQL 8.0+, but we set it explicitly so the 366-day cap is honoured
-  //    regardless of server config).
-  const conn = await pool.getConnection();
+  //    regardless of server config). `withConnection` guarantees release even
+  //    if the SET or the query throws.
   try {
-    await conn.query(`SET SESSION cte_max_recursion_depth = ${MAX_RANGE_DAYS + 32}`);
-    const [rows] = await conn.query(sql, sqlParams);
-    const data = rows.map((r) => ({
-      date: r.date,
-      revenue: toNonNegativeNumber(r.revenue),
-      transactions: toNonNegativeNumber(r.transactions),
-      refunded: toNonNegativeNumber(r.refunded),
-    }));
+    const data = await withConnection(async (conn) => {
+      await conn.query(`SET SESSION cte_max_recursion_depth = ${MAX_RANGE_DAYS + 32}`);
+      const [rows] = await conn.query(sql, sqlParams);
+      return rows.map((r) => ({
+        date: r.date,
+        revenue: toNonNegativeNumber(r.revenue),
+        transactions: toNonNegativeNumber(r.transactions),
+        refunded: toNonNegativeNumber(r.refunded),
+      }));
+    });
     return success(data);
   } catch (err) {
     console.error('Get daily totals error:', err);
     return error('Failed to compute daily totals', 500);
-  } finally {
-    conn.release();
   }
 }

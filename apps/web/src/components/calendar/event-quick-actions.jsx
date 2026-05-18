@@ -9,9 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Edit, Check, XCircle, MoreVertical, CheckCircle } from "lucide-react";
+import { Edit, Check, XCircle, MoreVertical, CheckCircle, ShoppingCart } from "lucide-react";
 
-export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCancel }) {
+export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCheckout, onCancel }) {
   var [open, setOpen] = useState(false);
 
   if (!booking) return null;
@@ -68,11 +68,23 @@ export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCa
               onClick={function (e) {
                 e.stopPropagation();
                 setOpen(false);
+                if (onCheckout) onCheckout(booking);
+              }}
+            >
+              <ShoppingCart className="h-3.5 w-3.5 mr-2" />
+              Checkout
+            </DropdownMenuItem>
+          )}
+          {canComplete && (
+            <DropdownMenuItem
+              onClick={function (e) {
+                e.stopPropagation();
+                setOpen(false);
                 if (onComplete) onComplete(booking);
               }}
             >
               <CheckCircle className="h-3.5 w-3.5 mr-2" />
-              Complete
+              Quick Cash
             </DropdownMenuItem>
           )}
           {canCancel && (

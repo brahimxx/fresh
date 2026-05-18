@@ -108,7 +108,7 @@ export default function MarketplaceLayout({ children }) {
               {isAuthenticated && isBusinessUser && salons.length > 0 && (
                 <button
                   onClick={() => router.push("/dashboard")}
-                  className="hidden sm:block text-sm font-medium hover:text-primary"
+                  className="hidden sm:block text-sm font-medium hover:text-primary cursor-pointer"
                 >
                   Dashboard
                 </button>

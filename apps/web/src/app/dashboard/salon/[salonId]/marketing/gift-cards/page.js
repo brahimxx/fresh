@@ -95,6 +95,17 @@ export default function GiftCardsPage({ params }) {
     (gc) => getGiftCardStatus(gc) === 'active'
   ).length;
 
+  // Compute monthly sales from gift cards created this month
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthlySales = Object.values(giftCards || {}).reduce((sum, card) => {
+    var createdAt = card.created_at ? new Date(card.created_at) : null;
+    if (createdAt && createdAt >= startOfMonth) {
+      return sum + Number(card.initial_value || 0);
+    }
+    return sum;
+  }, 0);
+
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
     toast({
@@ -177,8 +188,8 @@ export default function GiftCardsPage({ params }) {
             <DollarSign className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€1,450</div>
-            <p className="text-xs text-muted-foreground mt-1">+12.5% from last month</p>
+            <div className="text-2xl font-bold">€{monthlySales.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">This month&apos;s issued value</p>
           </CardContent>
         </Card>
       </div>
@@ -348,12 +359,12 @@ export default function GiftCardsPage({ params }) {
       </Card>
 
       {/* Forms & Dialogs */}
-      {showForm && (
-        <GiftCardForm
-          salonId={salonId}
-          onClose={() => setShowForm(false)}
-        />
-      )}
+      <GiftCardForm
+        open={showForm}
+        onOpenChange={function(open) { if (!open) setShowForm(false); }}
+        salonId={salonId}
+        onSuccess={function() { setShowForm(false); }}
+      />
 
       <AlertDialog
         open={!!cancelGiftCard}

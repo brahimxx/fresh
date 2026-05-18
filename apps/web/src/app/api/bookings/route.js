@@ -42,7 +42,9 @@ export async function GET(request) {
              p.method as payment_method,
              p.status as payment_status_real,
              p.amount as payment_amount,
-             sc.is_active as client_is_active
+             sc.is_active as client_is_active,
+             bgc.amount_used as gift_card_amount_used,
+             gc.code as gift_card_code
       FROM bookings b
       JOIN users u ON u.id = b.client_id
       JOIN salons s ON s.id = b.salon_id
@@ -50,6 +52,8 @@ export async function GET(request) {
       LEFT JOIN users su ON su.id = st.user_id
       LEFT JOIN payments p ON p.booking_id = b.id
       LEFT JOIN salon_clients sc ON sc.salon_id = b.salon_id AND sc.client_id = b.client_id
+      LEFT JOIN booking_gift_cards bgc ON bgc.booking_id = b.id
+      LEFT JOIN gift_cards gc ON gc.id = bgc.gift_card_id
       WHERE b.deleted_at IS NULL
     `;
     const params = [];
@@ -176,6 +180,8 @@ export async function GET(request) {
         totalPrice: b.payment_amount !== null && b.payment_amount !== undefined ? parseFloat(b.payment_amount) : computedTotal,
         paymentMethod: b.payment_method,
         paymentStatus: b.payment_status_real || b.payment_status,
+        giftCardCode: b.gift_card_code || null,
+        giftCardAmountUsed: b.gift_card_amount_used ? parseFloat(b.gift_card_amount_used) : 0,
         createdAt: b.created_at,
         services: bServices.map((bs) => ({
           id: bs.service_id,
@@ -407,12 +413,16 @@ export async function POST(request) {
       : `Booking Received (Pending Approval): ${services[0]?.name}`;
 
     const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
+    const giftCardHTML = result.giftCardAmountUsed > 0
+      ? `<p><strong>🎁 Gift Card Applied:</strong> -$${Number(result.giftCardAmountUsed).toFixed(2)}${giftCardCode ? ` (${giftCardCode})` : ''}</p>`
+      : '';
     const notificationBody = `
       <p>Hi ${clientRecord.first_name || 'there'},</p>
       <p>Your booking has been ${isConfirmed ? 'confirmed' : 'received and is awaiting salon approval'}.</p>
       <p><strong>When:</strong> ${startDatetimeFormatted}</p>
       <p><strong>Services:</strong></p>
       <ul>${formattedServicesHTML}</ul>
+      ${giftCardHTML}
       <p>Thank you for booking with Fresh!</p>
     `;
 

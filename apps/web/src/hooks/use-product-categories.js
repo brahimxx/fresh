@@ -73,7 +73,38 @@ export function useDeleteProductCategory() {
     mutationFn: function (id) {
       return api.delete('/product-categories/' + id);
     },
-    onSuccess: function () {
+    onMutate: async function (id) {
+      // Cancel in-flight fetches so they don't overwrite our optimistic update.
+      await queryClient.cancelQueries({ queryKey: productCategoryKeys.lists() });
+
+      // Snapshot for rollback.
+      var previousLists = queryClient.getQueriesData({ queryKey: productCategoryKeys.lists() });
+
+      // Optimistically remove the category from every cached list.
+      queryClient.setQueriesData({ queryKey: productCategoryKeys.lists() }, function (old) {
+        if (!old) return old;
+        // The select function normalises to an array, but the raw cache holds
+        // the pre-select response shape. Handle both.
+        if (Array.isArray(old)) {
+          return old.filter(function (c) { return c.id !== id; });
+        }
+        if (old.data && Array.isArray(old.data)) {
+          return { ...old, data: old.data.filter(function (c) { return c.id !== id; }) };
+        }
+        return old;
+      });
+
+      return { previousLists: previousLists };
+    },
+    onError: function (_err, _id, context) {
+      // Rollback on failure.
+      if (context && context.previousLists) {
+        context.previousLists.forEach(function (entry) {
+          queryClient.setQueryData(entry[0], entry[1]);
+        });
+      }
+    },
+    onSettled: function () {
       queryClient.invalidateQueries({ queryKey: productCategoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: productKeys.all });
     },

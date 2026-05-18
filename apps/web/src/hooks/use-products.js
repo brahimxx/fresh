@@ -211,7 +211,38 @@ export function useDeleteProduct() {
     mutationFn: function (id) {
       return api.delete('/products/' + id);
     },
-    onSuccess: function () {
+    onMutate: async function (id) {
+      // Cancel in-flight fetches so they don't overwrite our optimistic update.
+      await queryClient.cancelQueries({ queryKey: productKeys.lists() });
+
+      // Snapshot the current listing caches for rollback.
+      var previousLists = queryClient.getQueriesData({ queryKey: productKeys.lists() });
+
+      // Optimistically remove the product from every cached listing page.
+      queryClient.setQueriesData({ queryKey: productKeys.lists() }, function (old) {
+        if (!old || !old.data) return old;
+        var inner = old.data;
+        if (!inner || !Array.isArray(inner.data)) return old;
+        return {
+          ...old,
+          data: {
+            ...inner,
+            data: inner.data.filter(function (p) { return p.id !== id; }),
+          },
+        };
+      });
+
+      return { previousLists: previousLists };
+    },
+    onError: function (_err, _id, context) {
+      // Rollback on failure.
+      if (context && context.previousLists) {
+        context.previousLists.forEach(function (entry) {
+          queryClient.setQueryData(entry[0], entry[1]);
+        });
+      }
+    },
+    onSettled: function () {
       invalidateProductCaches(queryClient);
     },
   });
@@ -235,16 +266,57 @@ export function useUpdateProductStock() {
         quantity: params.quantity,
         reason_code: params.reason_code,
       };
-      // Only include reason_note when the caller actually provided one — the
-      // server treats an explicit `null` and an absent key the same way, but
-      // omitting it keeps the wire payload lean and matches the validator's
-      // "optional" handling.
       if (params.reason_note !== undefined && params.reason_note !== null) {
         body.reason_note = params.reason_note;
       }
       return api.put('/products/' + params.id + '/stock', body);
     },
-    onSuccess: function (_data, variables) {
+    onMutate: async function (params) {
+      // Cancel in-flight fetches so they don't overwrite our optimistic update.
+      await queryClient.cancelQueries({ queryKey: productKeys.lists() });
+
+      // Snapshot for rollback.
+      var previousLists = queryClient.getQueriesData({ queryKey: productKeys.lists() });
+
+      // Compute the optimistic new stock quantity (mirrors server logic).
+      function computeOptimistic(current, mode, quantity) {
+        if (mode === 'set') return quantity;
+        if (mode === 'add') return current + quantity;
+        return Math.max(0, current - quantity); // subtract
+      }
+
+      // Optimistically update stock_quantity in every cached listing page.
+      queryClient.setQueriesData({ queryKey: productKeys.lists() }, function (old) {
+        if (!old || !old.data) return old;
+        var inner = old.data;
+        if (!inner || !Array.isArray(inner.data)) return old;
+        return {
+          ...old,
+          data: {
+            ...inner,
+            data: inner.data.map(function (p) {
+              if (p.id !== params.id) return p;
+              var currentQty = Number(p.stock_quantity) || 0;
+              return {
+                ...p,
+                stock_quantity: computeOptimistic(currentQty, params.mode, params.quantity),
+              };
+            }),
+          },
+        };
+      });
+
+      return { previousLists: previousLists };
+    },
+    onError: function (_err, _params, context) {
+      // Rollback on failure.
+      if (context && context.previousLists) {
+        context.previousLists.forEach(function (entry) {
+          queryClient.setQueryData(entry[0], entry[1]);
+        });
+      }
+    },
+    onSettled: function (_data, _err, variables) {
       invalidateProductCaches(queryClient, { id: variables && variables.id });
       if (variables && variables.id) {
         queryClient.invalidateQueries({

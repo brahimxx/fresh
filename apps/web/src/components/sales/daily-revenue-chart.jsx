@@ -65,28 +65,54 @@ function ChartTooltip(props) {
 }
 
 /**
- * DailyRevenueChart — Recharts line chart bound to `useDailyTotals`.
+ * DailyRevenueChart — Recharts line chart for daily revenue.
+ *
+ * Accepts data, loading, and error state as props so the parent page owns
+ * the single `useDailyTotals` call and both the KPI cards and the chart
+ * read from the same query response (no duplicate hook subscriptions).
+ *
+ * Props:
+ *   • data        — array of `{ date, revenue, transactions, refunded }`
+ *   • isLoading   — true while the initial fetch is in flight
+ *   • isFetching  — true during any fetch (initial or background refetch)
+ *   • isError     — true when the query failed
+ *   • onRetry     — callback to re-run the query
+ *   • currency    — salon currency code for formatting
+ *   • className   — optional wrapper class
+ *
+ * Legacy prop-based fetching (salonId + startDate + endDate) is still
+ * supported for backward compatibility — if `data` is not provided, the
+ * component falls back to calling `useDailyTotals` internally.
  *
  * Behaviour (Task 13.1, Req 16.3 / 16.4 / 16.7):
- *   • Skeleton placeholder of identical width/height while the query is
- *     loading OR fetching (so the previous chart is hidden until the new
- *     response arrives).
+ *   • Skeleton placeholder of identical width/height while loading/fetching
+ *     (so the previous chart is hidden until the new response arrives).
  *   • Single retry button on error — re-runs the same query.
  *   • Tooltip values render via `formatCurrency(amount, salon.currency)`.
  */
 export function DailyRevenueChart(props) {
-  var salonId = props.salonId;
-  var startDate = props.startDate || props.start_date;
-  var endDate = props.endDate || props.end_date;
   var currency = props.currency || APP_CURRENCY;
   var className = props.className;
 
-  var query = useDailyTotals(salonId, { start_date: startDate, end_date: endDate });
-  var data = query.data;
-  var isLoading = query.isLoading;
-  var isFetching = query.isFetching;
-  var isError = query.isError;
-  var refetch = query.refetch;
+  // Support two modes:
+  // 1. Parent-driven (preferred): data/isLoading/isFetching/isError/onRetry passed as props
+  // 2. Self-fetching (legacy): salonId + startDate + endDate passed, component calls the hook
+  var parentDriven = props.data !== undefined || props.isLoading !== undefined;
+
+  var salonId = props.salonId;
+  var startDate = props.startDate || props.start_date;
+  var endDate = props.endDate || props.end_date;
+
+  var selfQuery = useDailyTotals(
+    parentDriven ? null : salonId,
+    parentDriven ? { start_date: null, end_date: null } : { start_date: startDate, end_date: endDate },
+  );
+
+  var data = parentDriven ? props.data : selfQuery.data;
+  var isLoading = parentDriven ? !!props.isLoading : selfQuery.isLoading;
+  var isFetching = parentDriven ? !!props.isFetching : selfQuery.isFetching;
+  var isError = parentDriven ? !!props.isError : selfQuery.isError;
+  var refetch = parentDriven ? props.onRetry : selfQuery.refetch;
 
   // Hide the previous chart while a new response is in flight (Req 16.4).
   // `isFetching` is true on initial load and on every background refetch

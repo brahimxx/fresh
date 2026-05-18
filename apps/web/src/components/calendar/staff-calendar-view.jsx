@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import {
     useCalendarBookings,
@@ -204,6 +205,10 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
     }
     function handleCompleteBooking(booking) {
         completeBooking.mutate(booking.id);
+    }
+    var staffRouter = useRouter();
+    function handleCheckoutBooking(booking) {
+        staffRouter.push('/dashboard/salon/' + salonId + '/checkout/' + booking.id);
     }
     function handleCancelBookingAction(booking) {
         if (confirm("Are you sure you want to cancel this booking?")) {
@@ -528,6 +533,7 @@ export function StaffCalendarView({ onDateClick, onEventClick, onNewBooking, onS
                                                                 onEdit={handleEditBooking}
                                                                 onConfirm={handleConfirmBooking}
                                                                 onComplete={handleCompleteBooking}
+                                                                onCheckout={handleCheckoutBooking}
                                                                 onCancel={handleCancelBookingAction}
                                                             />
                                                             <div className="text-[10px] font-semibold opacity-90">

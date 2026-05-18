@@ -252,6 +252,15 @@ export async function GET(request) {
     return badParameter('search', 'search must be 0–100 characters');
   }
 
+  // has_refund: boolean filter — when 'true', only rows with refunded_amount > 0
+  const rawHasRefund = searchParams.get('has_refund');
+  let hasRefundFilter = null;
+  if (rawHasRefund !== null && rawHasRefund !== '') {
+    if (rawHasRefund === 'true') hasRefundFilter = true;
+    else if (rawHasRefund === 'false') hasRefundFilter = false;
+    else return badParameter('has_refund', 'has_refund must be true or false');
+  }
+
   const sortKey = searchParams.get('sort') || 'created_desc';
   if (!SORT_MAP[sortKey]) return badParameter('sort');
 
@@ -317,6 +326,12 @@ export async function GET(request) {
       )`,
     );
     params.push(like, like, like, like);
+  }
+
+  if (hasRefundFilter === true) {
+    whereClauses.push('COALESCE(p.refunded_amount, 0) > 0');
+  } else if (hasRefundFilter === false) {
+    whereClauses.push('COALESCE(p.refunded_amount, 0) = 0');
   }
 
   const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';

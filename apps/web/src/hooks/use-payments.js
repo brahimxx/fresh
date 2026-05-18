@@ -47,6 +47,7 @@ export function usePayments(salonId, options) {
       if (options?.start_date) params.append('start_date', options.start_date);
       if (options?.end_date) params.append('end_date', options.end_date);
       if (options?.search) params.append('search', options.search);
+      if (options?.has_refund) params.append('has_refund', options.has_refund);
       if (options?.sort) params.append('sort', options.sort);
       if (options?.page) params.append('page', options.page);
       if (options?.limit) params.append('limit', options.limit);
@@ -229,6 +230,14 @@ export var PAYMENT_METHODS = [
   { value: 'card_terminal', label: 'Card Terminal', icon: 'Smartphone' },
   { value: 'gift_card', label: 'Gift Card', icon: 'Gift' },
   { value: 'bank_transfer', label: 'Bank Transfer', icon: 'Building' },
+];
+
+// Subset of PAYMENT_METHODS that the API accepts as filter values.
+// The DB enum for payments.method is ('card', 'cash'); the other entries in
+// PAYMENT_METHODS exist only for display labeling of historical/edge-case rows.
+export var FILTERABLE_PAYMENT_METHODS = [
+  { value: 'card', label: 'Card', icon: 'CreditCard' },
+  { value: 'cash', label: 'Cash', icon: 'Banknote' },
 ];
 
 // Canonical 4-value enum (Req 12.10). Legacy aliases left in for read-only

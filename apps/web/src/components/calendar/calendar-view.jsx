@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -713,6 +714,11 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
     completeBooking.mutate(booking.id);
   }, [completeBooking]);
 
+  var router = useRouter();
+  var handleCheckoutBooking = useCallback(function (booking) {
+    router.push('/dashboard/salon/' + salonId + '/checkout/' + booking.id);
+  }, [router, salonId]);
+
   var handleCancelBookingAction = useCallback(function (booking) {
     if (confirm("Are you sure you want to cancel this booking?")) {
       cancelBooking.mutate(booking.id);
@@ -1287,6 +1293,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                                   onEdit={handleEditBooking}
                                   onConfirm={handleConfirmBooking}
                                   onComplete={handleCompleteBooking}
+                                  onCheckout={handleCheckoutBooking}
                                   onCancel={handleCancelBookingAction}
                                 />
                                 <div className="text-[10px] font-semibold opacity-90 flex items-center gap-1.5">
@@ -1543,6 +1550,7 @@ export function CalendarView({ onDateClick, onEventClick, onNewBooking, onTimeOf
                                           onEdit={handleEditBooking}
                                           onConfirm={handleConfirmBooking}
                                           onComplete={handleCompleteBooking}
+                                          onCheckout={handleCheckoutBooking}
                                           onCancel={handleCancelBookingAction}
                                         />
                                       </div>

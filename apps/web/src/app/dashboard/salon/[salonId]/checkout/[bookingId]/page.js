@@ -39,6 +39,7 @@ import {
 
 import { useCheckout, useCreatePayment, useValidateDiscount, useCheckGiftCard, formatCurrency, PAYMENT_METHODS } from '@/hooks/use-payments';
 import { useProducts } from '@/hooks/use-products';
+import { useSalon } from '@/providers/salon-provider';
 import { AddProductDialog } from '@/components/checkout/add-product-dialog';
 import { PaymentSuccessDialog } from '@/components/checkout/payment-success';
 
@@ -47,6 +48,8 @@ export default function CheckoutPage({ params }) {
   var salonId = resolvedParams.salonId;
   var bookingId = resolvedParams.bookingId;
   var router = useRouter();
+  var salonCtx = useSalon();
+  var currency = salonCtx?.salon?.currency;
   
   var [discountCode, setDiscountCode] = useState('');
   var [appliedDiscount, setAppliedDiscount] = useState(null);
@@ -59,8 +62,10 @@ export default function CheckoutPage({ params }) {
   var [paymentSuccess, setPaymentSuccess] = useState(false);
   var [processing, setProcessing] = useState(false);
   
-  var { data: checkout, isLoading } = useCheckout(bookingId);
-  var { data: products } = useProducts(salonId);
+  var { data: checkoutResponse, isLoading } = useCheckout(bookingId);
+  var checkout = checkoutResponse?.data || checkoutResponse || null;
+  var productsQuery = useProducts(salonId);
+  var products = (productsQuery.data && productsQuery.data.data) || [];
   var createPayment = useCreatePayment();
   var validateDiscount = useValidateDiscount();
   var checkGiftCard = useCheckGiftCard();
@@ -209,7 +214,7 @@ export default function CheckoutPage({ params }) {
         <div>
           <h1 className="text-2xl font-bold">Checkout</h1>
           <p className="text-muted-foreground">
-            Booking #{bookingId} • {checkout?.client?.name || 'Walk-in'}
+            Booking #{bookingId} • {checkout?.booking?.salonName || 'Salon'}
           </p>
         </div>
       </div>
@@ -229,10 +234,10 @@ export default function CheckoutPage({ params }) {
                     <div>
                       <p className="font-medium">{service.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {service.duration} min • {service.staff_name || 'Any staff'}
+                        {service.duration} min
                       </p>
                     </div>
-                    <p className="font-medium">{formatCurrency(service.price)}</p>
+                    <p className="font-medium">{formatCurrency(service.price, currency)}</p>
                   </div>
                 );
               }) || (
@@ -272,7 +277,7 @@ export default function CheckoutPage({ params }) {
                         </div>
                       </div>
                       <p className="font-medium">
-                        {formatCurrency(product.price * (product.quantity || 1))}
+                        {formatCurrency(product.price * (product.quantity || 1), currency)}
                       </p>
                     </div>
                   );
@@ -299,7 +304,7 @@ export default function CheckoutPage({ params }) {
                       <span className="text-green-700">
                         {appliedDiscount.code} - {appliedDiscount.type === 'percentage' 
                           ? appliedDiscount.value + '% off' 
-                          : formatCurrency(appliedDiscount.value) + ' off'}
+                          : formatCurrency(appliedDiscount.value, currency) + ' off'}
                       </span>
                     </div>
                     <Button 
@@ -336,7 +341,7 @@ export default function CheckoutPage({ params }) {
                     <div className="flex items-center gap-2">
                       <Gift className="h-4 w-4 text-purple-600" />
                       <span className="text-purple-700">
-                        Gift Card ({formatCurrency(appliedGiftCard.balance)} balance)
+                        Gift Card ({formatCurrency(appliedGiftCard.balance, currency)} balance)
                       </span>
                     </div>
                     <Button 
@@ -382,7 +387,7 @@ export default function CheckoutPage({ params }) {
                       size="sm"
                       onClick={function() { handleTipPreset(amount); }}
                     >
-                      {amount === 0 ? 'No tip' : formatCurrency(amount)}
+                      {amount === 0 ? 'No tip' : formatCurrency(amount, currency)}
                     </Button>
                   );
                 })}
@@ -412,41 +417,41 @@ export default function CheckoutPage({ params }) {
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>Services</span>
-                <span>{formatCurrency(servicesTotal)}</span>
+                <span>{formatCurrency(servicesTotal, currency)}</span>
               </div>
               {productsTotal > 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Products</span>
-                  <span>{formatCurrency(productsTotal)}</span>
+                  <span>{formatCurrency(productsTotal, currency)}</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
+                <span>{formatCurrency(subtotal, currency)}</span>
               </div>
               {discountAmount > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Discount</span>
-                  <span>-{formatCurrency(discountAmount)}</span>
+                  <span>-{formatCurrency(discountAmount, currency)}</span>
                 </div>
               )}
               {giftCardAmount > 0 && (
                 <div className="flex justify-between text-purple-600">
                   <span>Gift Card</span>
-                  <span>-{formatCurrency(giftCardAmount)}</span>
+                  <span>-{formatCurrency(giftCardAmount, currency)}</span>
                 </div>
               )}
               {tipAmount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span>Tip</span>
-                  <span>{formatCurrency(tipAmount)}</span>
+                  <span>{formatCurrency(tipAmount, currency)}</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+                <span>{formatCurrency(total, currency)}</span>
               </div>
             </CardContent>
           </Card>
@@ -488,7 +493,7 @@ export default function CheckoutPage({ params }) {
             ) : (
               <CheckCircle className="h-5 w-5 mr-2" />
             )}
-            Pay {formatCurrency(total)}
+            Pay {formatCurrency(total, currency)}
           </Button>
         </div>
       </div>

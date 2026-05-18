@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Monitor,
   Car,
+  Gift,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -265,6 +266,25 @@ export function BookingConfirmation({
                 </p>
               </div>
             )}
+            {Number(
+              booking?.booking?.gift_card_amount_used || booking?.gift_card_amount_used || booking?.giftCardAmountUsed,
+            ) > 0 && (
+              <div className="flex justify-between items-center text-purple-600">
+                <div className="flex items-center gap-1.5">
+                  <Gift className="h-4 w-4" />
+                  <p className="font-medium">Gift Card</p>
+                </div>
+                <p className="font-medium">
+                  -
+                  {formatCurrency(
+                    booking?.booking?.gift_card_amount_used ||
+                      booking?.gift_card_amount_used ||
+                      booking?.giftCardAmountUsed,
+                    salon?.currency,
+                  )}
+                </p>
+              </div>
+            )}
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between items-center font-semibold">
@@ -282,6 +302,12 @@ export function BookingConfirmation({
                     Number(
                       booking?.booking?.discount_amount ||
                         booking?.discount_amount ||
+                        0,
+                    ) -
+                    Number(
+                      booking?.booking?.gift_card_amount_used ||
+                        booking?.gift_card_amount_used ||
+                        booking?.giftCardAmountUsed ||
                         0,
                     ),
                 ),

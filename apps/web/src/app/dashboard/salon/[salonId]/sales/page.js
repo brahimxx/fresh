@@ -11,6 +11,8 @@ import {
   CreditCard,
   Banknote,
   Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
   TrendingUp,
   DollarSign,
   Receipt,
@@ -49,6 +51,7 @@ import {
   usePayments,
   useDailyTotals,
   PAYMENT_METHODS,
+  FILTERABLE_PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/format';
@@ -85,6 +88,9 @@ var itemVariants = {
 };
 
 var SESSION_CURRENCY_WARN_KEY = 'fresh:salon-currency-missing-warned';
+
+// Server-side page size — matches the API default.
+var PAGE_SIZE = 20;
 
 export default function SalesPage({ params }) {
   return (
@@ -134,12 +140,20 @@ function SalesContent({ params }) {
   });
   var [statusFilter, setStatusFilter] = useState('all');
   var [methodFilter, setMethodFilter] = useState('all');
+  var [hasRefundFilter, setHasRefundFilter] = useState(false);
   var [searchQuery, setSearchQuery] = useState('');
+  var [page, setPage] = useState(1);
   var [selectedPayment, setSelectedPayment] = useState(null);
   var [refundPayment, setRefundPayment] = useState(null);
 
   var startDate = format(dateRange.from, 'yyyy-MM-dd');
   var endDate = format(dateRange.to, 'yyyy-MM-dd');
+
+  // Reset to page 1 whenever an effective filter changes.
+  useEffect(
+    function () { setPage(1); },
+    [startDate, endDate, statusFilter, methodFilter, hasRefundFilter, searchQuery],
+  );
 
   // Server-side filters (Req 11.x). `search` is forwarded; the page no longer
   // filters in JavaScript.
@@ -151,16 +165,35 @@ function SalesContent({ params }) {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         method: methodFilter !== 'all' ? methodFilter : undefined,
         search: searchQuery ? searchQuery : undefined,
+        has_refund: hasRefundFilter ? 'true' : undefined,
+        page: page,
+        limit: PAGE_SIZE,
       };
     },
-    [startDate, endDate, statusFilter, methodFilter, searchQuery],
+    [startDate, endDate, statusFilter, methodFilter, hasRefundFilter, searchQuery, page],
   );
 
   var paymentsQuery = usePayments(salonId, listFilters);
   var paymentsResult = paymentsQuery.data || { data: [], meta: null };
   var payments = paymentsResult.data;
+  var meta = paymentsResult.meta;
   var isLoading = paymentsQuery.isLoading;
   var refetch = paymentsQuery.refetch;
+
+  // Pagination guards — disabled at the edges so click / keyboard / touch
+  // are ignored (mirrors Products page pattern).
+  var totalPages = meta ? meta.totalPages : 0;
+  var prevDisabled = page <= 1;
+  var nextDisabled = totalPages === 0 || page >= totalPages;
+
+  function gotoPrev() {
+    if (prevDisabled) return;
+    setPage(function (p) { return Math.max(1, p - 1); });
+  }
+  function gotoNext() {
+    if (nextDisabled) return;
+    setPage(function (p) { return p + 1; });
+  }
 
   // Daily totals over the same date range — drives both the chart and the
   // KPI aggregates (Req 12.4–12.7, 16.3).
@@ -459,9 +492,11 @@ function SalesContent({ params }) {
           </div>
         </div>
         <DailyRevenueChart
-          salonId={salonId}
-          startDate={startDate}
-          endDate={endDate}
+          data={dailyTotals}
+          isLoading={dailyTotalsQuery.isLoading}
+          isFetching={dailyTotalsQuery.isFetching}
+          isError={dailyTotalsQuery.isError}
+          onRetry={dailyTotalsQuery.refetch}
           currency={currency}
         />
       </motion.div>
@@ -542,7 +577,7 @@ function SalesContent({ params }) {
                 <SelectItem value="all" className="font-medium rounded-lg">
                   All Methods
                 </SelectItem>
-                {PAYMENT_METHODS.map(function (method) {
+                {FILTERABLE_PAYMENT_METHODS.map(function (method) {
                   return (
                     <SelectItem
                       key={method.value}
@@ -555,6 +590,20 @@ function SalesContent({ params }) {
                 })}
               </SelectContent>
             </Select>
+
+            <Button
+              variant={hasRefundFilter ? 'default' : 'outline'}
+              onClick={function () { setHasRefundFilter(function (v) { return !v; }); }}
+              className={cn(
+                'h-11 rounded-xl shadow-sm font-semibold text-[13px] gap-2',
+                hasRefundFilter
+                  ? ''
+                  : 'bg-background border-border/50 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Has Refund
+            </Button>
           </div>
         </div>
 
@@ -717,6 +766,41 @@ function SalesContent({ params }) {
             </div>
           )}
         </div>
+
+        {/* Pagination control */}
+        {meta && meta.total > 0 && (
+          <div className="px-5 sm:px-8 py-4 border-t border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/5">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Page <span className="text-foreground">{page}</span> of{' '}
+              <span className="text-foreground">{Math.max(1, totalPages)}</span>
+              <span className="ml-2 opacity-60">· {meta.total} total</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={prevDisabled}
+                aria-disabled={prevDisabled}
+                onClick={gotoPrev}
+                className="h-9 rounded-xl"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={nextDisabled}
+                aria-disabled={nextDisabled}
+                onClick={gotoNext}
+                className="h-9 rounded-xl"
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Payment Detail Dialog */}

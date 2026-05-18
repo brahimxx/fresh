@@ -3,6 +3,7 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
 import { sendNotification } from '@/lib/notifications';
+import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
 
 // Helper to check booking access
 async function checkBookingAccess(bookingId, userId, role) {
@@ -75,6 +76,15 @@ export async function GET(request, { params }) {
     // Get payment info
     const payment = await getOne('SELECT * FROM payments WHERE booking_id = ?', [id]);
 
+    // Get gift card usage
+    const giftCardUsage = await getOne(
+      `SELECT bgc.amount_used, gc.code as gift_card_code
+       FROM booking_gift_cards bgc
+       JOIN gift_cards gc ON gc.id = bgc.gift_card_id
+       WHERE bgc.booking_id = ?`,
+      [id]
+    );
+
     const computedTotal = services.reduce((sum, s) => sum + parseFloat(s.price || 0), 0) + parseFloat(booking.travel_fee_amount || 0);
 
     return success({
@@ -123,6 +133,9 @@ export async function GET(request, { params }) {
             createdAt: payment.created_at,
           }
         : null,
+      // Gift card info
+      giftCardCode: giftCardUsage ? giftCardUsage.gift_card_code : null,
+      giftCardAmountUsed: giftCardUsage ? parseFloat(giftCardUsage.amount_used) : 0,
       // Fulfillment context
       fulfillmentType: booking.fulfillment_type || 'physical',
       serviceLocationAddress: booking.service_location_address || null,
@@ -269,6 +282,36 @@ export async function PUT(request, { params }) {
         } else if (lateCancellation && cancellationFee > 0) {
             // Issue an outstanding fee for late cancellation / no-show
             await query(`INSERT INTO payments (booking_id, amount, method, status, notes) VALUES (?, ?, 'card', 'pending', ?)`, [id, cancellationFee, feeReasonStr]);
+        }
+
+        // Refund gift card balance if one was used for this booking
+        if (status === 'cancelled') {
+            const giftCardUsage = await getOne(
+                'SELECT bgc.gift_card_id, bgc.amount_used FROM booking_gift_cards bgc WHERE bgc.booking_id = ?',
+                [id]
+            );
+            if (giftCardUsage && parseFloat(giftCardUsage.amount_used) > 0) {
+                await query(
+                    `UPDATE gift_cards 
+                     SET remaining_balance = remaining_balance + ?,
+                         status = 'active'
+                     WHERE id = ?`,
+                    [parseFloat(giftCardUsage.amount_used), giftCardUsage.gift_card_id]
+                );
+
+                // Record refund in audit ledger
+                const updatedCard = await getOne('SELECT remaining_balance FROM gift_cards WHERE id = ?', [giftCardUsage.gift_card_id]);
+                await recordGiftCardTransaction({
+                  giftCardId: giftCardUsage.gift_card_id,
+                  type: 'refund',
+                  amount: parseFloat(giftCardUsage.amount_used),
+                  balanceAfter: parseFloat(updatedCard.remaining_balance),
+                  referenceType: 'cancellation',
+                  referenceId: id,
+                  notes: `Refunded due to booking #${id} cancellation`,
+                  createdBy: session.userId,
+                });
+            }
         }
 
         if (status === 'no_show') {
@@ -474,6 +517,34 @@ export async function DELETE(request, { params }) {
     } else if (lateCancellation && cancellationFee > 0) {
         // Issue an outstanding fee for late cancellation
         await query(`INSERT INTO payments (booking_id, amount, method, status, notes) VALUES (?, ?, 'card', 'pending', 'Late Cancellation Fee')`, [id, cancellationFee]);
+    }
+
+    // Refund gift card balance if one was used for this booking
+    const giftCardUsage = await getOne(
+        'SELECT bgc.gift_card_id, bgc.amount_used FROM booking_gift_cards bgc WHERE bgc.booking_id = ?',
+        [id]
+    );
+    if (giftCardUsage && parseFloat(giftCardUsage.amount_used) > 0) {
+        await query(
+            `UPDATE gift_cards 
+             SET remaining_balance = remaining_balance + ?,
+                 status = 'active'
+             WHERE id = ?`,
+            [parseFloat(giftCardUsage.amount_used), giftCardUsage.gift_card_id]
+        );
+
+        // Record refund in audit ledger
+        const updatedCard = await getOne('SELECT remaining_balance FROM gift_cards WHERE id = ?', [giftCardUsage.gift_card_id]);
+        await recordGiftCardTransaction({
+          giftCardId: giftCardUsage.gift_card_id,
+          type: 'refund',
+          amount: parseFloat(giftCardUsage.amount_used),
+          balanceAfter: parseFloat(updatedCard.remaining_balance),
+          referenceType: 'cancellation',
+          referenceId: id,
+          notes: `Refunded due to booking #${id} cancellation (DELETE)`,
+          createdBy: session.userId,
+        });
     }
 
     // Send Cancellation Notification

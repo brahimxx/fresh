@@ -1,6 +1,7 @@
 "use client";
 
 import { format, isValid } from "date-fns";
+import { useRouter } from "next/navigation";
 import {
   X,
   Calendar,
@@ -16,6 +17,8 @@ import {
   CreditCard,
   Banknote,
   Car,
+  ShoppingCart,
+  Gift,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -86,6 +89,7 @@ export function BookingDetailSheet({
   onReschedule,
 }) {
   var { salon } = useSalon();
+  var router = useRouter();
   var confirmBooking = useConfirmBooking();
   var cancelBooking = useCancelBooking();
   var noShowBooking = useNoShowBooking();
@@ -346,39 +350,104 @@ export function BookingDetailSheet({
           )}
 
           {/* Price */}
-          {(booking.total_price || booking.totalPrice) && (
+          {((booking.total_price || booking.totalPrice) || Number(booking.giftCardAmountUsed || booking.gift_card_amount_used) > 0) && (
             <div className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Payment
               </h3>
-              <div className="flex items-center justify-between p-4 bg-primary/5 border-2 border-primary/10 rounded-lg">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Total Amount
-                  </p>
-                  <span className="text-2xl font-bold text-primary">
-                    {formatCurrency(Number(booking.total_price || booking.totalPrice), salon?.currency)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <Badge variant="outline" className="text-xs px-3 py-1">
-                    {booking.payment_status || booking.paymentStatus || booking.payment?.status || "Unpaid"}
-                  </Badge>
-                  {(booking.payment_method || booking.paymentMethod || booking.payment?.method) && (
-                    <div className="flex items-center text-xs text-muted-foreground">
-                      {(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash') ? (
-                        <Banknote className="w-3 h-3 mr-1" />
-                      ) : (
-                        <CreditCard className="w-3 h-3 mr-1" />
+
+              {/* Show full service value when gift card was used */}
+              {Number(booking.giftCardAmountUsed || booking.gift_card_amount_used) > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-4 bg-primary/5 border-2 border-primary/10 rounded-lg">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Service Value
+                      </p>
+                      <span className="text-2xl font-bold text-primary">
+                        {formatCurrency(
+                          Number(booking.total_price || booking.totalPrice || 0) + Number(booking.giftCardAmountUsed || booking.gift_card_amount_used || 0),
+                          salon?.currency
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge variant="outline" className="text-xs px-3 py-1">
+                        {booking.payment_status || booking.paymentStatus || booking.payment?.status || "Unpaid"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Gift Card breakdown */}
+                  <div className="flex items-center gap-3 p-3 bg-purple-500/5 border border-purple-200/50 rounded-lg">
+                    <Gift className="h-5 w-5 text-purple-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-purple-700 dark:text-purple-300">Paid via Gift Card</p>
+                      {(booking.giftCardCode || booking.gift_card_code) && (
+                        <p className="text-xs text-purple-600/70 dark:text-purple-400/70 font-mono">
+                          {booking.giftCardCode || booking.gift_card_code}
+                        </p>
                       )}
-                      <span className="capitalize">{(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
-                        ? 'Pay at Salon'
-                        : (booking.payment_method || booking.paymentMethod || booking.payment?.method)
-                      }</span>
+                    </div>
+                    <p className="font-semibold text-sm text-purple-700 dark:text-purple-300 shrink-0">
+                      {formatCurrency(Number(booking.giftCardAmountUsed || booking.gift_card_amount_used), salon?.currency)}
+                    </p>
+                  </div>
+
+                  {/* Remaining amount due (if partial) */}
+                  {Number(booking.total_price || booking.totalPrice || 0) > 0 && (
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                      {(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash') ? (
+                        <Banknote className="h-5 w-5 text-muted-foreground shrink-0" />
+                      ) : (
+                        <CreditCard className="h-5 w-5 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">Remaining Balance</p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
+                            ? 'Pay at Salon'
+                            : (booking.payment_method || booking.paymentMethod || booking.payment?.method || 'Card')
+                          }
+                        </p>
+                      </div>
+                      <p className="font-semibold text-sm shrink-0">
+                        {formatCurrency(Number(booking.total_price || booking.totalPrice || 0), salon?.currency)}
+                      </p>
                     </div>
                   )}
                 </div>
-              </div>
+              ) : (
+                /* Standard payment display (no gift card) */
+                <div className="flex items-center justify-between p-4 bg-primary/5 border-2 border-primary/10 rounded-lg">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Total Amount
+                    </p>
+                    <span className="text-2xl font-bold text-primary">
+                      {formatCurrency(Number(booking.total_price || booking.totalPrice || 0), salon?.currency)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="outline" className="text-xs px-3 py-1">
+                      {booking.payment_status || booking.paymentStatus || booking.payment?.status || "Unpaid"}
+                    </Badge>
+                    {(booking.payment_method || booking.paymentMethod || booking.payment?.method) && (
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        {(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash') ? (
+                          <Banknote className="w-3 h-3 mr-1" />
+                        ) : (
+                          <CreditCard className="w-3 h-3 mr-1" />
+                        )}
+                        <span className="capitalize">{(booking.payment_method === 'cash' || booking.paymentMethod === 'cash' || booking.payment?.method === 'cash')
+                          ? 'Pay at Salon'
+                          : (booking.payment_method || booking.paymentMethod || booking.payment?.method)
+                        }</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -398,6 +467,24 @@ export function BookingDetailSheet({
               >
                 <Check className="h-4 w-4 mr-2" />
                 Confirm Booking
+              </Button>
+            )}
+
+            {/* Primary checkout action — navigates to the full checkout page
+                where staff can add products, apply discounts, and choose
+                payment method before processing. */}
+            {booking.status === "confirmed" && salon && (
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={function () {
+                  var salonId = salon.id || salon.salon_id;
+                  router.push('/dashboard/salon/' + salonId + '/checkout/' + booking.id);
+                  onOpenChange(false);
+                }}
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Checkout
               </Button>
             )}
 
@@ -424,7 +511,7 @@ export function BookingDetailSheet({
                   disabled={completeBooking.isPending}
                 >
                   <CreditCard className="h-4 w-4 mr-2" />
-                  Complete (Cash)
+                  Quick Cash
                 </Button>
               )}
 

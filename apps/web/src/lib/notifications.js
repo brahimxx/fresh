@@ -111,7 +111,11 @@ export async function sendContextualBookingConfirmation({
   fulfillmentType, 
   serviceLocationAddress, 
   virtualMeetingLink, 
-  clientTimezone 
+  clientTimezone,
+  giftCardCode,
+  giftCardAmountUsed,
+  discountAmount,
+  totalPrice,
 }) {
   try {
     const tz = clientTimezone || 'UTC';
@@ -203,6 +207,29 @@ export async function sendContextualBookingConfirmation({
     }
 
     // HTML Skeleton
+    const giftCardRow = giftCardAmountUsed > 0 ? `
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Gift Card:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">
+              <span style="color: #7c3aed; font-weight: 600;">-$${Number(giftCardAmountUsed).toFixed(2)}</span>
+              ${giftCardCode ? ` <span style="color: #6b7280; font-size: 12px;">(${giftCardCode})</span>` : ''}
+            </td>
+          </tr>` : '';
+
+    const discountRow = discountAmount > 0 ? `
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Discount:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">
+              <span style="color: #059669; font-weight: 600;">-$${Number(discountAmount).toFixed(2)}</span>
+            </td>
+          </tr>` : '';
+
+    const totalRow = totalPrice !== undefined && totalPrice !== null ? `
+          <tr>
+            <td style="padding: 10px; font-weight: bold;">Total:</td>
+            <td style="padding: 10px; font-weight: bold; font-size: 16px;">$${Number(totalPrice).toFixed(2)}</td>
+          </tr>` : '';
+
     const htmlBody = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
         <h2 style="color: #111;">Hello ${userName},</h2>
@@ -223,6 +250,9 @@ export async function sendContextualBookingConfirmation({
               </ul>
             </td>
           </tr>
+          ${discountRow}
+          ${giftCardRow}
+          ${totalRow}
         </table>
         
         <p style="margin-top: 30px; font-size: 12px; color: #666; text-align: center;">

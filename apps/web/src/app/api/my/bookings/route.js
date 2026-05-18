@@ -21,13 +21,17 @@ export async function GET(request) {
         GROUP_CONCAT(DISTINCT sv.name) as services,
         GROUP_CONCAT(DISTINCT CONCAT(sv.name, '|', COALESCE(bs.price, 0), '|', COALESCE(bs.duration_minutes, 0)) SEPARATOR ';;') as service_details,
         st.id as staff_id, u2.first_name as staff_first_name, u2.last_name as staff_last_name,
-        SUM(bs.price) as total_price
+        SUM(bs.price) as total_price,
+        MAX(bgc.amount_used) as gift_card_amount_used,
+        MAX(gc.code) as gift_card_code
       FROM bookings b
       JOIN salons s ON s.id = b.salon_id
       LEFT JOIN booking_services bs ON bs.booking_id = b.id
       LEFT JOIN services sv ON sv.id = bs.service_id
       LEFT JOIN staff st ON st.id = b.staff_id
       LEFT JOIN users u2 ON u2.id = st.user_id
+      LEFT JOIN booking_gift_cards bgc ON bgc.booking_id = b.id
+      LEFT JOIN gift_cards gc ON gc.id = bgc.gift_card_id
       WHERE b.client_id = ? AND b.deleted_at IS NULL
     `;
     const sqlParams = [session.userId];
@@ -92,6 +96,8 @@ export async function GET(request) {
           totalPrice: b.total_price,
           status: b.status,
           notes: b.notes,
+          giftCardCode: b.gift_card_code || null,
+          giftCardAmountUsed: b.gift_card_amount_used ? parseFloat(b.gift_card_amount_used) : 0,
           createdAt: b.created_at,
         };
       }),

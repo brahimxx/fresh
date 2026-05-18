@@ -71,10 +71,14 @@ export function GiftCardForm({ open, onOpenChange, salonId, onSuccess }) {
   
   function onSubmit(data) {
     var payload = {
-      ...data,
       salon_id: salonId,
-      balance: data.initial_value,
+      code: data.code,
+      initial_balance: data.initial_value,
+      recipient_name: data.recipient_name || null,
+      recipient_email: data.recipient_email || null,
+      recipient_message: data.message || null,
       expires_at: data.expires_at ? format(data.expires_at, 'yyyy-MM-dd') : null,
+      send_email: data.send_email || false,
     };
     
     createGiftCard.mutate(payload, {

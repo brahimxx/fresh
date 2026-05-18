@@ -309,6 +309,32 @@ export async function PUT(request, { params }) {
 
     const { mode, quantity, reason_code, reason_note } = validated;
 
+    // ── Deduplication guard ──────────────────────────────────────────────
+    // Reject duplicate adjustments from double-clicks or network retries.
+    // If an identical adjustment (same product, user, mode, quantity,
+    // reason_code) was recorded in the last 10 seconds, return the existing
+    // result as an idempotent success rather than double-adjusting.
+    const recentDupe = await getOne(
+      `SELECT id AS movement_id, quantity_after AS stock_quantity
+         FROM product_stock_movements
+        WHERE product_id = ?
+          AND performed_by = ?
+          AND change_type = ?
+          AND reason_code = ?
+          AND CASE WHEN ? = 'set' THEN quantity_after = ? ELSE ABS(delta) = ? END
+          AND created_at >= NOW() - INTERVAL 10 SECOND
+        ORDER BY id DESC
+        LIMIT 1`,
+      [productId, session.userId, mode, reason_code, mode, quantity, quantity],
+    );
+    if (recentDupe) {
+      return success({
+        id: productId,
+        stock_quantity: recentDupe.stock_quantity,
+        movement_id: recentDupe.movement_id,
+      });
+    }
+
     // ── Single transaction: lock row → update → insert movement → audit ──
     const result = await transaction(async (conn) => {
       // 1. Lock the product row to serialise concurrent stock writes.

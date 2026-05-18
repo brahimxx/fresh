@@ -9,16 +9,11 @@
  * dialog automatically once both resources are loaded successfully
  * (Requirements 18.1, 18.2).
  *
- * Line items: the detail endpoint (`/api/payments/[id]`) currently exposes
- * an aggregated breakdown (`services_amount`, `products_amount`,
- * `discount_amount`, `gift_card_amount`, `tip_amount`, `amount`,
- * `refunded_amount`). Per the task notes, we render those aggregates as
- * the line items here and leave the per-line-item drill-down (joining
- * `booking_services` / `booking_products` for `{ name, quantity, unit
- * price, line total }`) as future work — it would require either extending
- * the detail endpoint or a second fetch. The print stylesheet still
- * supports a multi-page header repeat for receipts that grow beyond 20
- * line items once the drill-down arrives.
+ * Line items: the detail endpoint (`/api/payments/[id]`) returns a
+ * `line_items` object with `services` and `products` arrays, each entry
+ * shaped as `{ name, quantity, unit_price, line_total }`. The receipt
+ * renders these individually so the client sees exactly what they paid for.
+ * Falls back to aggregate rows when `line_items` is absent (backward compat).
  *
  * Currency: every monetary value goes through `formatCurrency(amount,
  * salon.currency)` (Requirement 18.4, 19.2).
@@ -38,9 +33,7 @@ import { formatCurrency } from '@/lib/format';
 import { DataError } from '@/components/ui/data-error';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Aggregate breakdown rows are rendered as virtual "line items". Once the
-// per-line-item drill-down lands, this constant moves to a real list of
-// booking_services / booking_products rows.
+// Per-page line-item limit for the print header repeat heuristic.
 var LINE_ITEM_PAGE_LIMIT = 20;
 
 function getMethodLabel(method) {
@@ -123,15 +116,40 @@ export default function ReceiptPage() {
   }, [hasFatalError, salon, payment]);
 
   // ---------------------------------------------------------------------
-  // Aggregate-breakdown line items (Requirement 18.3).
+  // Line items from the detail endpoint (Requirement 18.3).
   //
-  // Until the per-line-item drill-down ships, services and products surface
-  // as a single row each carrying the aggregate amount. They are still
-  // grouped under "Services" and "Products" headings so the layout matches
-  // the spec'd shape `{ name, quantity, unit price, line total }`.
+  // The API returns `line_items: { services: [...], products: [...] }` with
+  // each entry shaped as `{ name, quantity, unit_price, line_total }`.
+  // Falls back to aggregate rows when `line_items` is absent (backward
+  // compatibility with older API responses).
   // ---------------------------------------------------------------------
   var groups = useMemo(function () {
     if (!payment) return { services: [], products: [] };
+
+    // Prefer real line items from the API when available.
+    var lineItems = payment.line_items;
+    if (lineItems && (lineItems.services?.length || lineItems.products?.length)) {
+      return {
+        services: (lineItems.services || []).map(function (item) {
+          return {
+            name: item.name || 'Service',
+            quantity: Number(item.quantity) || 1,
+            unit_price: num(item.unit_price),
+            line_total: num(item.line_total),
+          };
+        }),
+        products: (lineItems.products || []).map(function (item) {
+          return {
+            name: item.name || 'Product',
+            quantity: Number(item.quantity) || 1,
+            unit_price: num(item.unit_price),
+            line_total: num(item.line_total),
+          };
+        }),
+      };
+    }
+
+    // Fallback: aggregate rows (legacy API responses without line_items).
     var services = [];
     var products = [];
     var servicesAmount = num(payment.services_amount);
