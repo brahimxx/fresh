@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import apiClient from '@/lib/api-client';
+import { formatCurrency } from '@/lib/format';
 
 export default function MarketingPage() {
     const [discounts, setDiscounts] = useState([]);
@@ -240,7 +241,7 @@ export default function MarketingPage() {
                                         <TableRow key={discount.id}>
                                             <TableCell className="font-mono font-medium">{discount.code}</TableCell>
                                             <TableCell>
-                                                {discount.type === 'percentage' ? `${discount.value}%` : `€${discount.value}`}
+                                                {discount.type === 'percentage' ? `${discount.value}%` : formatCurrency(discount.value)}
                                             </TableCell>
                                             <TableCell>{discount.current_uses} / {discount.max_uses || '∞'}</TableCell>
                                             <TableCell className="text-right">

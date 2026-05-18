@@ -11,6 +11,7 @@
 import { query, getOne } from '@/lib/db';
 import { success, error, created } from '@/lib/response';
 import { stripe } from '@/lib/stripe';
+import { toStripeAmount } from '@/lib/format';
 import rateLimiter from '@/lib/rate-limit';
 
 function generateCode() {
@@ -102,7 +103,7 @@ export async function POST(request) {
 
     // Create Stripe Checkout session
     var origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    var currency = (salon.currency || 'eur').toLowerCase();
+    var currency = (salon.currency || 'DZD').toLowerCase();
     var salonName = salon.name || 'Salon';
 
     var stripeSession = await stripe.checkout.sessions.create({
@@ -113,9 +114,9 @@ export async function POST(request) {
             currency: currency,
             product_data: {
               name: `Gift Card - ${salonName}`,
-              description: `$${numericAmount.toFixed(2)} gift card${recipient_name ? ' for ' + recipient_name : ''}`,
+              description: `${numericAmount} gift card${recipient_name ? ' for ' + recipient_name : ''}`,
             },
-            unit_amount: Math.round(numericAmount * 100), // Stripe expects cents
+            unit_amount: toStripeAmount(numericAmount, currency),
           },
           quantity: 1,
         },

@@ -53,6 +53,8 @@ import { useDiscounts } from "@/hooks/use-discounts";
 import { ServiceFormDialog } from "@/components/services/service-form";
 import { CategoryFormDialog } from "@/components/services/category-form";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -70,6 +72,7 @@ const itemVariants = {
 export default function ServicesPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
+  const { salon } = useSalon();
 
   const [expandedCategories, setExpandedCategories] = useState({});
   const [editCategory, setEditCategory] = useState(null);
@@ -146,7 +149,7 @@ export default function ServicesPage({ params }) {
 
   const formatPrice = (price) => {
     if (!price) return "-";
-    return `€${Number(price).toFixed(2)}`;
+    return formatCurrency(Number(price), salon?.currency);
   };
 
   const getDiscountedPrice = (service) => {
@@ -535,7 +538,7 @@ export default function ServicesPage({ params }) {
              <div className="relative z-10 mt-2">
               <div className="text-3xl font-extrabold tracking-tight text-foreground">
                 {services?.length > 0
-                  ? `€${(services.reduce((sum, s) => sum + Number(s.price || 0), 0) / services.length).toFixed(2)}`
+                  ? formatCurrency((services.reduce((sum, s) => sum + Number(s.price || 0), 0) / services.length), salon?.currency)
                   : "—"}
               </div>
               <p className="text-xs font-semibold text-muted-foreground mt-1">Financial average</p>

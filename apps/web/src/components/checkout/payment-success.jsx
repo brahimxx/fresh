@@ -9,12 +9,16 @@ import {
 } from '@/components/ui/dialog';
 
 import { formatCurrency } from '@/hooks/use-payments';
+import { useSalon } from '@/providers/salon-provider';
 
 export function PaymentSuccessDialog({ 
   open, 
   amount,
+  currency,
   onComplete 
 }) {
+  var { salon } = useSalon();
+  var displayCurrency = currency || salon?.currency;
   return (
     <Dialog open={open} onOpenChange={function() {}}>
       <DialogContent className="max-w-sm text-center" hideClose>
@@ -27,7 +31,7 @@ export function PaymentSuccessDialog({
           
           <div>
             <h2 className="text-2xl font-bold text-green-600">Payment Successful!</h2>
-            <p className="text-3xl font-bold mt-2">{formatCurrency(amount)}</p>
+            <p className="text-3xl font-bold mt-2">{formatCurrency(amount, displayCurrency)}</p>
           </div>
           
           <div className="flex justify-center gap-2">

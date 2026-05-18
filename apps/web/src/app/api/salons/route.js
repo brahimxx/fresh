@@ -9,6 +9,7 @@ import {
   unauthorized,
   forbidden,
 } from "@/lib/response";
+import { getCurrencyForCountry } from "@/lib/constants/currencies";
 
 // GET /api/salons - List/Search salons (public for marketplace, or user's salons if authenticated)
 export async function GET(request) {
@@ -246,14 +247,17 @@ export async function POST(request) {
     const finalAddress =
       address === "Mobile or Virtual Provider" ? null : address;
 
+    // Derive currency from country (industry standard: one currency per salon)
+    const salonCurrency = getCurrencyForCountry(finalCountry);
+
     const result = await query(
       `INSERT INTO salons (
         owner_id, name, description, phone, email, 
         address, city, country, latitude, longitude, 
-        is_marketplace_enabled, created_at,
+        is_marketplace_enabled, currency, created_at,
         is_physical, is_mobile, is_virtual
       )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
       [
         session.userId,
         name,
@@ -266,6 +270,7 @@ export async function POST(request) {
         latitude || null,
         longitude || null,
         isMarketplaceEnabled,
+        salonCurrency,
         finalPhysical ? 1 : 0,
         finalMobile ? 1 : 0,
         finalVirtual ? 1 : 0,

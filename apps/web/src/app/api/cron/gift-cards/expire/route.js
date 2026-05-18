@@ -2,6 +2,7 @@ import { query } from '@/lib/db';
 import { sendNotification } from '@/lib/notifications';
 import { successResponse, errorResponse } from '@/lib/response';
 import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
+import { formatCurrency } from '@/lib/format';
 
 /**
  * GET /api/cron/gift-cards/expire
@@ -50,7 +51,7 @@ export async function GET(request) {
     //   - Haven't already received an expiry warning notification
     const expiringCards = await query(`
       SELECT gc.id, gc.code, gc.remaining_balance, gc.recipient_email,
-             gc.recipient_name, gc.expires_at, gc.salon_id, s.name AS salon_name
+             gc.recipient_name, gc.expires_at, gc.salon_id, s.name AS salon_name, s.currency AS salon_currency
       FROM gift_cards gc
       JOIN salons s ON s.id = gc.salon_id
       WHERE gc.status = 'active'
@@ -95,7 +96,7 @@ export async function GET(request) {
         message: `
           <p>Hi ${card.recipient_name || 'there'},</p>
           <p>Your gift card for <strong>${card.salon_name}</strong> is expiring on <strong>${expiresDate}</strong>.</p>
-          <p>You still have <strong>$${balance}</strong> remaining on your card (code: <code>${card.code}</code>).</p>
+          <p>You still have <strong>${formatCurrency(parseFloat(card.remaining_balance), card.salon_currency)}</strong> remaining on your card (code: <code>${card.code}</code>).</p>
           <p>Book an appointment before it expires so you don't lose your balance!</p>
         `,
         data: { giftCardId: card.id, type: 'gift_card_expiry_warning' },

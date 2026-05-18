@@ -36,6 +36,7 @@ import {
   formatCurrency,
 } from "@/hooks/use-packages";
 import { useServices } from "@/hooks/use-services";
+import { useSalon } from "@/providers/salon-provider";
 
 var packageSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -48,6 +49,7 @@ var packageSchema = z.object({
 
 export function PackageForm({ open, onOpenChange, salonId, pkg, onSuccess }) {
   var { toast } = useToast();
+  var { salon } = useSalon();
   var createPackage = useCreatePackage();
   var updatePackage = useUpdatePackage();
 
@@ -270,7 +272,7 @@ export function PackageForm({ open, onOpenChange, salonId, pkg, onSuccess }) {
                                 <span className="text-sm">{service.name}</span>
                               </div>
                               <span className="text-sm text-muted-foreground">
-                                {formatCurrency(service.price)}
+                                {formatCurrency(service.price, salon?.currency)}
                               </span>
                             </div>
                           );
@@ -285,7 +287,7 @@ export function PackageForm({ open, onOpenChange, salonId, pkg, onSuccess }) {
                   {selectedServices.length > 0 && (
                     <p className="text-sm text-muted-foreground">
                       {selectedServices.length} services selected • Original
-                      value: {formatCurrency(calculatedOriginalPrice)}
+                      value: {formatCurrency(calculatedOriginalPrice, salon?.currency)}
                     </p>
                   )}
                 </div>

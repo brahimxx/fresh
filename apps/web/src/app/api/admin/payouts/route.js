@@ -141,16 +141,17 @@ export async function POST(request) {
                 await conn.beginTransaction();
 
                 // Fetch the salon's connected Stripe account ID
-                const [[salon]] = await conn.query('SELECT stripe_account_id FROM salons WHERE id = ? AND deleted_at IS NULL', [payout.salonId]);
+                const [[salon]] = await conn.query('SELECT stripe_account_id, currency FROM salons WHERE id = ? AND deleted_at IS NULL', [payout.salonId]);
 
                 if (!salon || !salon.stripe_account_id) {
                     throw new Error('Salon does not have a connected Stripe account');
                 }
 
                 // Call Stripe Connect API to transfer funds
+                const payoutCurrency = (salon.currency || 'DZD').toLowerCase();
                 const stripeTransfer = await stripe.transfers.create({
-                    amount: Math.round(payout.amount * 100), // Stripe expects amounts in cents
-                    currency: 'eur',
+                    amount: Math.round(payout.amount * 100), // Stripe expects amounts in smallest unit
+                    currency: payoutCurrency,
                     destination: salon.stripe_account_id,
                     metadata: {
                         salonId: payout.salonId.toString(),

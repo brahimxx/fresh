@@ -22,8 +22,10 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 import { encodeId } from "@/lib/id";
+import { formatCurrency } from "@/lib/format";
 import { useClients, useDeleteClient } from "@/hooks/use-clients";
 import { ClientFormDialog } from "@/components/clients/client-form";
+import { useSalon } from "@/providers/salon-provider";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,7 @@ export default function ClientsPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const router = useRouter();
+  const { salon } = useSalon();
 
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -306,7 +309,7 @@ export default function ClientsPage({ params }) {
                                   {client.totalVisits || 0} visits
                                 </span>
                                 <span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                                  €{(client.totalSpent || 0).toLocaleString()} volume
+                                  {formatCurrency(client.totalSpent || 0, salon?.currency)} volume
                                 </span>
                              </div>
                           </TableCell>

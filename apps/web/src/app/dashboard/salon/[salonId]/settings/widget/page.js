@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 import {
   useWidgetSettings,
@@ -44,6 +46,7 @@ import { useServices } from "@/hooks/use-services";
 export default function WidgetPage() {
   const params = useParams();
   const { toast } = useToast();
+  const { salon } = useSalon();
   
   const { data: widgetData, isLoading } = useWidgetSettings(params.salonId);
   const { data: rawServices = [] } = useServices(params.salonId);
@@ -515,7 +518,7 @@ export default function WidgetPage() {
                       </div>
                       {settings.show_prices && (
                         <span className="font-extrabold text-[15px]" style={{ color: settings.primary_color }}>
-                          ${Number(service.price || 0).toFixed(2)}
+                          {formatCurrency(Number(service.price || 0), salon?.currency)}
                         </span>
                       )}
                     </div>

@@ -49,6 +49,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/format';
+import { useSalon } from '@/providers/salon-provider';
 
 import {
   useGiftCards,
@@ -62,6 +64,7 @@ export default function GiftCardsPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const { toast } = useToast();
+  const { salon } = useSalon();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -178,7 +181,7 @@ export default function GiftCardsPage({ params }) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{totalOutstanding.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalOutstanding, salon?.currency)}</div>
             <p className="text-xs text-muted-foreground mt-1">Total unused value</p>
           </CardContent>
         </Card>
@@ -188,7 +191,7 @@ export default function GiftCardsPage({ params }) {
             <DollarSign className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{monthlySales.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(monthlySales, salon?.currency)}</div>
             <p className="text-xs text-muted-foreground mt-1">This month&apos;s issued value</p>
           </CardContent>
         </Card>
@@ -284,12 +287,12 @@ export default function GiftCardsPage({ params }) {
                           </TableCell>
                           <TableCell>
                             <span className="font-medium text-muted-foreground">
-                              €{Number(giftCard.initial_value).toFixed(2)}
+                              {formatCurrency(Number(giftCard.initial_value), salon?.currency)}
                             </span>
                           </TableCell>
                           <TableCell>
                             <span className="font-medium">
-                              €{Number(giftCard.balance).toFixed(2)}
+                              {formatCurrency(Number(giftCard.balance), salon?.currency)}
                             </span>
                           </TableCell>
                           <TableCell>

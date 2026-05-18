@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { query } from '@/lib/db';
+import { formatCurrency } from '@/lib/format';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const MOCK_NOTIFICATIONS = !RESEND_API_KEY;
@@ -116,6 +117,7 @@ export async function sendContextualBookingConfirmation({
   giftCardAmountUsed,
   discountAmount,
   totalPrice,
+  currency,
 }) {
   try {
     const tz = clientTimezone || 'UTC';
@@ -211,7 +213,7 @@ export async function sendContextualBookingConfirmation({
           <tr>
             <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Gift Card:</td>
             <td style="padding: 10px; border-bottom: 1px solid #eee;">
-              <span style="color: #7c3aed; font-weight: 600;">-$${Number(giftCardAmountUsed).toFixed(2)}</span>
+              <span style="color: #7c3aed; font-weight: 600;">-${formatCurrency(Number(giftCardAmountUsed), currency)}</span>
               ${giftCardCode ? ` <span style="color: #6b7280; font-size: 12px;">(${giftCardCode})</span>` : ''}
             </td>
           </tr>` : '';
@@ -220,14 +222,14 @@ export async function sendContextualBookingConfirmation({
           <tr>
             <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Discount:</td>
             <td style="padding: 10px; border-bottom: 1px solid #eee;">
-              <span style="color: #059669; font-weight: 600;">-$${Number(discountAmount).toFixed(2)}</span>
+              <span style="color: #059669; font-weight: 600;">-${formatCurrency(Number(discountAmount), currency)}</span>
             </td>
           </tr>` : '';
 
     const totalRow = totalPrice !== undefined && totalPrice !== null ? `
           <tr>
             <td style="padding: 10px; font-weight: bold;">Total:</td>
-            <td style="padding: 10px; font-weight: bold; font-size: 16px;">$${Number(totalPrice).toFixed(2)}</td>
+            <td style="padding: 10px; font-weight: bold; font-size: 16px;">${formatCurrency(Number(totalPrice), currency)}</td>
           </tr>` : '';
 
     const htmlBody = `

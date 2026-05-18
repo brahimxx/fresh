@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { sendNotification } from '@/lib/notifications';
 import { successResponse, errorResponse } from '@/lib/response';
+import { formatCurrency } from '@/lib/format';
 
 /**
  * GET /api/cron/no-shows
@@ -80,14 +81,14 @@ export async function GET(request) {
       // Notify Client
       const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [client_id]);
       if (client) {
-          const salon = await getOne('SELECT name FROM salons WHERE id = ?', [salon_id]);
+          const salon = await getOne('SELECT name, currency FROM salons WHERE id = ?', [salon_id]);
           const pad = (n) => String(n).padStart(2, "0");
           const d = new Date(String(start_datetime).replace(" ", "T"));
           const formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
           
           let feeMessage = '';
           if (cancellationFee > 0) {
-              feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of $${cancellationFee.toFixed(2)} has been applied to your account.</em></p>`;
+              feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of ${formatCurrency(cancellationFee, salon?.currency)} has been applied to your account.</em></p>`;
           }
 
           await sendNotification({

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/format';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,7 +32,7 @@ function GiftCardSuccessContent() {
             <p className="text-xl font-mono font-bold tracking-wider">{code}</p>
             {amount && (
               <p className="text-sm text-muted-foreground">
-                Value: <strong>${Number(amount).toFixed(2)}</strong>
+                Value: <strong>{formatCurrency(Number(amount))}</strong>
               </p>
             )}
           </div>

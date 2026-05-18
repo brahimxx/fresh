@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Gift, Search, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency, PLATFORM_CURRENCY } from '@/lib/format';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,11 +127,11 @@ export default function GiftCardBalanceCheckPage() {
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Remaining Balance</p>
                 <p className="text-4xl font-bold mt-1">
-                  ${Number(result.remainingBalance || 0).toFixed(2)}
+                  {formatCurrency(Number(result.remainingBalance || 0), result.currency || PLATFORM_CURRENCY)}
                 </p>
                 {result.initialBalance && result.remainingBalance < result.initialBalance && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    of ${Number(result.initialBalance).toFixed(2)} original value
+                    of {formatCurrency(Number(result.initialBalance), result.currency || PLATFORM_CURRENCY)} original value
                   </p>
                 )}
               </div>

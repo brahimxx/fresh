@@ -53,6 +53,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/format';
+import { useSalon } from '@/providers/salon-provider';
 
 import {
   useDiscounts,
@@ -67,6 +69,7 @@ export default function DiscountsPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const { toast } = useToast();
+  const { salon } = useSalon();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -282,7 +285,7 @@ export default function DiscountsPage({ params }) {
                               ) : (
                                 <>
                                   <DollarSign className="h-4 w-4 text-green-500" />
-                                  <span>€{Number(discount.value).toFixed(2)} OFF</span>
+                                  <span>{formatCurrency(Number(discount.value), salon?.currency)} OFF</span>
                                 </>
                               )}
                             </div>

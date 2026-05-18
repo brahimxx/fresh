@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/format';
 
 // ─── Shared Empty State ────────────────────────────────────────────────────
 function EmptyState({ icon: Icon, title, description, actionLabel, actionOnClick }) {
@@ -374,7 +375,7 @@ function BookingsTab() {
                       {new Date(b.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                     {b.paymentAmount != null && (
-                      <p className="text-sm font-semibold mt-2">${b.paymentAmount.toFixed(2)}</p>
+                      <p className="text-sm font-semibold mt-2">{formatCurrency(b.paymentAmount, b.salonCurrency)}</p>
                     )}
                     {b.hasReview && (
                       <div className="mt-2"><StarRating rating={b.rating} /></div>
@@ -451,7 +452,7 @@ function PackagesGiftCardsTab({ userId }) {
                     <span className="text-sm">
                       {p.remainingUses != null ? <>{p.remainingUses} uses left</> : 'Unlimited'}
                     </span>
-                    <span className="font-semibold">${p.purchasePrice.toFixed(2)}</span>
+                    <span className="font-semibold">{formatCurrency(p.purchasePrice)}</span>
                   </div>
                   {p.expiresAt && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -493,8 +494,8 @@ function PackagesGiftCardsTab({ userId }) {
                   )}
                   <div className="flex items-center justify-between mt-3">
                     <span className="text-sm text-muted-foreground">
-                      Balance: <span className="font-semibold text-foreground">${parseFloat(gc.remainingBalance).toFixed(2)}</span>
-                      <span className="text-muted-foreground/50"> / ${parseFloat(gc.initialBalance).toFixed(2)}</span>
+                      Balance: <span className="font-semibold text-foreground">{formatCurrency(parseFloat(gc.remainingBalance))}</span>
+                      <span className="text-muted-foreground/50"> / {formatCurrency(parseFloat(gc.initialBalance))}</span>
                     </span>
                   </div>
                   {gc.expiresAt && (

@@ -37,6 +37,9 @@ export async function POST(request) {
       return notFound('Gift card not found');
     }
 
+    // Fetch the salon's currency for display
+    const salon = await getOne('SELECT currency FROM salons WHERE id = ?', [giftCard.salon_id]);
+
     const isExpired = giftCard.expires_at && new Date(giftCard.expires_at) < new Date();
     const hasBalance = parseFloat(giftCard.remaining_balance) > 0;
     // A card is active if it has balance, isn't expired, and status is 'active'.
@@ -46,6 +49,7 @@ export async function POST(request) {
       code: giftCard.code,
       initialBalance: parseFloat(giftCard.initial_balance),
       remainingBalance: parseFloat(giftCard.remaining_balance),
+      currency: salon?.currency || 'DZD',
       expiresAt: giftCard.expires_at,
       isExpired,
       isActive,

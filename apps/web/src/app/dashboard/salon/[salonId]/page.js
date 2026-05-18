@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSalon } from '@/providers/salon-provider';
 import api from '@/lib/api-client';
+import { formatCurrency } from '@/lib/format';
 import { canSeeFinancials, canSeeAllBookings, canAccessPage } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
@@ -278,7 +279,7 @@ export default function SalonDashboardPage() {
             />
             <StatCard
               title="Today's Revenue"
-              value={'€' + Number(dashboardStats.todayRevenue).toFixed(2)}
+              value={formatCurrency(Number(dashboardStats.todayRevenue), salon?.currency)}
               icon={CreditCard}
               trend={12}
               description="from yesterday"

@@ -56,6 +56,8 @@ import {
 import { BookingFormDialog } from "@/components/bookings/booking-form";
 import { BookingDetailSheet } from "@/components/bookings/booking-detail";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 const STATUS_CONFIG = {
   pending: { label: "Pending", className: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-0" },
@@ -84,6 +86,7 @@ export default function BookingsPage({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const router = useRouter();
+  const { salon } = useSalon();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -423,12 +426,12 @@ export default function BookingsPage({ params }) {
                                 <TableCell className="text-right">
                                   <div className="flex flex-col items-end gap-0.5">
                                     <span className="font-extrabold text-[15px]">
-                                      €{Number(booking.total_price || booking.totalPrice || 0).toFixed(2)}
+                                      {formatCurrency(Number(booking.total_price || booking.totalPrice || 0), salon?.currency)}
                                     </span>
                                     {booking.travelFeeAmount > 0 && (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600">
                                         <Car className="h-2.5 w-2.5" />
-                                        +€{Number(booking.travelFeeAmount).toFixed(2)} travel
+                                        +{formatCurrency(Number(booking.travelFeeAmount), salon?.currency)} travel
                                       </span>
                                     )}
                                   </div>

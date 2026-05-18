@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api-client';
+import { formatCurrency } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -69,11 +70,11 @@ export default function AnalyticsDashboardPage() {
                         <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">€{gmvData.thisMonth.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                        <div className="text-2xl font-bold">{formatCurrency(gmvData.thisMonth)}</div>
                         <p className="text-xs text-muted-foreground mt-1">
                             <span className={gmvGrowth >= 0 ? "text-green-500" : "text-red-500"}>
                                 {gmvGrowth >= 0 ? '+' : ''}{gmvGrowth.toFixed(1)}%
-                            </span> from last month (€{gmvData.lastMonth.toLocaleString()})
+                            </span> from last month ({formatCurrency(gmvData.lastMonth)})
                         </p>
                     </CardContent>
                 </Card>
@@ -101,8 +102,8 @@ export default function AnalyticsDashboardPage() {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                                     <XAxis dataKey="displayDate" axisLine={false} tickLine={false} tickMargin={10} minTickGap={30} fontSize={12} />
-                                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `€${val}`} fontSize={12} />
-                                    <Tooltip formatter={(value) => [`€${value}`, 'GMV']} labelClassName="text-black" />
+                                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => formatCurrency(val)} fontSize={12} />
+                                    <Tooltip formatter={(value) => [formatCurrency(value), 'GMV']} labelClassName="text-black" />
                                     <Area type="monotone" dataKey="gmv" stroke="#3B82F6" fillOpacity={1} fill="url(#colorGmv)" />
                                 </AreaChart>
                             </ResponsiveContainer>

@@ -8,9 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { useServices } from "@/hooks/use-services";
 import { useStaffServices, useUpdateStaffServices, useStaffMember } from "@/hooks/use-staff";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 export function StaffServicesTab({ staffId, salonId }) {
+  var { salon } = useSalon();
   var { data: allServices, isLoading: servicesLoading } = useServices(salonId);
   var { data: staffServices, isLoading: staffServicesLoading } = useStaffServices(staffId);
   var { data: staff } = useStaffMember(staffId);
@@ -93,7 +95,7 @@ export function StaffServicesTab({ staffId, salonId }) {
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              {formatDuration(service.duration_minutes)} · ${service.price}
+                              {formatDuration(service.duration_minutes)} · {formatCurrency(service.price, salon?.currency)}
                             </p>
                           </div>
                           {isSelected && <Check className="h-5 w-5 text-primary" />}

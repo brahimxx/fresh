@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { toStripeAmount } from '@/lib/format';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -11,7 +12,7 @@ export async function POST(request) {
     const session = await requireAuth();
 
     const body = await request.json();
-    const { bookingId, amount, currency = 'eur' } = body;
+    const { bookingId, amount } = body;
 
     if (!bookingId || amount === undefined || amount === null || isNaN(amount) || amount <= 0) {
       return error('Valid Booking ID and positive amount are required', 400);
@@ -19,7 +20,7 @@ export async function POST(request) {
 
     // Verify the booking exists and the user has access to it
     const booking = await getOne(
-      `SELECT b.id, b.client_id, b.salon_id, s.owner_id
+      `SELECT b.id, b.client_id, b.salon_id, s.owner_id, s.currency as salon_currency
        FROM bookings b
        JOIN salons s ON s.id = b.salon_id
        WHERE b.id = ?`,
@@ -41,12 +42,15 @@ export async function POST(request) {
       }
     }
 
+    // Derive currency from the salon — never trust client-supplied currency
+    const currency = (booking.salon_currency || 'DZD').toLowerCase();
+
     // Generate idempotency key to prevent duplicate charges
     const idempotencyKey = `booking-${bookingId}-${Date.now()}`;
 
-    // Create Stripe PaymentIntent
+    // Create Stripe PaymentIntent with correct smallest-unit conversion
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
+      amount: toStripeAmount(amount, currency),
       currency,
       metadata: {
         bookingId: bookingId.toString(),

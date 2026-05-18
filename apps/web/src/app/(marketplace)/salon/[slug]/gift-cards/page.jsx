@@ -4,27 +4,24 @@
  * Public gift card purchase page for a salon.
  *
  * Customers can browse available gift card denominations and submit a
- * purchase request. For now, this creates an "active" gift card immediately
- * (cash-on-arrival model — the customer pays when they visit or the salon
- * sends a payment link separately). A full Stripe checkout integration can
- * be added later to enable online payment before card issuance.
+ * purchase request. Creates a Stripe Checkout session for online payment.
+ * The gift card is activated after successful payment (handled by webhook).
  *
  * Route: /salon/[slug]/gift-cards
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Gift, Check, ArrowLeft } from 'lucide-react';
+import { Gift, Check, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { decodeId } from '@/lib/id';
+import { formatCurrency, CURRENCY_CONFIG, PLATFORM_CURRENCY } from '@/lib/format';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-var VALUE_PRESETS = [25, 50, 75, 100, 150, 200];
 
 export default function PublicGiftCardsPage() {
   var params = useParams();
@@ -33,7 +30,9 @@ export default function PublicGiftCardsPage() {
   var slugId = slug ? slug.split('-').pop() : null;
   var salonId = slugId ? decodeId(slugId) : null;
 
-  var [selectedValue, setSelectedValue] = useState(50);
+  var [salon, setSalon] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [selectedValue, setSelectedValue] = useState(null);
   var [customValue, setCustomValue] = useState('');
   var [recipientName, setRecipientName] = useState('');
   var [recipientEmail, setRecipientEmail] = useState('');
@@ -43,7 +42,41 @@ export default function PublicGiftCardsPage() {
   var [success, setSuccess] = useState(false);
   var [error, setError] = useState(null);
 
-  var finalValue = customValue ? Number(customValue) : selectedValue;
+  // Fetch salon info to get currency
+  useEffect(function () {
+    if (!salonId) {
+      setLoading(false);
+      return;
+    }
+    fetch('/api/marketplace/salons/' + salonId)
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.data) {
+          setSalon(data.data);
+        }
+      })
+      .catch(function () { /* ignore */ })
+      .finally(function () { setLoading(false); });
+  }, [salonId]);
+
+  var currency = salon?.currency || PLATFORM_CURRENCY;
+  var config = CURRENCY_CONFIG[currency?.toUpperCase()] || CURRENCY_CONFIG.DZD;
+
+  // Generate presets appropriate for the currency
+  // DZD: larger amounts (500, 1000, 2000, 3000, 5000, 10000)
+  // EUR/USD/GBP: smaller amounts (25, 50, 75, 100, 150, 200)
+  var VALUE_PRESETS = config.practicalDecimals === 0
+    ? [500, 1000, 2000, 3000, 5000, 10000]
+    : [25, 50, 75, 100, 150, 200];
+
+  // Set default selection once presets are determined
+  useEffect(function () {
+    if (!loading && selectedValue === null) {
+      setSelectedValue(VALUE_PRESETS[1]);
+    }
+  }, [loading]);
+
+  var finalValue = customValue ? Number(customValue) : (selectedValue || VALUE_PRESETS[1]);
 
   async function handlePurchase(e) {
     e.preventDefault();
@@ -95,6 +128,14 @@ export default function PublicGiftCardsPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -105,7 +146,7 @@ export default function PublicGiftCardsPage() {
             </div>
             <h2 className="text-2xl font-bold">Gift Card Sent!</h2>
             <p className="text-muted-foreground">
-              A gift card for <strong>${finalValue.toFixed(2)}</strong> has been
+              A gift card for <strong>{formatCurrency(finalValue, currency)}</strong> has been
               sent to <strong>{recipientEmail}</strong>. They&apos;ll receive it
               shortly with instructions on how to redeem.
             </p>
@@ -134,6 +175,11 @@ export default function PublicGiftCardsPage() {
             Give the gift of self-care. Choose an amount and we&apos;ll send it
             directly to your recipient.
           </p>
+          {salon?.name && (
+            <p className="text-sm text-muted-foreground">
+              For <strong>{salon.name}</strong>
+            </p>
+          )}
         </div>
 
         <form onSubmit={handlePurchase} className="space-y-6">
@@ -156,7 +202,7 @@ export default function PublicGiftCardsPage() {
                         setCustomValue('');
                       }}
                     >
-                      ${value}
+                      {formatCurrency(value, currency)}
                     </Button>
                   );
                 })}
@@ -165,16 +211,16 @@ export default function PublicGiftCardsPage() {
                 <Label>Or enter a custom amount</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                    $
+                    {config.symbol}
                   </span>
                   <Input
                     type="number"
                     min="1"
-                    step="1"
+                    step={config.practicalDecimals === 0 ? '1' : '0.01'}
                     placeholder="Custom amount"
                     value={customValue}
                     onChange={function (e) { setCustomValue(e.target.value); }}
-                    className="pl-8"
+                    className="pl-10"
                   />
                 </div>
               </div>
@@ -240,7 +286,7 @@ export default function PublicGiftCardsPage() {
             className="w-full h-12 text-lg font-semibold"
             disabled={submitting || !finalValue || finalValue < 1}
           >
-            {submitting ? 'Processing...' : `Purchase $${finalValue || 0} Gift Card`}
+            {submitting ? 'Processing...' : 'Purchase ' + formatCurrency(finalValue || 0, currency) + ' Gift Card'}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">

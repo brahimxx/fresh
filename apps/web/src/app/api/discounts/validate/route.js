@@ -1,5 +1,6 @@
 import { query, getOne } from '@/lib/db';
 import { success, error } from '@/lib/response';
+import { formatCurrency } from '@/lib/format';
 
 // POST /api/discounts/validate - Validate a discount code
 export async function POST(request) {
@@ -58,7 +59,8 @@ export async function POST(request) {
 
     // Check minimum purchase (against overall subtotal)
     if (discount.min_purchase && subtotal < discount.min_purchase) {
-      return error(`Minimum purchase of $${discount.min_purchase} required`);
+      const salon = await getOne('SELECT currency FROM salons WHERE id = ?', [salonId]);
+      return error(`Minimum purchase of ${formatCurrency(discount.min_purchase, salon?.currency)} required`);
     }
 
     // Calculate discount amount against eligibleTotal

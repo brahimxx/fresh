@@ -15,9 +15,11 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 import { GIFT_CARD_STATUSES, getGiftCardStatus, formatCurrency } from '@/hooks/use-gift-cards';
+import { useSalon } from '@/providers/salon-provider';
 
 export function GiftCardDetail({ open, onOpenChange, giftCard }) {
   var { toast } = useToast();
+  var { salon } = useSalon();
   
   if (!giftCard) return null;
   
@@ -70,10 +72,10 @@ export function GiftCardDetail({ open, onOpenChange, giftCard }) {
           {/* Balance */}
           <div className="text-center py-4">
             <p className="text-sm text-muted-foreground mb-1">Current Balance</p>
-            <p className="text-4xl font-bold">{formatCurrency(giftCard.balance)}</p>
+            <p className="text-4xl font-bold">{formatCurrency(giftCard.balance, salon?.currency)}</p>
             {usedAmount > 0 && (
               <p className="text-sm text-muted-foreground mt-1">
-                {formatCurrency(usedAmount)} used of {formatCurrency(giftCard.initial_value)}
+                {formatCurrency(usedAmount, salon?.currency)} used of {formatCurrency(giftCard.initial_value, salon?.currency)}
               </p>
             )}
             
@@ -95,7 +97,7 @@ export function GiftCardDetail({ open, onOpenChange, giftCard }) {
                 <DollarSign className="h-4 w-4" />
                 Original Value
               </span>
-              <span className="font-medium">{formatCurrency(giftCard.initial_value)}</span>
+              <span className="font-medium">{formatCurrency(giftCard.initial_value, salon?.currency)}</span>
             </div>
             
             <div className="flex justify-between text-sm">

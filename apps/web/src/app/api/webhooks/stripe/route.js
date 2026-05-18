@@ -4,6 +4,7 @@ import { query, getOne } from '@/lib/db';
 import { success, error } from '@/lib/response';
 import { sendEmail } from '@/lib/email';
 import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
+import { formatCurrency } from '@/lib/format';
 
 export async function POST(req) {
   const body = await req.text();
@@ -93,11 +94,11 @@ export async function POST(req) {
           try {
             await sendEmail({
               to: recipientEmail,
-              subject: `You received a $${formattedAmount} gift card${senderLine}!`,
+              subject: `You received a ${formatCurrency(Number(amount))} gift card${senderLine}!`,
               html: `
                 <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
                   <h1 style="color: #6366f1; margin-bottom: 8px;">🎁 Gift Card</h1>
-                  <p>You've received a <strong>$${formattedAmount}</strong> gift card${recipientName ? ` for ${recipientName}` : ''}${senderLine}!</p>
+                  <p>You've received a <strong>${formatCurrency(Number(amount))}</strong> gift card${recipientName ? ` for ${recipientName}` : ''}${senderLine}!</p>
                   ${message ? `<p style="font-style: italic; color: #6b7280; border-left: 3px solid #e5e7eb; padding-left: 12px;">"${message}"</p>` : ''}
                   <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
                     <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">Your gift card code</p>
@@ -107,7 +108,7 @@ export async function POST(req) {
                   <p style="color: #6b7280; font-size: 14px;">Present this code at checkout to redeem your balance at <strong>${salonName}</strong>.</p>
                 </div>
               `,
-              text: `You received a $${formattedAmount} gift card${senderLine}! Code: ${giftCardCode}. Expires: ${expiresAt}. Redeem at ${salonName}.`,
+              text: `You received a ${formatCurrency(Number(amount))} gift card${senderLine}! Code: ${giftCardCode}. Expires: ${expiresAt}. Redeem at ${salonName}.`,
             });
           } catch (emailErr) {
             console.error('[Stripe Webhook] Gift card email failed:', emailErr);

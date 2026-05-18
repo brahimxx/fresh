@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 
 import { formatCurrency } from '@/hooks/use-payments';
+import { useSalon } from '@/providers/salon-provider';
 
 export function AddProductDialog({ 
   open, 
@@ -20,6 +21,7 @@ export function AddProductDialog({
   products,
   onAdd 
 }) {
+  var { salon } = useSalon();
   var [searchQuery, setSearchQuery] = useState('');
   
   var filteredProducts = products.filter(function(product) {
@@ -81,7 +83,7 @@ export function AddProductDialog({
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-medium">{formatCurrency(product.price)}</p>
+                        <p className="font-medium">{formatCurrency(product.price, salon?.currency)}</p>
                         <p className="text-xs text-muted-foreground">
                           {product.stock_quantity} in stock
                         </p>

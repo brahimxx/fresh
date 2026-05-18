@@ -3,6 +3,7 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
 import { sendNotification } from '@/lib/notifications';
+import { formatCurrency } from '@/lib/format';
 
 // Helper to check booking access
 async function checkBookingAccess(bookingId, userId, role) {
@@ -92,7 +93,7 @@ export async function POST(request, { params }) {
         
         let feeMessage = '';
         if (cancellationFee > 0) {
-            feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of $${cancellationFee.toFixed(2)} has been applied to your account.</em></p>`;
+            feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of ${formatCurrency(cancellationFee)} has been applied to your account.</em></p>`;
         }
 
         await sendNotification({

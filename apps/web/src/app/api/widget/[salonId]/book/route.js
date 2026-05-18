@@ -16,6 +16,7 @@ import {
 import { createSafeBooking, BookingError } from "@/lib/booking";
 import { sendContextualBookingConfirmation } from "@/lib/notifications";
 import { stripe } from "@/lib/stripe";
+import { toStripeAmount } from "@/lib/format";
 import {
   geocodeAddress,
   haversineDistanceKm,
@@ -637,11 +638,11 @@ export async function POST(request, { params }) {
           line_items: [
             {
               price_data: {
-                currency: salon.currency?.toLowerCase() || "eur",
+                currency: salon.currency?.toLowerCase() || "dzd",
                 product_data: {
                   name: `Booking at ${salon.name}`,
                 },
-                unit_amount: Math.round(finalPrice * 100), // Stripe expects amounts in cents
+                unit_amount: toStripeAmount(finalPrice, salon.currency || "DZD"),
               },
               quantity: 1,
             },
@@ -736,6 +737,7 @@ export async function POST(request, { params }) {
             giftCardAmountUsed: giftCardAmountUsed || 0,
             discountAmount: discountAmount || 0,
             totalPrice: finalPrice,
+            currency: salon.currency || "DZD",
           });
         }
       }

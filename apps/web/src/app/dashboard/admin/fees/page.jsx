@@ -58,10 +58,12 @@ export default function AdminFeesPage() {
     const pagination = data?.data?.pagination ?? { page: 1, totalPages: 1, total: 0 };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
+        return new Intl.NumberFormat('fr-DZ', {
             style: 'currency',
-            currency: 'USD',
-        }).format(amount);
+            currency: 'DZD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(amount || 0);
     };
 
     return (

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { success, error, created, forbidden } from "@/lib/response";
 import { sendEmail } from "@/lib/email";
 import { recordGiftCardTransaction } from "@/lib/gift-card-ledger";
+import { formatCurrency } from '@/lib/format';
 
 // Helper to check salon access
 async function checkSalonAccess(salonId, userId, role) {
@@ -181,7 +182,7 @@ export async function POST(request) {
           html: `
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
               <h1 style="color: #6366f1; margin-bottom: 8px;">🎁 Gift Card</h1>
-              <p>You've received a <strong>$${formattedAmount}</strong> gift card${recipient_name ? ` for ${recipient_name}` : ''}!</p>
+              <p>You've received a <strong>${formatCurrency(Number(initial_balance))}</strong> gift card${recipient_name ? ` for ${recipient_name}` : ''}!</p>
               ${recipient_message ? `<p style="font-style: italic; color: #6b7280; border-left: 3px solid #e5e7eb; padding-left: 12px;">"${recipient_message}"</p>` : ''}
               <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
                 <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">Your gift card code</p>
@@ -191,7 +192,7 @@ export async function POST(request) {
               <p style="color: #6b7280; font-size: 14px;">Present this code at checkout to redeem your balance at <strong>${salonName}</strong>.</p>
             </div>
           `,
-          text: `You received a $${formattedAmount} gift card! Code: ${giftCardCode}. ${expiryText} Present this code at checkout at ${salonName}.`,
+          text: `You received a ${formatCurrency(Number(initial_balance))} gift card! Code: ${giftCardCode}. ${expiryText} Present this code at checkout at ${salonName}.`,
         });
       } catch (emailErr) {
         // Email failure is non-blocking — the gift card is already created

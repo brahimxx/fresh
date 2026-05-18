@@ -4,8 +4,11 @@ import { Receipt } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/format";
+import { useSalon } from "@/providers/salon-provider";
 
 export function StaffPayRunsTab({ staffId, salonId }) {
+  var { salon } = useSalon();
   var payRuns = [];
 
   return (
@@ -33,7 +36,7 @@ export function StaffPayRunsTab({ staffId, salonId }) {
                       <p className="text-sm text-muted-foreground">Pay date: {run.payDate}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-semibold">${run.totalPay}</p>
+                      <p className="text-lg font-semibold">{formatCurrency(run.totalPay, salon?.currency)}</p>
                       <Badge>{run.status}</Badge>
                     </div>
                   </div>

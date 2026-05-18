@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
 import { sendNotification } from '@/lib/notifications';
 import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
+import { formatCurrency } from '@/lib/format';
 
 // Helper to check booking access
 async function checkBookingAccess(bookingId, userId, role) {
@@ -340,7 +341,7 @@ export async function PUT(request, { params }) {
             
             let feeMessage = '';
             if (lateCancellation && cancellationFee > 0 && cancelSettings) {
-                feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${cancelSettings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of $${cancellationFee.toFixed(2)} has been applied to your account according to salon policy.</em></p>`;
+                feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${cancelSettings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of ${formatCurrency(cancellationFee)} has been applied to your account according to salon policy.</em></p>`;
             }
 
             sendNotification({
@@ -363,7 +364,7 @@ export async function PUT(request, { params }) {
             
             let feeMessage = '';
             if (cancellationFee > 0) {
-                feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of $${cancellationFee.toFixed(2)} has been applied to your account.</em></p>`;
+                feeMessage = `<br><p><em>Notice: As per our policy, a no-show fee of ${formatCurrency(cancellationFee)} has been applied to your account.</em></p>`;
             }
 
             sendNotification({
@@ -557,7 +558,7 @@ export async function DELETE(request, { params }) {
         
         let feeMessage = '';
         if (lateCancellation && cancellationFee > 0) {
-            feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${settings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of $${cancellationFee.toFixed(2)} has been applied to your account according to salon policy.</em></p>`;
+            feeMessage = `<br><p><em>Notice: Because this cancellation occurred within the ${settings.cancellation_policy_hours}-hour window of the appointment, a late cancellation fee of ${formatCurrency(cancellationFee)} has been applied to your account according to salon policy.</em></p>`;
         }
 
         sendNotification({

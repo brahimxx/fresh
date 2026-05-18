@@ -2,6 +2,7 @@ import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { getCurrencyForCountry } from '@/lib/constants/currencies';
 
 // GET /api/users/[id]/locations - Get all salon locations owned by user
 export async function GET(request, { params }) {
@@ -69,15 +70,15 @@ export async function POST(request, { params }) {
     const result = await query(
       `INSERT INTO salons (
         owner_id, name, address, city, postal_code, country, phone, email, 
-        description, timezone, is_active, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
-      [id, name, address, city, postalCode || null, country || null, phone || null, email || null, description || null, timezone || 'Europe/Paris']
+        description, timezone, currency, is_active, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
+      [id, name, address, city, postalCode || null, country || null, phone || null, email || null, description || null, timezone || 'Europe/Paris', getCurrencyForCountry(country)]
     );
 
     // Create default salon settings
     await query(
-      `INSERT INTO salon_settings (salon_id, currency, booking_interval_minutes, cancellation_hours)
-       VALUES (?, 'EUR', 15, 24)`,
+      `INSERT INTO salon_settings (salon_id, cancellation_policy_hours)
+       VALUES (?, 24)`,
       [result.insertId]
     );
 

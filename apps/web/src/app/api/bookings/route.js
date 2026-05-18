@@ -16,6 +16,7 @@ import {
 } from "@/lib/validate";
 import { createSafeBooking, BookingError } from "@/lib/booking";
 import { sendNotification } from "@/lib/notifications";
+import { formatCurrency } from '@/lib/format';
 
 // GET /api/bookings - Get bookings (filtered by user role)
 export async function GET(request) {
@@ -414,7 +415,7 @@ export async function POST(request) {
 
     const formattedServicesHTML = services.map(s => `<li>${s.name} (${s.duration_minutes}m)</li>`).join('');
     const giftCardHTML = result.giftCardAmountUsed > 0
-      ? `<p><strong>🎁 Gift Card Applied:</strong> -$${Number(result.giftCardAmountUsed).toFixed(2)}${giftCardCode ? ` (${giftCardCode})` : ''}</p>`
+      ? `<p><strong>🎁 Gift Card Applied:</strong> -${formatCurrency(Number(result.giftCardAmountUsed))}${giftCardCode ? ` (${giftCardCode})` : ''}</p>`
       : '';
     const notificationBody = `
       <p>Hi ${clientRecord.first_name || 'there'},</p>
