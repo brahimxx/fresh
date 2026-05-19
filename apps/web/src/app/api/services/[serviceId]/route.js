@@ -161,7 +161,9 @@ export async function PUT(request, { params }) {
       canVirtual,
       displayOrder,
       mobilePriceOverride,
+      mobile_price_override,
       virtualPriceOverride,
+      virtual_price_override,
     } = body;
 
     const flags = flagsFromPayload(body);
@@ -245,14 +247,16 @@ export async function PUT(request, { params }) {
       updates.push("display_order = ?");
       values.push(displayOrder);
     }
-    // Price overrides for hybrid fulfillment
-    if (mobilePriceOverride !== undefined) {
+    // Price overrides for hybrid fulfillment (accept both camelCase and snake_case)
+    const finalMobilePriceOverride = mobilePriceOverride !== undefined ? mobilePriceOverride : mobile_price_override;
+    const finalVirtualPriceOverride = virtualPriceOverride !== undefined ? virtualPriceOverride : virtual_price_override;
+    if (finalMobilePriceOverride !== undefined) {
       updates.push("mobile_price_override = ?");
-      values.push(mobilePriceOverride);
+      values.push(finalMobilePriceOverride != null && finalMobilePriceOverride !== '' ? finalMobilePriceOverride : null);
     }
-    if (virtualPriceOverride !== undefined) {
+    if (finalVirtualPriceOverride !== undefined) {
       updates.push("virtual_price_override = ?");
-      values.push(virtualPriceOverride);
+      values.push(finalVirtualPriceOverride != null && finalVirtualPriceOverride !== '' ? finalVirtualPriceOverride : null);
     }
 
     if (updates.length > 0) {

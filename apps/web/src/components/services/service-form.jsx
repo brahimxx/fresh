@@ -54,6 +54,12 @@ var serviceSchema = z.object({
   can_physical: z.boolean().default(true),
   can_mobile: z.boolean().default(false),
   can_virtual: z.boolean().default(false),
+  mobile_price_override: z.union([z.coerce.number().min(0), z.literal("")]).optional().nullable().transform(function (val) {
+    return val === "" || val === undefined ? null : val;
+  }),
+  virtual_price_override: z.union([z.coerce.number().min(0), z.literal("")]).optional().nullable().transform(function (val) {
+    return val === "" || val === undefined ? null : val;
+  }),
 });
 
 var DURATION_OPTIONS = [
@@ -104,6 +110,8 @@ export function ServiceFormDialog({
       can_physical: true,
       can_mobile: false,
       can_virtual: false,
+      mobile_price_override: "",
+      virtual_price_override: "",
     },
   });
 
@@ -190,6 +198,21 @@ export function ServiceFormDialog({
       }
     },
     [open, isEditing, serviceDetail, service],
+  );
+
+  // Pre-populate price override fields when serviceDetail loads (async).
+  // The initial form.reset uses the list-level `service` prop which may not
+  // include override values — serviceDetail from the detail API does.
+  useEffect(
+    function () {
+      if (open && isEditing && serviceDetail) {
+        var mobileOverride = serviceDetail.mobilePriceOverride ?? serviceDetail.mobile_price_override ?? "";
+        var virtualOverride = serviceDetail.virtualPriceOverride ?? serviceDetail.virtual_price_override ?? "";
+        form.setValue("mobile_price_override", mobileOverride === null ? "" : mobileOverride);
+        form.setValue("virtual_price_override", virtualOverride === null ? "" : virtualOverride);
+      }
+    },
+    [open, isEditing, serviceDetail],
   );
 
   function toggleStaff(staffId) {
@@ -280,6 +303,9 @@ export function ServiceFormDialog({
       canPhysical: data.can_physical,
       canMobile: data.can_mobile,
       canVirtual: data.can_virtual,
+      // Ensure override values are null when the corresponding mode is not active
+      mobile_price_override: data.can_mobile ? (data.mobile_price_override ?? null) : null,
+      virtual_price_override: data.can_virtual ? (data.virtual_price_override ?? null) : null,
     };
 
     if (isEditing) {
@@ -636,6 +662,63 @@ export function ServiceFormDialog({
                       )}
                     </div>
                   </>
+                )}
+
+                {/* ── Price Overrides (conditional on fulfillment + salon) ── */}
+                {salonSupportsMobile && watchedMobile && (
+                  <FormField
+                    control={form.control}
+                    name="mobile_price_override"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Mobile Price (EUR)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Leave empty to use base price"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Override price when booked as mobile. Empty = base price.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                )}
+
+                {salonSupportsVirtual && watchedVirtual && (
+                  <FormField
+                    control={form.control}
+                    name="virtual_price_override"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Virtual Price (EUR)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Leave empty to use base price"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Override price when booked as virtual. Empty = base price.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
                 )}
 
                 {/* ── Staff Assignment ─────────────────────────────────── */}

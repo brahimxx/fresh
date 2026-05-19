@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId, encodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -38,5 +38,5 @@ export async function GET(request) {
   }
 
   // Redirect them back to the booking page with an error/reset step
-  return NextResponse.redirect(`${baseUrl}/book/${salonId}?error=checkout_cancelled`);
+  return NextResponse.redirect(`${baseUrl}/book/${encodeId(salonId)}?error=checkout_cancelled`);
 }

@@ -1,7 +1,7 @@
 import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { success, error, notFound } from '@/lib/response';
-import { checkBidirectionalTravel, calculateTravelTimeMinutes, SETUP_BUFFER_MINUTES } from '@/lib/travel';
+import { checkBidirectionalTravel, calculateTravelTimeMinutes, resolveOrigin, SETUP_BUFFER_MINUTES } from '@/lib/travel';
 import { isValidCoordinatePair, haversineDistanceKm } from '@/lib/geo';
 
 // GET /api/widget/[salonId]/availability - Get available slots for widget
@@ -79,7 +79,10 @@ export async function GET(request, { params }) {
     // Fetch service details for all services
     const servicesData = [];
     let totalDuration = 0;
-    let totalBuffer = fulfillmentType === 'mobile' && salon.travel_buffer_time ? salon.travel_buffer_time : 0;
+    // Travel buffer is applied once regardless of service count
+    const travelBuffer = (fulfillmentType === 'mobile' && salon.travel_buffer_time) ? salon.travel_buffer_time : 0;
+    // Service buffers accumulate per service
+    let serviceBuffer = 0;
     
     for (const pair of serviceStaffPairs) {
       const service = await getOne(
@@ -124,8 +127,11 @@ export async function GET(request, { params }) {
         capableStaffIds
       });
       totalDuration += service.duration_minutes;
-      totalBuffer += (service.buffer_time_minutes || 0);
+      serviceBuffer += (service.buffer_time_minutes || 0);
     }
+
+    // Total buffer = travel buffer (once) + accumulated service buffers
+    const totalBuffer = travelBuffer + serviceBuffer;
 
     // Get unique staff IDs (union of all capable staff for all services)
     const staffIds = [...new Set(servicesData.flatMap(s => s.capableStaffIds))];
@@ -448,16 +454,36 @@ export async function GET(request, { params }) {
             // This means the arrival leg becomes: base → newClient (correct).
             // Without this, the check computes direct A→B travel and ignores
             // the mandatory return-to-base leg entirely.
-            const prevIsMobile = prevBooking?.fulfillment_type === 'mobile';
-            const prevEffectiveEndTime = prevBooking
-              ? (prevIsMobile && prevBooking._effectiveEnd
-                  ? prevBooking._effectiveEnd
-                  : new Date(String(prevBooking.end_datetime).replace(' ', 'T')))
-              : null;
-            // When prev was mobile, origin = base (staff has returned there by _effectiveEnd).
-            // When prev was non-mobile (physical/virtual), origin = null → resolves to base inside checkBidirectionalTravel.
-            const prevOriginLat = prevIsMobile ? baseLat : null;
-            const prevOriginLng = prevIsMobile ? baseLng : null;
+            //
+            // First-booking-of-day (R10): When no prior booking exists, use the
+            // staff's base location (home → salon fallback) as the departure
+            // origin and the shift start time as prevEndTime. This enables the
+            // arrival feasibility check to verify the staff can reach the client
+            // from home/salon in time.
+            let prevOriginLat;
+            let prevOriginLng;
+            let prevEffectiveEndTime;
+
+            if (prevBooking) {
+              const prevIsMobile = prevBooking.fulfillment_type === 'mobile';
+              prevEffectiveEndTime = prevIsMobile && prevBooking._effectiveEnd
+                ? prevBooking._effectiveEnd
+                : new Date(String(prevBooking.end_datetime).replace(' ', 'T'));
+              // When prev was mobile, origin = base (staff has returned there by _effectiveEnd).
+              // When prev was non-mobile (physical/virtual), origin = null → resolves to base inside checkBidirectionalTravel.
+              prevOriginLat = prevIsMobile ? baseLat : null;
+              prevOriginLng = prevIsMobile ? baseLng : null;
+            } else {
+              // No prior booking — first booking of the day.
+              // Use staff base location as origin and shift start as prevEndTime.
+              // resolveOrigin(null, null, baseLat, baseLng) returns base coords
+              // (staff home → salon fallback).
+              const baseOrigin = resolveOrigin(null, null, baseLat, baseLng);
+              prevOriginLat = baseOrigin ? baseOrigin.lat : null;
+              prevOriginLng = baseOrigin ? baseOrigin.lng : null;
+              const wh = staffWorkingHoursMap[staffId];
+              prevEffectiveEndTime = wh ? new Date(`${date}T${wh.startTime}`) : null;
+            }
 
             const { feasible } = checkBidirectionalTravel({
               prevLat: prevOriginLat,

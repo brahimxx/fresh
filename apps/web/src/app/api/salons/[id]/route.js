@@ -115,6 +115,15 @@ export async function GET(request, { params }) {
           }))
         : undefined;
 
+    // Fetch covered zip codes from normalized table
+    const coveredZipRows = await query(
+      "SELECT zip_code FROM salon_covered_zip_codes WHERE salon_id = ?",
+      [id],
+    );
+    const coveredZipCodes = coveredZipRows.length > 0
+      ? coveredZipRows.map(r => r.zip_code).join(',')
+      : null;
+
     return success({
       id: salon.id,
       ownerId: salon.owner_id,
@@ -141,7 +150,7 @@ export async function GET(request, { params }) {
       travel_fee_amount: salon.travel_fee_amount,
       min_booking_amount: salon.min_booking_amount,
       travel_buffer_time: salon.travel_buffer_time,
-      covered_zip_codes: salon.covered_zip_codes,
+      covered_zip_codes: coveredZipCodes,
       virtual_meeting_link: salon.virtual_meeting_link,
       avgRating: parseFloat(salon.avg_rating).toFixed(1),
       reviewCount: salon.review_count,
@@ -227,8 +236,8 @@ export async function PUT(request, { params }) {
       travel_fee_amount,
       min_booking_amount,
       travel_buffer_time,
-      covered_zip_codes,
       virtual_meeting_link,
+      covered_zip_codes,
     } = body;
 
     var resolvedLatitude = latitude;
@@ -288,7 +297,6 @@ export async function PUT(request, { params }) {
         travel_fee_amount = COALESCE(?, travel_fee_amount),
         min_booking_amount = COALESCE(?, min_booking_amount),
           travel_buffer_time = COALESCE(?, travel_buffer_time),
-          covered_zip_codes = COALESCE(?, covered_zip_codes),
         virtual_meeting_link = COALESCE(?, virtual_meeting_link)
        WHERE id = ?`,
       [
@@ -312,11 +320,25 @@ export async function PUT(request, { params }) {
         travel_fee_amount === "" ? null : travel_fee_amount,
         min_booking_amount,
         travel_buffer_time,
-        covered_zip_codes,
         virtual_meeting_link,
         id,
       ],
     );
+
+    // Sync covered zip codes to normalized table if provided
+    if (covered_zip_codes !== undefined) {
+      await query("DELETE FROM salon_covered_zip_codes WHERE salon_id = ?", [id]);
+      if (covered_zip_codes && covered_zip_codes.trim()) {
+        const zips = covered_zip_codes.split(',').map(z => z.trim()).filter(Boolean);
+        if (zips.length > 0) {
+          const values = zips.map(zip => [id, zip]);
+          await query(
+            "INSERT IGNORE INTO salon_covered_zip_codes (salon_id, zip_code) VALUES ?",
+            [values],
+          );
+        }
+      }
+    }
 
     // If salonCategories is provided, update them
     if (Array.isArray(salonCategories)) {
@@ -343,6 +365,14 @@ export async function PUT(request, { params }) {
       [id],
     );
 
+    const updatedZipRows = await query(
+      "SELECT zip_code FROM salon_covered_zip_codes WHERE salon_id = ?",
+      [id],
+    );
+    const updatedZipCodes = updatedZipRows.length > 0
+      ? updatedZipRows.map(r => r.zip_code).join(',')
+      : null;
+
     return success({
       id: salon.id,
       name: salon.name,
@@ -368,7 +398,7 @@ export async function PUT(request, { params }) {
       travel_fee_amount: salon.travel_fee_amount,
       min_booking_amount: salon.min_booking_amount,
       travel_buffer_time: salon.travel_buffer_time,
-      covered_zip_codes: salon.covered_zip_codes,
+      covered_zip_codes: updatedZipCodes,
       virtual_meeting_link: salon.virtual_meeting_link,
       salonCategories: updatedCategories.map((c) => ({
         name: c.name,

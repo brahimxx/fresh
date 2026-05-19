@@ -91,6 +91,8 @@ export async function GET(request) {
         canPhysical: !!s.can_physical,
         canMobile: !!s.can_mobile,
         canVirtual: !!s.can_virtual,
+        mobilePriceOverride: s.mobile_price_override ?? null,
+        virtualPriceOverride: s.virtual_price_override ?? null,
         offeringType: deriveOfferingTypeFromFlags(
           s.can_physical,
           s.can_mobile,
@@ -130,6 +132,10 @@ export async function POST(request) {
       canPhysical,
       canMobile,
       canVirtual,
+      mobilePriceOverride,
+      mobile_price_override,
+      virtualPriceOverride,
+      virtual_price_override,
     } = body;
 
     const flags = flagsFromPayload(body);
@@ -137,6 +143,18 @@ export async function POST(request) {
     if (!flags.canPhysical && !flags.canMobile && !flags.canVirtual) {
       return error("At least one fulfillment mode must be enabled", 400);
     }
+
+    // Resolve price overrides (accept both camelCase and snake_case, empty/undefined → null)
+    const finalMobilePriceOverride = mobilePriceOverride !== undefined
+      ? mobilePriceOverride
+      : mobile_price_override !== undefined
+        ? mobile_price_override
+        : null;
+    const finalVirtualPriceOverride = virtualPriceOverride !== undefined
+      ? virtualPriceOverride
+      : virtual_price_override !== undefined
+        ? virtual_price_override
+        : null;
 
     const finalCategory = category_id !== undefined ? category_id : categoryId;
     const finalDuration = duration !== undefined ? duration : duration_minutes;
@@ -183,8 +201,8 @@ export async function POST(request) {
     const result = await query(
       `INSERT INTO services
        (salon_id, category_id, name, description, duration_minutes, price, buffer_time_minutes, display_order, is_active,
-        can_physical, can_mobile, can_virtual)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        can_physical, can_mobile, can_virtual, mobile_price_override, virtual_price_override)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
       [
         salon_id,
         finalCategory || null,
@@ -197,6 +215,8 @@ export async function POST(request) {
         flags.canPhysical ? 1 : 0,
         flags.canMobile ? 1 : 0,
         flags.canVirtual ? 1 : 0,
+        finalMobilePriceOverride != null && finalMobilePriceOverride !== '' ? finalMobilePriceOverride : null,
+        finalVirtualPriceOverride != null && finalVirtualPriceOverride !== '' ? finalVirtualPriceOverride : null,
       ],
     );
 
@@ -248,6 +268,8 @@ export async function POST(request) {
         newService.can_mobile,
         newService.can_virtual,
       ),
+      mobilePriceOverride: newService.mobile_price_override ?? null,
+      virtualPriceOverride: newService.virtual_price_override ?? null,
       staffIds: Array.isArray(staff_ids) ? staff_ids : [],
     });
   } catch (err) {

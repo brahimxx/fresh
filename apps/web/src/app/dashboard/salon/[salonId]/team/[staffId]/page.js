@@ -227,7 +227,7 @@ export default function StaffDetailPage({ params }) {
           <TabsList className="w-full justify-start h-auto bg-transparent p-0 flex flex-wrap gap-1 sm:gap-2 overflow-visible">
             {[
               { id: "personal", label: "Identity Data" },
-              { id: "addresses", label: "Addresses" },
+              { id: "addresses", label: "Location" },
               { id: "emergency", label: "Emergency" },
               { id: "workplace", label: "Workplace Engine" },
               ...(staff.role !== "receptionist" && staff.role !== "owner" ? [{ id: "pay", label: "Financial Setup" }] : []),
@@ -253,7 +253,7 @@ export default function StaffDetailPage({ params }) {
           </TabsContent>
 
           <TabsContent value="addresses" className="mt-0 outline-none">
-            <StaffAddressesTab staffId={staffId} />
+            <StaffAddressesTab staffId={staffId} staff={staff} />
           </TabsContent>
 
           <TabsContent value="emergency" className="mt-0 outline-none">

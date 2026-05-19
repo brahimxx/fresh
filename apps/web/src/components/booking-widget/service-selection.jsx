@@ -430,7 +430,14 @@ export function ServiceSelection({
                               </div>
                               <div className="text-right">
                                 <p className="font-semibold">
-                                  {formatCurrency(service.price || 0, currency)}
+                                  {formatCurrency(
+                                    fulfillmentType === 'mobile' && service.mobile_price_override != null
+                                      ? service.mobile_price_override
+                                      : fulfillmentType === 'virtual' && service.virtual_price_override != null
+                                        ? service.virtual_price_override
+                                        : service.price || 0,
+                                    currency
+                                  )}
                                 </p>
                               </div>
                             </div>

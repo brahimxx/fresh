@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
 
     // Get salon basic info
     const salon = await getOne(
-      "SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, covered_zip_codes, latitude, longitude FROM salons WHERE id = ? AND is_active = 1",
+      "SELECT id, name, address, city, phone, email, website, logo_url, currency, is_physical, is_mobile, is_virtual, travel_radius, travel_fee_type, travel_fee_amount, min_booking_amount, latitude, longitude FROM salons WHERE id = ? AND is_active = 1",
       [salonId],
     );
 
@@ -58,6 +58,15 @@ export async function GET(request, { params }) {
       );
     }
 
+    // Fetch covered zip codes from normalized table
+    const coveredZipRows = await query(
+      "SELECT zip_code FROM salon_covered_zip_codes WHERE salon_id = ?",
+      [salonId],
+    );
+    const coveredZipCodes = coveredZipRows.length > 0
+      ? coveredZipRows.map(r => r.zip_code).join(',')
+      : null;
+
     return success({
       salon: {
         id: salon.id,
@@ -76,7 +85,7 @@ export async function GET(request, { params }) {
         travel_fee_type: salon.travel_fee_type,
         travel_fee_amount: salon.travel_fee_amount,
         min_booking_amount: salon.min_booking_amount,
-        covered_zip_codes: salon.covered_zip_codes,
+        covered_zip_codes: coveredZipCodes,
         latitude: salon.latitude,
         longitude: salon.longitude,
         has_physical_services: services.some(s => s.can_physical === 1 || s.can_physical === true),

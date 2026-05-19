@@ -30,6 +30,7 @@ export function BookingConfirmation({
   selectedDate,
   selectedTime,
   user,
+  fulfillmentType,
 }) {
   function formatDate(date) {
     return date.toLocaleDateString("en-US", {
@@ -52,7 +53,11 @@ export function BookingConfirmation({
   var totalPrice =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-          var price = parseFloat(s.price);
+          var price = fulfillmentType === 'mobile' && s.mobile_price_override != null
+            ? parseFloat(s.mobile_price_override)
+            : fulfillmentType === 'virtual' && s.virtual_price_override != null
+              ? parseFloat(s.virtual_price_override)
+              : parseFloat(s.price);
           return sum + (isNaN(price) ? 0 : price);
         }, 0)
       : 0;
@@ -232,7 +237,14 @@ export function BookingConfirmation({
                       </p>
                     </div>
                     <p className="font-medium">
-                      {formatCurrency(service.price || 0, salon?.currency)}
+                      {formatCurrency(
+                        fulfillmentType === 'mobile' && service.mobile_price_override != null
+                          ? service.mobile_price_override
+                          : fulfillmentType === 'virtual' && service.virtual_price_override != null
+                            ? service.virtual_price_override
+                            : service.price || 0,
+                        salon?.currency
+                      )}
                     </p>
                   </div>
                 );

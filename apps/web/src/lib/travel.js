@@ -92,10 +92,10 @@ export function totalTimeRequired(fromLat, fromLng, toLat, toLng, salonBufferTim
  * @returns {{ lat: number, lng: number } | null}
  */
 export function resolveOrigin(bookingLat, bookingLng, baseLat, baseLng) {
-  if (isValidCoordinatePair(Number(bookingLat), Number(bookingLng))) {
+  if (bookingLat != null && bookingLng != null && isValidCoordinatePair(Number(bookingLat), Number(bookingLng))) {
     return { lat: Number(bookingLat), lng: Number(bookingLng) };
   }
-  if (isValidCoordinatePair(Number(baseLat), Number(baseLng))) {
+  if (baseLat != null && baseLng != null && isValidCoordinatePair(Number(baseLat), Number(baseLng))) {
     return { lat: Number(baseLat), lng: Number(baseLng) };
   }
   return null;

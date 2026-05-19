@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { formatCurrency, formatDuration } from "@/lib/format";
+import { generateSalonSlug } from "@/lib/utils";
 import { Clock, ChevronRight, Car, Monitor } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,24 @@ export default function SalonServices({ salon, services }) {
           </button>
         ))}
       </div>
+
+      {/* Fulfillment Badges */}
+      {(salon.is_mobile || salon.is_virtual) && (
+        <div className="flex flex-wrap gap-2">
+          {salon.is_mobile && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 text-xs flex items-center gap-1.5 px-3 py-1">
+              <Car className="w-3.5 h-3.5" />
+              We come to you
+            </Badge>
+          )}
+          {salon.is_virtual && (
+            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800 text-xs flex items-center gap-1.5 px-3 py-1">
+              <Monitor className="w-3.5 h-3.5" />
+              Virtual consultations
+            </Badge>
+          )}
+        </div>
+      )}
 
       {/* Services List */}
       <div className="grid gap-3">
@@ -113,7 +132,7 @@ export default function SalonServices({ salon, services }) {
                   {formatCurrency(service.price, salon.currency)}
                 </p>
                 <Link
-                  href={`/book/${salon.id}?service=${service.id}`}
+                  href={`/book/${generateSalonSlug(salon)}?service=${service.id}`}
                 >
                   <Button
                     size="sm"

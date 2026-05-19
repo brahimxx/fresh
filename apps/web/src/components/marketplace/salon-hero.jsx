@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { generateSalonSlug } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -366,7 +367,7 @@ export default function SalonHero({ salon, servicesCount = 0 }) {
 
         {/* Action Bar for Mobile */}
         <div className="flex flex-col sm:hidden gap-3 mt-8">
-          <Link href={`/book/${salon.id}`} className="w-full">
+          <Link href={`/book/${generateSalonSlug(salon)}`} className="w-full">
             <Button
               size="lg"
               className="w-full gap-2 shadow-lg shadow-primary/20 bg-primary text-primary-foreground font-bold text-lg h-14 rounded-2xl"

@@ -64,7 +64,9 @@ function getAvailableFulfillmentTypes(salon) {
 
 export default function BookingPage({ params }) {
   var resolvedParams = use(params);
-  var salonId = resolvedParams.salonId;
+  // Extract encoded ID from the SEO slug (e.g. "best-hair-salon-paris-dkf" -> "dkf")
+  var rawParam = resolvedParams.salonId;
+  var salonId = rawParam.split("-").pop();
   var searchParams = useSearchParams();
 
   var [salon, setSalon] = useState(null);
@@ -324,7 +326,11 @@ export default function BookingPage({ params }) {
   var totalPrice =
     selectedServices && Array.isArray(selectedServices)
       ? selectedServices.reduce(function (sum, s) {
-          var price = parseFloat(s.price);
+          var price = fulfillmentType === 'mobile' && s.mobile_price_override != null
+            ? parseFloat(s.mobile_price_override)
+            : fulfillmentType === 'virtual' && s.virtual_price_override != null
+              ? parseFloat(s.virtual_price_override)
+              : parseFloat(s.price);
           return sum + (isNaN(price) ? 0 : price);
         }, 0)
       : 0;
@@ -379,7 +385,12 @@ export default function BookingPage({ params }) {
           salonId: salonId,
           subtotal: totalPrice,
           services: selectedServices.map(function (s) {
-            return { id: s.id, price: s.price, quantity: 1 };
+            var resolvedPrice = fulfillmentType === 'mobile' && s.mobile_price_override != null
+              ? s.mobile_price_override
+              : fulfillmentType === 'virtual' && s.virtual_price_override != null
+                ? s.virtual_price_override
+                : s.price;
+            return { id: s.id, price: resolvedPrice, quantity: 1 };
           }),
           products: [],
         }),
@@ -519,7 +530,6 @@ export default function BookingPage({ params }) {
         return {
           serviceId: service.id,
           staffId: service.staffId,
-          price: service.price,
           duration: service.duration,
         };
       });
@@ -694,6 +704,7 @@ export default function BookingPage({ params }) {
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             user={user}
+            fulfillmentType={fulfillmentType}
           />
         </div>
       </div>
@@ -1007,7 +1018,11 @@ export default function BookingPage({ params }) {
                               </span>
                               <span>
                                 {formatCurrency(
-                                  service.price || 0,
+                                  fulfillmentType === 'mobile' && service.mobile_price_override != null
+                                    ? service.mobile_price_override
+                                    : fulfillmentType === 'virtual' && service.virtual_price_override != null
+                                      ? service.virtual_price_override
+                                      : service.price || 0,
                                   salon?.currency,
                                 )}
                               </span>
@@ -1308,7 +1323,11 @@ export default function BookingPage({ params }) {
                             </div>
                             <p className="font-medium">
                               {formatCurrency(
-                                service.price || 0,
+                                fulfillmentType === 'mobile' && service.mobile_price_override != null
+                                  ? service.mobile_price_override
+                                  : fulfillmentType === 'virtual' && service.virtual_price_override != null
+                                    ? service.virtual_price_override
+                                    : service.price || 0,
                                 salon?.currency,
                               )}
                             </p>

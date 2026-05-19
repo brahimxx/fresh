@@ -1127,6 +1127,7 @@ export function BookingFormDialog({
                 {(function() {
                   var travelFee = 0;
                   if (watchFulfillmentType === 'mobile' && salon && mobileCoords) {
+                    // Travel fee always uses salon coordinates (consistent with client-facing widget)
                     travelFee = calculateTravelFee(
                       salon.travel_fee_type,
                       salon.travel_fee_amount,
@@ -1158,6 +1159,7 @@ export function BookingFormDialog({
                     
                     var travelFee = 0;
                     if (watchFulfillmentType === 'mobile' && salon && mobileCoords) {
+                      // Travel fee always uses salon coordinates (consistent with client-facing widget)
                       travelFee = calculateTravelFee(
                         salon.travel_fee_type,
                         salon.travel_fee_amount,

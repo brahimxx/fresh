@@ -25,6 +25,7 @@ import {
     Hash,
     Star,
     Gift,
+    Monitor,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { generateSalonSlug } from "@/lib/utils";
@@ -325,6 +326,31 @@ function BookingsContent() {
                                         </p>
                                     </div>
 
+                                    {/* Fulfillment Type & Details */}
+                                    {selectedBooking.fulfillmentType && selectedBooking.fulfillmentType !== 'physical' && (
+                                        <div className="space-y-2">
+                                            <Badge variant="outline" className={
+                                                selectedBooking.fulfillmentType === 'mobile'
+                                                    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                                                    : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"
+                                            }>
+                                                {selectedBooking.fulfillmentType === 'mobile' ? '🚗 Mobile Service' : '💻 Virtual Appointment'}
+                                            </Badge>
+                                            {selectedBooking.fulfillmentType === 'mobile' && selectedBooking.serviceLocationAddress && (
+                                                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                                    <MapPin className="h-3.5 w-3.5" />
+                                                    {selectedBooking.serviceLocationAddress}
+                                                </p>
+                                            )}
+                                            {selectedBooking.fulfillmentType === 'virtual' && selectedBooking.virtualMeetingLink && (
+                                                <a href={selectedBooking.virtualMeetingLink} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1.5">
+                                                    <Monitor className="h-3.5 w-3.5" />
+                                                    Join virtual meeting
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Quick Actions */}
                                     <div className="space-y-1">
                                         <a
@@ -446,8 +472,17 @@ function BookingsContent() {
                                         </div>
 
                                         {/* Total */}
-                                        {(selectedBooking.totalPrice || selectedBooking.giftCardAmountUsed > 0) && (
+                                        {(selectedBooking.totalPrice || selectedBooking.travelFeeAmount > 0 || selectedBooking.giftCardAmountUsed > 0) && (
                                             <>
+                                                <Separator className="my-3" />
+                                                {selectedBooking.travelFeeAmount > 0 && (
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-sm text-muted-foreground">Travel Fee</span>
+                                                        <span className="text-sm font-medium">
+                                                            {formatPrice(selectedBooking.travelFeeAmount, selectedBooking.salonCurrency)}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <Separator className="my-3" />
                                                 {selectedBooking.giftCardAmountUsed > 0 && (
                                                     <div className="flex items-center justify-between mb-2">

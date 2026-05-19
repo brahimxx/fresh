@@ -23,6 +23,7 @@ import {
   isValidCoordinatePair,
 } from "@/lib/geo";
 import { isTravelFeasible, checkBidirectionalTravel } from "@/lib/travel";
+import { resolveServicePrice } from "@/lib/pricing";
 
 // POST /api/widget/[salonId]/book - Create booking from widget (requires authentication)
 export async function POST(request, { params }) {
@@ -33,7 +34,7 @@ export async function POST(request, { params }) {
     const salonId = decodeId(rawSalonId);
 
     const salon = await getOne(
-      "SELECT id, name, address, city, country, latitude, longitude, is_marketplace_enabled, virtual_meeting_link, covered_zip_codes, travel_radius, mobile_base_address, travel_buffer_time FROM salons WHERE id = ?",
+      "SELECT id, name, address, city, country, latitude, longitude, is_marketplace_enabled, virtual_meeting_link, travel_radius, mobile_base_address, travel_buffer_time FROM salons WHERE id = ?",
       [salonId],
     );
     if (!salon) {
@@ -127,7 +128,7 @@ export async function POST(request, { params }) {
 
     for (let svc of services) {
       const service = await getOne(
-        "SELECT id, duration_minutes, buffer_time_minutes, price, name FROM services WHERE id = ? AND salon_id = ? AND is_active = 1",
+        "SELECT id, duration_minutes, buffer_time_minutes, price, mobile_price_override, virtual_price_override, name FROM services WHERE id = ? AND salon_id = ? AND is_active = 1",
         [svc.serviceId, salonId],
       );
       if (!service) {
@@ -157,14 +158,15 @@ export async function POST(request, { params }) {
         }
       }
 
+      const resolvedPrice = resolveServicePrice(service, fulfillmentType || 'physical');
       totalDuration += service.duration_minutes;
       totalBuffer += service.buffer_time_minutes || 0;
-      totalPrice += parseFloat(service.price);
+      totalPrice += resolvedPrice;
       serviceDetails.push({
         ...svc,
         duration: service.duration_minutes,
         bufferTime: service.buffer_time_minutes || 0,
-        price: service.price,
+        price: resolvedPrice,
         name: service.name,
       });
     }
@@ -291,24 +293,24 @@ export async function POST(request, { params }) {
         }
       }
 
-      // ZIP code boundary check (if the salon has set covered zones)
-      if (salon.covered_zip_codes) {
-        const zips = salon.covered_zip_codes
-          .split(",")
-          .map((z) => z.trim())
-          .filter(Boolean);
-        if (zips.length > 0) {
-          const hasMatch = zips.some((z) => serviceLocationAddress.includes(z));
-          if (!hasMatch) {
-            return error(
-              {
-                code: "OUTSIDE_SERVICE_AREA",
-                message: `Your address is outside our service area. We cover: ${salon.covered_zip_codes}`,
-              },
-              400,
-            );
-          }
-        }
+      // ZIP code boundary check (query normalized salon_covered_zip_codes table)
+      const zipMatch = await getOne(
+        'SELECT 1 FROM salon_covered_zip_codes WHERE salon_id = ? AND ? LIKE CONCAT("%", zip_code, "%") LIMIT 1',
+        [salonId, serviceLocationAddress]
+      );
+      // Only reject if the salon has covered zip codes configured but none match
+      const hasZipCodes = await getOne(
+        'SELECT 1 FROM salon_covered_zip_codes WHERE salon_id = ? LIMIT 1',
+        [salonId]
+      );
+      if (hasZipCodes && !zipMatch) {
+        return error(
+          {
+            code: "OUTSIDE_SERVICE_AREA",
+            message: "Your address is outside our service area.",
+          },
+          400,
+        );
       }
     }
 
@@ -317,6 +319,17 @@ export async function POST(request, { params }) {
       fulfillmentType === "virtual"
         ? virtualMeetingLink || salon.virtual_meeting_link || null
         : null;
+
+    if (fulfillmentType === "virtual" && !resolvedMeetingLink) {
+      return error(
+        {
+          code: "MEETING_LINK_REQUIRED",
+          message:
+            "A virtual meeting link is required. Please contact the salon to configure their virtual booking settings.",
+        },
+        400,
+      );
+    }
 
     // Calculate end time from DB service durations — totalDuration is computed
     // from DB records above so this is authoritative, not frontend-controlled.

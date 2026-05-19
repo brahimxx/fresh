@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
+import { generateSalonSlug } from "@/lib/utils";
 
 const DAYS = [
   "Sunday",
@@ -83,7 +84,7 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
               </span>
             </div>
           </div>
-          <Link href={`/book/${salon.id}`} className="shrink-0">
+          <Link href={`/book/${generateSalonSlug(salon)}`} className="shrink-0">
             <Button size="lg" className="rounded-full shadow-lg font-bold px-8 bg-primary text-primary-foreground hover:bg-primary/90">
               Book now
             </Button>
@@ -122,7 +123,7 @@ export default function SalonStickyBooking({ salon, isMobile = false }) {
         </div>
 
         {/* CTA Button */}
-        <Link href={`/book/${salon.id}`} className="block">
+        <Link href={`/book/${generateSalonSlug(salon)}`} className="block">
           <Button
             className="w-full py-7 text-lg font-bold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
             size="lg"

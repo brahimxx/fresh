@@ -81,6 +81,9 @@ export async function GET(request) {
         displayOrder: s.display_order,
         isActive: s.is_active,
         isVisible: s.is_visible,
+        canPhysical: !!s.can_physical,
+        canMobile: !!s.can_mobile,
+        canVirtual: !!s.can_virtual,
         service_ids: servicesByStaff[s.id] || [],
       })),
     });
@@ -274,6 +277,9 @@ export async function POST(request) {
       color: newStaff.color,
       isActive: newStaff.is_active,
       isVisible: newStaff.is_visible,
+      canPhysical: !!newStaff.can_physical,
+      canMobile: !!newStaff.can_mobile,
+      canVirtual: !!newStaff.can_virtual,
     });
   } catch (err) {
     console.error("Create staff error:", err);

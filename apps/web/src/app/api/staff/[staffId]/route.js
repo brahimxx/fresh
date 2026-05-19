@@ -75,6 +75,8 @@ export async function GET(request, { params }) {
       canPhysical: staff.can_physical,
       canMobile: staff.can_mobile,
       canVirtual: staff.can_virtual,
+      homeLat: staff.home_lat != null ? Number(staff.home_lat) : null,
+      homeLng: staff.home_lng != null ? Number(staff.home_lng) : null,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') {
@@ -117,6 +119,8 @@ export async function PUT(request, { params }) {
       canPhysical,
       canMobile,
       canVirtual,
+      homeLat,
+      homeLng,
     } = body;
 
     const updates = [];
@@ -194,6 +198,14 @@ export async function PUT(request, { params }) {
       updates.push('can_virtual = ?');
       values.push(canVirtual ? 1 : 0);
     }
+    if (homeLat !== undefined) {
+      updates.push('home_lat = ?');
+      values.push(homeLat !== null && homeLat !== '' ? homeLat : null);
+    }
+    if (homeLng !== undefined) {
+      updates.push('home_lng = ?');
+      values.push(homeLng !== null && homeLng !== '' ? homeLng : null);
+    }
 
     if (updates.length > 0) {
       values.push(staffId);
@@ -239,6 +251,8 @@ export async function PUT(request, { params }) {
       canPhysical: updatedStaff.can_physical,
       canMobile: updatedStaff.can_mobile,
       canVirtual: updatedStaff.can_virtual,
+      homeLat: updatedStaff.home_lat != null ? Number(updatedStaff.home_lat) : null,
+      homeLng: updatedStaff.home_lng != null ? Number(updatedStaff.home_lng) : null,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') {

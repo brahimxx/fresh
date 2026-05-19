@@ -326,24 +326,30 @@ export async function PUT(request, { params }) {
         );
         
         const salonRow = salonRows[0];
-        if (salonRow && salonRow.latitude && salonRow.longitude) {
-          const { haversineDistanceKm, calculateTravelFee } = await import("@/lib/geo");
+        if (salonRow) {
+          const { haversineDistanceKm, calculateTravelFee, isValidCoordinatePair } = await import("@/lib/geo");
+
+          // Travel fee is always calculated from SALON coordinates (matches client preview).
+          const salonLat = salonRow.latitude != null ? Number(salonRow.latitude) : null;
+          const salonLng = salonRow.longitude != null ? Number(salonRow.longitude) : null;
+
+          if (isValidCoordinatePair(salonLat, salonLng)) {
+            travelDistanceKmSnapshot = parseFloat(
+              haversineDistanceKm(
+                salonLat,
+                salonLng,
+                Number(serviceLocationLat),
+                Number(serviceLocationLng)
+              ).toFixed(2)
+            );
+          }
           
-          travelDistanceKmSnapshot = parseFloat(
-            haversineDistanceKm(
-              Number(salonRow.latitude),
-              Number(salonRow.longitude),
-              Number(serviceLocationLat),
-              Number(serviceLocationLng)
-            ).toFixed(2)
-          );
-          
-          if (salonRow.travel_fee_type && salonRow.travel_fee_type !== "none") {
+          if (salonRow.travel_fee_type && salonRow.travel_fee_type !== "none" && isValidCoordinatePair(salonLat, salonLng)) {
             travelFeeAmount = calculateTravelFee(
               salonRow.travel_fee_type,
               salonRow.travel_fee_amount,
-              Number(salonRow.latitude),
-              Number(salonRow.longitude),
+              salonLat,
+              salonLng,
               Number(serviceLocationLat),
               Number(serviceLocationLng)
             );

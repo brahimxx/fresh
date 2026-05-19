@@ -127,7 +127,8 @@ export async function GET(request, { params }) {
     const services = await query(
       `SELECT 
         s.id, s.name, s.description, s.duration_minutes as duration,
-        s.price, s.category_id, sc.name as category_name,
+        s.price, s.mobile_price_override, s.virtual_price_override,
+        s.category_id, sc.name as category_name,
         s.can_physical, s.can_mobile, s.can_virtual
        FROM services s
        LEFT JOIN service_categories sc ON sc.id = s.category_id

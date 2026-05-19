@@ -156,40 +156,20 @@ export async function createSafeBooking({
   // Physical-only services cannot be booked as mobile/virtual and vice-versa.
   // This is checked BEFORE the transaction for a fast fail.
   //
-  // New model: explicit capability flags on service rows.
-  // Legacy fallback: if flags are missing/NULL, fall back to offering_type semantics.
+  // Uses explicit capability flags on service rows (can_physical, can_mobile, can_virtual).
+  // All services are guaranteed to have non-NULL flag values via migration.
   if (fulfillmentType) {
     const serviceIds = services.map((s) => Number(s.serviceId));
     if (serviceIds.length > 0) {
       const [offeringRows] = await pool.execute(
-        `SELECT id, name, can_physical, can_mobile, can_virtual, offering_type
+        `SELECT id, name, can_physical, can_mobile, can_virtual
          FROM services WHERE id IN (${serviceIds.map(() => "?").join(",")})`,
         serviceIds,
       );
       for (const row of offeringRows) {
-        const hasFlagValues =
-          row.can_physical !== null &&
-          row.can_physical !== undefined &&
-          row.can_mobile !== null &&
-          row.can_mobile !== undefined &&
-          row.can_virtual !== null &&
-          row.can_virtual !== undefined;
-
-        const canPhysical = hasFlagValues
-          ? Boolean(row.can_physical)
-          : row.offering_type === "physical" ||
-            row.offering_type === "hybrid" ||
-            !row.offering_type;
-        const canMobile = hasFlagValues
-          ? Boolean(row.can_mobile)
-          : row.offering_type === "mobile" ||
-            row.offering_type === "hybrid" ||
-            !row.offering_type;
-        const canVirtual = hasFlagValues
-          ? Boolean(row.can_virtual)
-          : row.offering_type === "virtual" ||
-            row.offering_type === "hybrid" ||
-            !row.offering_type;
+        const canPhysical = Boolean(row.can_physical);
+        const canMobile = Boolean(row.can_mobile);
+        const canVirtual = Boolean(row.can_virtual);
 
         const isCompatible =
           (fulfillmentType === "physical" && canPhysical) ||
@@ -1045,15 +1025,23 @@ export async function createSafeBooking({
         salonFeeRow.travel_fee_type &&
         salonFeeRow.travel_fee_type !== "none"
       ) {
-        const { calculateTravelFee } = await import("@/lib/geo");
-        travelFeeAmount = calculateTravelFee(
-          salonFeeRow.travel_fee_type,
-          salonFeeRow.travel_fee_amount,
-          Number(salonFeeRow.latitude),
-          Number(salonFeeRow.longitude),
-          Number(serviceLat),
-          Number(serviceLng)
-        );
+        const { calculateTravelFee, isValidCoordinatePair } = await import("@/lib/geo");
+
+        const salonLat = salonFeeRow.latitude != null ? Number(salonFeeRow.latitude) : null;
+        const salonLng = salonFeeRow.longitude != null ? Number(salonFeeRow.longitude) : null;
+
+        // Travel fee is always calculated from SALON coordinates (matches what client sees in preview).
+        // Staff home coordinates are used only for feasibility checks (in the availability route), not pricing.
+        if (isValidCoordinatePair(salonLat, salonLng)) {
+          travelFeeAmount = calculateTravelFee(
+            salonFeeRow.travel_fee_type,
+            salonFeeRow.travel_fee_amount,
+            salonLat,
+            salonLng,
+            Number(serviceLat),
+            Number(serviceLng)
+          );
+        }
 
         if (travelFeeAmount > 0) {
           await conn.execute(

@@ -45,7 +45,9 @@ export async function GET(request, { params }) {
               COALESCE(st.can_physical, 1) as can_physical,
               COALESCE(st.can_mobile, 0) as can_mobile,
               COALESCE(st.can_virtual, 0) as can_virtual,
-              st.travel_radius
+              st.travel_radius,
+              st.home_lat,
+              st.home_lng
        FROM staff st
        JOIN users u ON u.id = st.user_id
        WHERE st.salon_id = ? ${includeInactive ? "" : "AND st.is_active = 1"}
@@ -78,6 +80,8 @@ export async function GET(request, { params }) {
           canMobile: !!s.can_mobile,
           canVirtual: !!s.can_virtual,
           travelRadius: s.travel_radius ?? null,
+          homeLat: s.home_lat != null ? Number(s.home_lat) : null,
+          homeLng: s.home_lng != null ? Number(s.home_lng) : null,
         };
       }),
     );

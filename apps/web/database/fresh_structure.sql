@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 8.0.45, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.42, for macos15 (x86_64)
 --
--- Host: localhost    Database: fresh
+-- Host: 127.0.0.1    Database: fresh
 -- ------------------------------------------------------
--- Server version	8.0.45
+-- Server version	9.3.0
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -39,7 +39,7 @@ CREATE TABLE `audit_logs` (
   KEY `idx_audit_logs_created` (`created_at`),
   KEY `idx_audit_logs_entity_date` (`entity_type`,`entity_id`,`created_at`),
   KEY `idx_audit_logs_user_date` (`user_id`,`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -84,7 +84,7 @@ CREATE TABLE `booking_gift_cards` (
   KEY `gift_card_id` (`gift_card_id`),
   CONSTRAINT `booking_gift_cards_ibfk_1` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE,
   CONSTRAINT `booking_gift_cards_ibfk_2` FOREIGN KEY (`gift_card_id`) REFERENCES `gift_cards` (`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -218,7 +218,7 @@ CREATE TABLE `bookings` (
   CONSTRAINT `fk_bookings_client` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=91 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -384,10 +384,11 @@ CREATE TABLE `gift_cards` (
   `initial_balance` decimal(10,2) NOT NULL,
   `remaining_balance` decimal(10,2) NOT NULL,
   `purchased_by` bigint unsigned DEFAULT NULL,
+  `purchaser_email` varchar(255) DEFAULT NULL,
   `recipient_email` varchar(255) DEFAULT NULL,
   `recipient_name` varchar(255) DEFAULT NULL,
   `recipient_message` text,
-  `status` enum('active','used','expired','cancelled') DEFAULT 'active',
+  `status` enum('pending','active','used','expired','cancelled') DEFAULT 'active',
   `expires_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -396,7 +397,7 @@ CREATE TABLE `gift_cards` (
   KEY `purchased_by` (`purchased_by`),
   CONSTRAINT `gift_cards_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE,
   CONSTRAINT `gift_cards_ibfk_2` FOREIGN KEY (`purchased_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -476,7 +477,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `idx_notifications_user_id` (`user_id`),
   CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=785 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=801 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -536,7 +537,7 @@ CREATE TABLE `payments` (
   `booking_id` bigint unsigned NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `method` enum('card','cash') NOT NULL,
-  `status` enum('pending','paid','refunded') NOT NULL DEFAULT 'pending',
+  `status` enum('pending','paid','refunded','partially_refunded') NOT NULL DEFAULT 'pending',
   `stripe_payment_id` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `refunded_amount` decimal(10,2) DEFAULT '0.00',
@@ -549,7 +550,7 @@ CREATE TABLE `payments` (
   KEY `idx_payments_status_created` (`status`,`created_at`),
   KEY `idx_payments_booking_status` (`booking_id`,`status`),
   CONSTRAINT `fk_payments_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -640,10 +641,43 @@ CREATE TABLE `product_categories` (
   `name` varchar(100) NOT NULL,
   `display_order` int DEFAULT '0',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_product_categories_salon` (`salon_id`),
   CONSTRAINT `product_categories_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `product_stock_movements`
+--
+
+DROP TABLE IF EXISTS `product_stock_movements`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `product_stock_movements` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` bigint unsigned NOT NULL,
+  `salon_id` bigint unsigned NOT NULL,
+  `change_type` enum('set','add','subtract') NOT NULL,
+  `quantity_before` int NOT NULL,
+  `quantity_after` int NOT NULL,
+  `delta` int NOT NULL,
+  `reason_code` enum('manual_set','manual_adjustment','restock','waste','correction','sale','refund') NOT NULL,
+  `reason_note` varchar(500) DEFAULT NULL,
+  `performed_by` bigint unsigned DEFAULT NULL,
+  `booking_id` bigint unsigned DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_psm_product_created` (`product_id`,`created_at`),
+  KEY `idx_psm_salon_created` (`salon_id`,`created_at`),
+  KEY `idx_psm_booking` (`booking_id`),
+  KEY `fk_psm_user` (`performed_by`),
+  CONSTRAINT `fk_psm_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_psm_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_psm_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_psm_user` FOREIGN KEY (`performed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -658,6 +692,7 @@ CREATE TABLE `products` (
   `salon_id` bigint unsigned NOT NULL,
   `category_id` bigint unsigned DEFAULT NULL,
   `name` varchar(255) NOT NULL,
+  `brand` varchar(120) DEFAULT NULL,
   `description` text,
   `price` decimal(10,2) NOT NULL,
   `cost_price` decimal(10,2) DEFAULT NULL,
@@ -674,9 +709,10 @@ CREATE TABLE `products` (
   KEY `idx_products_salon` (`salon_id`),
   KEY `idx_products_category` (`category_id`),
   KEY `idx_products_sku` (`sku`),
+  KEY `idx_products_brand` (`brand`),
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE,
   CONSTRAINT `products_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `product_categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -870,6 +906,24 @@ CREATE TABLE `salon_closures` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `salon_covered_zip_codes`
+--
+
+DROP TABLE IF EXISTS `salon_covered_zip_codes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `salon_covered_zip_codes` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `salon_id` bigint unsigned NOT NULL,
+  `zip_code` varchar(20) NOT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_salon_zip` (`salon_id`,`zip_code`),
+  CONSTRAINT `fk_scz_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `salon_gallery`
 --
 
@@ -955,7 +1009,8 @@ CREATE TABLE `salons` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `stripe_account_id` varchar(255) DEFAULT NULL,
   `timezone` varchar(50) DEFAULT 'Europe/Paris',
-  `currency` varchar(3) DEFAULT 'EUR',
+  `currency` varchar(3) DEFAULT 'DZD',
+  `payment_mode` enum('cash_only','stripe','manual') NOT NULL DEFAULT 'cash_only' COMMENT 'How this salon processes payments. cash_only = record manually, stripe = online via Stripe, manual = bank transfer',
   `logo_url` varchar(500) DEFAULT NULL,
   `cover_image_url` varchar(500) DEFAULT NULL,
   `website` varchar(255) DEFAULT NULL,
@@ -974,7 +1029,6 @@ CREATE TABLE `salons` (
   `travel_fee_amount` decimal(10,2) DEFAULT '0.00',
   `min_booking_amount` decimal(10,2) DEFAULT '0.00' COMMENT 'Min order value to make travel worth it',
   `virtual_meeting_link` text,
-  `covered_zip_codes` text COMMENT 'Comma separated list of zip codes covered for mobile service',
   `travel_buffer_time` int DEFAULT '0' COMMENT 'Minutes automatically added before/after mobile bookings',
   `mobile_base_address` varchar(255) DEFAULT NULL COMMENT 'Base address used as center point for mobile travel radius',
   PRIMARY KEY (`id`),
@@ -1049,7 +1103,6 @@ CREATE TABLE `services` (
   `display_order` int DEFAULT '0',
   `deleted_at` datetime DEFAULT NULL,
   `is_popular` tinyint(1) DEFAULT '0',
-  `offering_type` enum('physical','mobile','virtual','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT 'How this specific service can be fulfilled',
   `mobile_price_override` decimal(10,2) DEFAULT NULL COMMENT 'Price when fulfilled as mobile (NULL = use base price)',
   `virtual_price_override` decimal(10,2) DEFAULT NULL COMMENT 'Price when fulfilled as virtual (NULL = use base price)',
   `can_physical` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Service can be fulfilled physically at salon',
@@ -1060,7 +1113,6 @@ CREATE TABLE `services` (
   KEY `idx_services_category_id` (`category_id`),
   KEY `idx_services_salon_active` (`salon_id`,`is_active`),
   KEY `idx_services_salon_active_name` (`salon_id`,`is_active`,`name`),
-  KEY `idx_services_offering` (`offering_type`),
   KEY `idx_services_fulfillment_flags` (`can_physical`,`can_mobile`,`can_virtual`),
   CONSTRAINT `fk_services_category` FOREIGN KEY (`category_id`) REFERENCES `service_categories` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_services_salon` FOREIGN KEY (`salon_id`) REFERENCES `salons` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -1260,7 +1312,7 @@ CREATE TABLE `staff_pay_runs` (
   `pay_date` date NOT NULL,
   `status` enum('draft','processing','completed','cancelled') DEFAULT 'draft',
   `total_amount` decimal(12,2) DEFAULT '0.00',
-  `currency` varchar(3) DEFAULT 'USD',
+  `currency` varchar(3) DEFAULT NULL,
   `notes` text,
   `created_by` bigint unsigned DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -1336,7 +1388,7 @@ CREATE TABLE `staff_wages` (
   `hourly_rate` decimal(10,2) DEFAULT NULL,
   `salary_amount` decimal(10,2) DEFAULT NULL,
   `salary_period` enum('weekly','biweekly','monthly','annual') DEFAULT 'monthly',
-  `currency` varchar(3) DEFAULT 'USD',
+  `currency` varchar(3) DEFAULT NULL,
   `effective_from` date NOT NULL,
   `effective_to` date DEFAULT NULL,
   `notes` text,
@@ -1537,4 +1589,4 @@ CREATE TABLE `widget_settings` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-05-14 18:23:27
+-- Dump completed on 2026-05-18 16:22:36
