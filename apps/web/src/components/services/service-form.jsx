@@ -54,12 +54,22 @@ var serviceSchema = z.object({
   can_physical: z.boolean().default(true),
   can_mobile: z.boolean().default(false),
   can_virtual: z.boolean().default(false),
-  mobile_price_override: z.union([z.coerce.number().min(0), z.literal("")]).optional().nullable().transform(function (val) {
-    return val === "" || val === undefined ? null : val;
-  }),
-  virtual_price_override: z.union([z.coerce.number().min(0), z.literal("")]).optional().nullable().transform(function (val) {
-    return val === "" || val === undefined ? null : val;
-  }),
+  mobile_price_override: z.preprocess(
+    function (val) {
+      if (val === "" || val === undefined || val === null) return null;
+      var num = Number(val);
+      return Number.isFinite(num) ? num : null;
+    },
+    z.number().min(0).nullable()
+  ),
+  virtual_price_override: z.preprocess(
+    function (val) {
+      if (val === "" || val === undefined || val === null) return null;
+      var num = Number(val);
+      return Number.isFinite(num) ? num : null;
+    },
+    z.number().min(0).nullable()
+  ),
 });
 
 var DURATION_OPTIONS = [

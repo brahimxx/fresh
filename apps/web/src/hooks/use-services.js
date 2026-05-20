@@ -117,14 +117,18 @@ export function useUpdateService() {
 export function useDeleteService() {
   var queryClient = useQueryClient();
   return useMutation({
-    mutationFn: function (id) {
-      return api.delete("/services/" + id);
+    mutationFn: function ({ id, force }) {
+      var url = "/services/" + id;
+      if (force) url += "?force=true";
+      return api.delete(url);
     },
     onSuccess: function () {
       queryClient.invalidateQueries({ queryKey: serviceKeys.lists() });
       toast.success("Service deleted successfully");
     },
     onError: function (error) {
+      // Don't show generic toast for upcoming bookings warning — handled by caller
+      if (error.data?.error?.code === "HAS_UPCOMING_BOOKINGS") return;
       toast.error(error.message || "Failed to delete service");
     },
   });

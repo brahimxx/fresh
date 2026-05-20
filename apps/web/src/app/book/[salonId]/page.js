@@ -209,6 +209,16 @@ export default function BookingPage({ params }) {
     [singleFulfillmentType],
   );
 
+  // Virtual bookings require card payment — auto-select stripe
+  useEffect(
+    function () {
+      if (fulfillmentType === "virtual") {
+        setPaymentMethod("stripe");
+      }
+    },
+    [fulfillmentType],
+  );
+
   // Warn user about unsaved changes
   useEffect(
     function () {
@@ -1226,6 +1236,19 @@ export default function BookingPage({ params }) {
                       <label className="font-medium text-sm">
                         Payment Method
                       </label>
+                      {fulfillmentType === "virtual" ? (
+                        <div className="flex items-center space-x-3 rounded-md border p-4 bg-primary/5 border-primary">
+                          <CreditCard className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">
+                              Pay with Card
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Card payment is required for virtual appointments
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
                       <RadioGroup
                         value={paymentMethod}
                         onValueChange={setPaymentMethod}
@@ -1272,6 +1295,7 @@ export default function BookingPage({ params }) {
                           </label>
                         </div>
                       </RadioGroup>
+                      )}
                     </div>
 
                     {/* Optional notes */}

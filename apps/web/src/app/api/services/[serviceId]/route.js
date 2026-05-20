@@ -349,6 +349,30 @@ export async function DELETE(request, { params }) {
       return forbidden("Not authorized to delete this service");
     }
 
+    // Check for upcoming bookings that use this service
+    const upcomingBookings = await query(
+      `SELECT COUNT(*) as count FROM booking_services bs
+       JOIN bookings b ON b.id = bs.booking_id
+       WHERE bs.service_id = ?
+       AND b.status IN ('pending', 'confirmed')
+       AND b.deleted_at IS NULL
+       AND b.start_datetime > NOW()`,
+      [serviceId]
+    );
+    const upcomingCount = upcomingBookings[0]?.count || 0;
+
+    // Check if force flag is passed (from the frontend confirmation dialog)
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get('force') === 'true';
+
+    if (upcomingCount > 0 && !force) {
+      return error({
+        code: "HAS_UPCOMING_BOOKINGS",
+        message: `This service has ${upcomingCount} upcoming appointment${upcomingCount > 1 ? 's' : ''}. Deleting it will hide it from new bookings, but existing appointments will not be affected.`,
+        upcomingCount,
+      }, 409);
+    }
+
     await query("DELETE FROM service_staff WHERE service_id = ?", [serviceId]);
     await query(
       "UPDATE services SET deleted_at = NOW(), is_active = 0 WHERE id = ? AND deleted_at IS NULL",

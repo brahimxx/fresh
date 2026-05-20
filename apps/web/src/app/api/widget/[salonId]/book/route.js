@@ -100,6 +100,17 @@ export async function POST(request, { params }) {
       }
     }
 
+    // Virtual bookings require card payment — cash is not possible without physical presence
+    if (fulfillmentType === "virtual" && paymentMethod === "cash") {
+      return error(
+        {
+          code: "INVALID_PAYMENT_METHOD",
+          message: "Virtual appointments require card payment",
+        },
+        400,
+      );
+    }
+
     // Use authenticated user's data
     const clientId = session.userId;
 

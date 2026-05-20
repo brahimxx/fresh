@@ -260,3 +260,41 @@ export function useDeleteBooking() {
     },
   });
 }
+
+// Mark booking as paid (cash/manual)
+export function useMarkPaid() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: function ({ id, method, notes }) {
+      return api.post("/bookings/" + id + "/mark-paid", { method, notes });
+    },
+    onSuccess: function (_, variables) {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(variables.id) });
+      toast.success("Payment recorded successfully");
+    },
+    onError: function (error) {
+      toast.error(error.message || "Failed to record payment");
+    },
+  });
+}
+
+// Send payment link to client via email
+export function useSendPaymentLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: function (id) {
+      return api.post("/bookings/" + id + "/payment-link");
+    },
+    onSuccess: function (response, id) {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) });
+      toast.success(response?.data?.message || "Payment link sent to client");
+    },
+    onError: function (error) {
+      toast.error(error.message || "Failed to send payment link");
+    },
+  });
+}

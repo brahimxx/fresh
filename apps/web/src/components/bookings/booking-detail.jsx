@@ -19,6 +19,8 @@ import {
   Car,
   ShoppingCart,
   Gift,
+  Send,
+  CircleDollarSign,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +53,8 @@ import {
   useNoShowBooking,
   useDeleteBooking,
   useCompleteBooking,
+  useMarkPaid,
+  useSendPaymentLink,
 } from "@/hooks/use-bookings";
 import { formatDuration } from "@/lib/format";
 
@@ -95,6 +99,8 @@ export function BookingDetailSheet({
   var noShowBooking = useNoShowBooking();
   var deleteBooking = useDeleteBooking();
   var completeBooking = useCompleteBooking();
+  var markPaid = useMarkPaid();
+  var sendPaymentLink = useSendPaymentLink();
 
   if (!booking) return null;
 
@@ -512,6 +518,42 @@ export function BookingDetailSheet({
                 >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Quick Cash
+                </Button>
+              )}
+
+              {/* Mark as Paid — show when booking is not already paid */}
+              {(booking.status === "confirmed" || booking.status === "completed") &&
+                (booking.payment_status || booking.paymentStatus || booking.payment?.status) !== "paid" && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={function () {
+                    markPaid.mutate({ id: booking.id, method: 'cash' }, {
+                      onSuccess: function () { onOpenChange(false); },
+                    });
+                  }}
+                  disabled={markPaid.isPending}
+                >
+                  <CircleDollarSign className="h-4 w-4 mr-2" />
+                  {markPaid.isPending ? "Saving..." : "Mark Paid"}
+                </Button>
+              )}
+
+              {/* Send Payment Link — show for confirmed bookings that aren't paid */}
+              {(booking.status === "pending" || booking.status === "confirmed") &&
+                (booking.payment_status || booking.paymentStatus || booking.payment?.status) !== "paid" && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={function () {
+                    sendPaymentLink.mutate(booking.id, {
+                      onSuccess: function () { onOpenChange(false); },
+                    });
+                  }}
+                  disabled={sendPaymentLink.isPending}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {sendPaymentLink.isPending ? "Sending..." : "Send Payment Link"}
                 </Button>
               )}
 

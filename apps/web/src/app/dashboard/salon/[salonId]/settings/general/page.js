@@ -16,9 +16,7 @@ import {
   Phone,
   Globe,
   MapPin,
-  Camera,
   DollarSign,
-  ImagePlus,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -61,8 +59,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useSalonSettings,
   useUpdateSalonSettings,
-  useUploadSalonPhoto,
-  useDeleteSalonPhoto,
   useDeleteSalon,
 } from "@/hooks/use-settings";
 
@@ -111,7 +107,6 @@ export default function GeneralSettingsPage() {
   var params = useParams();
   var router = useRouter();
   var { toast } = useToast();
-  var fileInputRef = useRef(null);
   var mobileMapRef = useRef(null);
   var mobileGeocoderRef = useRef(null);
   var mobileCircleRef = useRef(null);
@@ -126,8 +121,6 @@ export default function GeneralSettingsPage() {
 
   var { data: salon, isLoading } = useSalonSettings(params.salonId);
   var updateSettings = useUpdateSalonSettings();
-  var uploadPhoto = useUploadSalonPhoto();
-  var deletePhoto = useDeleteSalonPhoto();
   var deleteSalon = useDeleteSalon();
   var { isLoaded: isMapsLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
@@ -226,6 +219,19 @@ export default function GeneralSettingsPage() {
       return;
     }
 
+    if (data.is_virtual && !data.virtual_meeting_link?.trim()) {
+      form.setError("virtual_meeting_link", {
+        type: "manual",
+        message: "A meeting link is required to enable virtual services",
+      });
+      toast({
+        title: "Meeting link required",
+        description: "Please add a virtual meeting link (e.g. Google Meet, Zoom) to enable virtual services.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (data.isSameAsPhysical) {
       data.mobile_base_address = data.address;
     }
@@ -236,57 +242,22 @@ export default function GeneralSettingsPage() {
         data: data,
       },
       {
-        onSuccess: function () {
+        onSuccess: function (response) {
           toast({ title: "Settings saved" });
-        },
-        onError: function (error) {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  }
-
-  function handlePhotoUpload(event) {
-    var file = event.target.files?.[0];
-    if (!file) return;
-
-    uploadPhoto.mutate(
-      {
-        salonId: params.salonId,
-        file: file,
-        type: "gallery",
-      },
-      {
-        onSuccess: function () {
-          toast({ title: "Photo uploaded" });
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+          // Notify about cascaded service changes
+          var cascade = response?.data?.cascadeInfo;
+          if (cascade?.virtualServicesAffected) {
+            toast({
+              title: "Virtual services updated",
+              description: cascade.virtualServicesAffected + " service" + (cascade.virtualServicesAffected > 1 ? "s" : "") + " had virtual mode removed." + (cascade.virtualOnlyConverted > 0 ? " " + cascade.virtualOnlyConverted + " virtual-only service" + (cascade.virtualOnlyConverted > 1 ? "s were" : " was") + " switched to in-salon." : ""),
+            });
           }
-        },
-        onError: function (error) {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  }
-
-  function handleDeletePhoto(photoId) {
-    deletePhoto.mutate(
-      {
-        salonId: params.salonId,
-        photoId: photoId,
-      },
-      {
-        onSuccess: function () {
-          toast({ title: "Photo deleted" });
+          if (cascade?.mobileServicesAffected) {
+            toast({
+              title: "Mobile services updated",
+              description: cascade.mobileServicesAffected + " service" + (cascade.mobileServicesAffected > 1 ? "s" : "") + " had mobile mode removed." + (cascade.mobileOnlyConverted > 0 ? " " + cascade.mobileOnlyConverted + " mobile-only service" + (cascade.mobileOnlyConverted > 1 ? "s were" : " was") + " switched to in-salon." : ""),
+            });
+          }
         },
         onError: function (error) {
           toast({
@@ -1335,7 +1306,7 @@ export default function GeneralSettingsPage() {
                     return (
                       <FormItem>
                         <FormLabel className="text-sm font-semibold">
-                          Default Virtual Meeting Link
+                          Default Virtual Meeting Link *
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -1346,8 +1317,7 @@ export default function GeneralSettingsPage() {
                           />
                         </FormControl>
                         <FormDescription>
-                          This link is shared for virtual bookings when
-                          applicable.
+                          Required. Clients will join this link for virtual appointments.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1355,72 +1325,6 @@ export default function GeneralSettingsPage() {
                   }}
                 />
               )}
-            </div>
-          </motion.div>
-
-          {/* Photos */}
-          <motion.div
-            variants={itemVariants}
-            className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm"
-          >
-            <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Camera className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold tracking-tight">
-                  Salon Gallery
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Add photos to showcase your space and work
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {(salon?.photos || []).map(function (photo) {
-                return (
-                  <motion.div
-                    key={photo.id}
-                    whileHover={{ scale: 1.02 }}
-                    className="relative group aspect-square rounded-2xl overflow-hidden shadow-sm border border-border/50"
-                  >
-                    <img
-                      src={photo.url}
-                      alt="Salon photo"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button
-                        type="button"
-                        onClick={function () {
-                          handleDeletePhoto(photo.id);
-                        }}
-                        className="h-10 w-10 bg-destructive/90 text-white rounded-full flex items-center justify-center hover:bg-destructive hover:scale-110 transition-all shadow-lg"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {/* Upload Button */}
-              <label className="aspect-square rounded-2xl border-2 border-dashed border-primary/30 hover:border-primary bg-primary/5 hover:bg-primary/10 cursor-pointer flex flex-col items-center justify-center gap-3 transition-all">
-                <div className="w-12 h-12 rounded-full bg-background flex items-center justify-center shadow-sm border border-border/50">
-                  <ImagePlus className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-sm font-semibold text-primary">
-                  Add Photo
-                </span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handlePhotoUpload}
-                />
-              </label>
             </div>
           </motion.div>
 

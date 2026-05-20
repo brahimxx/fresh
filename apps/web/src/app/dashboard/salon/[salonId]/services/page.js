@@ -129,9 +129,22 @@ export default function ServicesPage({ params }) {
     if (!deleteItem) return;
 
     if (deleteItem.type === "service") {
-      deleteService.mutate(deleteItem.id, {
-        onSuccess: () => setDeleteItem(null),
-      });
+      deleteService.mutate(
+        { id: deleteItem.id, force: deleteItem.force || false },
+        {
+          onSuccess: () => setDeleteItem(null),
+          onError: (error) => {
+            if (error.data?.error?.code === "HAS_UPCOMING_BOOKINGS") {
+              // Show the warning with upcoming count, let user force-confirm
+              setDeleteItem({
+                ...deleteItem,
+                hasUpcoming: true,
+                upcomingCount: error.data.error.upcomingCount,
+              });
+            }
+          },
+        },
+      );
     } else if (deleteItem.type === "category") {
       deleteCategory.mutate(deleteItem.id, {
         onSuccess: () => setDeleteItem(null),
@@ -645,27 +658,52 @@ export default function ServicesPage({ params }) {
               <Trash2 className="w-6 h-6 text-red-600 dark:text-red-500" />
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-red-600 dark:text-red-500">
-              Terminate {deleteItem?.type}?
+              {deleteItem?.hasUpcoming ? "Service has upcoming bookings" : `Terminate ${deleteItem?.type}?`}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[15px] font-medium text-foreground tracking-tight leading-relaxed">
-              Are you sure you want to permanently erase{" "}
-              <strong>{deleteItem?.name}</strong>?
-              {deleteItem?.type === "category" &&
-                " All dependent services mapped to this category will instantly become uncategorized."}
-              <br />
-              <br />
-              <span className="text-muted-foreground text-[13px]">
-                This is a database destructive action and cannot be undone.
-              </span>
+              {deleteItem?.hasUpcoming ? (
+                <>
+                  <strong>{deleteItem?.name}</strong> has{" "}
+                  <strong>{deleteItem?.upcomingCount}</strong> upcoming appointment{deleteItem?.upcomingCount > 1 ? "s" : ""}.
+                  <br /><br />
+                  Deleting it will hide it from new bookings, but existing appointments will not be affected. Clients will still see their booked service as normal.
+                  <br /><br />
+                  <span className="text-muted-foreground text-[13px]">
+                    Are you sure you want to proceed?
+                  </span>
+                </>
+              ) : (
+                <>
+                  Are you sure you want to permanently erase{" "}
+                  <strong>{deleteItem?.name}</strong>?
+                  {deleteItem?.type === "category" &&
+                    " All dependent services mapped to this category will instantly become uncategorized."}
+                  <br />
+                  <br />
+                  <span className="text-muted-foreground text-[13px]">
+                    This is a database destructive action and cannot be undone.
+                  </span>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 gap-2 sm:gap-0">
             <AlertDialogCancel className="rounded-xl h-11 font-bold">Abort</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600 rounded-xl h-11 font-bold shadow-md"
-              onClick={handleDeleteConfirm}
+              onClick={() => {
+                if (deleteItem?.hasUpcoming) {
+                  // Force delete — user confirmed after seeing the warning
+                  deleteService.mutate(
+                    { id: deleteItem.id, force: true },
+                    { onSuccess: () => setDeleteItem(null) },
+                  );
+                } else {
+                  handleDeleteConfirm();
+                }
+              }}
             >
-              Confirm Termination
+              {deleteItem?.hasUpcoming ? "Delete Anyway" : "Confirm Termination"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -60,8 +60,10 @@ export async function GET(request, { params }) {
 
     // Travel radius fail-fast check for mobile fulfillment
     if (fulfillmentType === 'mobile' && userLat != null && userLng != null && isValidCoordinatePair(userLat, userLng)) {
-      if (salon && salon.travel_radius != null && isValidCoordinatePair(salon.latitude, salon.longitude)) {
-        const distance = haversineDistanceKm(salon.latitude, salon.longitude, userLat, userLng);
+      const salonLat = salon ? Number(salon.latitude) : null;
+      const salonLng = salon ? Number(salon.longitude) : null;
+      if (salon && salon.travel_radius != null && isValidCoordinatePair(salonLat, salonLng)) {
+        const distance = haversineDistanceKm(salonLat, salonLng, userLat, userLng);
         if (distance > parseFloat(salon.travel_radius)) {
           return success({
             date,

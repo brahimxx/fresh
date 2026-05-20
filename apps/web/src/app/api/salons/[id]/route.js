@@ -275,6 +275,24 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // Virtual fulfillment requires a meeting link
+    var virtualEnabled = is_virtual === true || is_virtual === 1 || is_virtual === "1" || is_virtual === "true";
+    var virtualLinkBeingCleared = virtual_meeting_link !== undefined && !virtual_meeting_link?.trim();
+    
+    if (virtualEnabled && !virtual_meeting_link?.trim()) {
+      // Enabling virtual — check if a link is already stored
+      const existingSalon = await getOne("SELECT virtual_meeting_link FROM salons WHERE id = ?", [id]);
+      if (!existingSalon?.virtual_meeting_link?.trim()) {
+        return error("A virtual meeting link is required to enable virtual services. Please provide a link (e.g. Google Meet, Zoom).", 400);
+      }
+    } else if (virtualLinkBeingCleared && is_virtual === undefined) {
+      // Clearing the link without disabling virtual — check if virtual is currently active
+      const existingSalon = await getOne("SELECT is_virtual FROM salons WHERE id = ?", [id]);
+      if (existingSalon?.is_virtual) {
+        return error("Cannot remove the meeting link while virtual services are enabled. Disable virtual mode first, or provide a new link.", 400);
+      }
+    }
+
     await query(
       `UPDATE salons SET
         name = COALESCE(?, name),
@@ -337,6 +355,79 @@ export async function PUT(request, { params }) {
             [values],
           );
         }
+      }
+    }
+
+    // ── Cascade fulfillment mode changes to services ────────────────────────
+    //
+    // When a fulfillment mode is disabled at the salon level, strip that flag
+    // from all services. Services that become flag-less (were only that mode)
+    // get flipped to can_physical=1 so they remain bookable.
+    // Same logic applies to both virtual and mobile.
+
+    var virtualDisabled = is_virtual !== undefined && !virtualEnabled;
+    var mobileDisabled = is_mobile !== undefined && !(is_mobile === true || is_mobile === 1 || is_mobile === "1" || is_mobile === "true");
+    var cascadeInfo = {};
+
+    if (virtualDisabled) {
+      // Count affected services before updating
+      const virtualOnlyServices = await query(
+        `SELECT COUNT(*) as count FROM services WHERE salon_id = ? AND can_virtual = 1 AND can_physical = 0 AND can_mobile = 0 AND deleted_at IS NULL`,
+        [id]
+      );
+      const virtualMixedServices = await query(
+        `SELECT COUNT(*) as count FROM services WHERE salon_id = ? AND can_virtual = 1 AND (can_physical = 1 OR can_mobile = 1) AND deleted_at IS NULL`,
+        [id]
+      );
+
+      // Services that are virtual-only → flip to physical
+      await query(
+        `UPDATE services SET can_physical = 1, can_virtual = 0, virtual_price_override = NULL
+         WHERE salon_id = ? AND can_virtual = 1 AND can_physical = 0 AND can_mobile = 0 AND deleted_at IS NULL`,
+        [id]
+      );
+      // Services that have virtual + other modes → just strip virtual
+      await query(
+        `UPDATE services SET can_virtual = 0, virtual_price_override = NULL
+         WHERE salon_id = ? AND can_virtual = 1 AND deleted_at IS NULL`,
+        [id]
+      );
+
+      var totalVirtualAffected = (virtualOnlyServices[0]?.count || 0) + (virtualMixedServices[0]?.count || 0);
+      if (totalVirtualAffected > 0) {
+        cascadeInfo.virtualServicesAffected = totalVirtualAffected;
+        cascadeInfo.virtualOnlyConverted = virtualOnlyServices[0]?.count || 0;
+      }
+    }
+
+    if (mobileDisabled) {
+      // Count affected services before updating
+      const mobileOnlyServices = await query(
+        `SELECT COUNT(*) as count FROM services WHERE salon_id = ? AND can_mobile = 1 AND can_physical = 0 AND can_virtual = 0 AND deleted_at IS NULL`,
+        [id]
+      );
+      const mobileMixedServices = await query(
+        `SELECT COUNT(*) as count FROM services WHERE salon_id = ? AND can_mobile = 1 AND (can_physical = 1 OR can_virtual = 1) AND deleted_at IS NULL`,
+        [id]
+      );
+
+      // Services that are mobile-only → flip to physical
+      await query(
+        `UPDATE services SET can_physical = 1, can_mobile = 0, mobile_price_override = NULL
+         WHERE salon_id = ? AND can_mobile = 1 AND can_physical = 0 AND can_virtual = 0 AND deleted_at IS NULL`,
+        [id]
+      );
+      // Services that have mobile + other modes → just strip mobile
+      await query(
+        `UPDATE services SET can_mobile = 0, mobile_price_override = NULL
+         WHERE salon_id = ? AND can_mobile = 1 AND deleted_at IS NULL`,
+        [id]
+      );
+
+      var totalMobileAffected = (mobileOnlyServices[0]?.count || 0) + (mobileMixedServices[0]?.count || 0);
+      if (totalMobileAffected > 0) {
+        cascadeInfo.mobileServicesAffected = totalMobileAffected;
+        cascadeInfo.mobileOnlyConverted = mobileOnlyServices[0]?.count || 0;
       }
     }
 
@@ -404,6 +495,7 @@ export async function PUT(request, { params }) {
         name: c.name,
         isPrimary: c.is_primary === 1,
       })),
+      ...(Object.keys(cascadeInfo).length > 0 ? { cascadeInfo } : {}),
     });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
