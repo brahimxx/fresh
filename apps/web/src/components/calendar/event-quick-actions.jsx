@@ -9,40 +9,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Edit, Check, XCircle, MoreVertical, CheckCircle, ShoppingCart } from "lucide-react";
+import { Edit, Check, XCircle, MoreHorizontal, CheckCircle, ShoppingCart } from "lucide-react";
 
 export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCheckout, onCancel }) {
-  var [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   if (!booking) return null;
 
-  var canConfirm = booking.status === "pending";
-  var canComplete = booking.status === "confirmed";
-  var canCancel = booking.status !== "cancelled" && booking.status !== "completed";
+  const canConfirm = booking.status === "pending";
+  const canComplete = booking.status === "confirmed";
+  const canCancel = booking.status !== "cancelled" && booking.status !== "completed";
 
   return (
     <div
-      className="absolute top-1 right-1 z-20"
-      onClick={function (e) {
-        e.stopPropagation();
-      }}
-      onMouseDown={function (e) {
-        e.stopPropagation(); // Prevent drag & drop from interfering
-      }}
+      className={"absolute right-0.5 top-1/2 -translate-y-1/2 z-20 " + (open ? "opacity-100" : "opacity-0 group-hover:opacity-100") + " transition-opacity duration-150"}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 bg-black/20 hover:bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            className="h-5 w-5 p-0 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm"
           >
-            <MoreVertical className="h-3.5 w-3.5" />
+            <MoreHorizontal className="h-3 w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem
-            onClick={function (e) {
+            onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
               if (onEdit) onEdit(booking);
@@ -53,7 +49,7 @@ export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCh
           </DropdownMenuItem>
           {canConfirm && (
             <DropdownMenuItem
-              onClick={function (e) {
+              onClick={(e) => {
                 e.stopPropagation();
                 setOpen(false);
                 if (onConfirm) onConfirm(booking);
@@ -65,7 +61,7 @@ export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCh
           )}
           {canComplete && (
             <DropdownMenuItem
-              onClick={function (e) {
+              onClick={(e) => {
                 e.stopPropagation();
                 setOpen(false);
                 if (onCheckout) onCheckout(booking);
@@ -77,7 +73,7 @@ export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCh
           )}
           {canComplete && (
             <DropdownMenuItem
-              onClick={function (e) {
+              onClick={(e) => {
                 e.stopPropagation();
                 setOpen(false);
                 if (onComplete) onComplete(booking);
@@ -92,7 +88,7 @@ export function EventQuickActions({ booking, onEdit, onConfirm, onComplete, onCh
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={function (e) {
+                onClick={(e) => {
                   e.stopPropagation();
                   setOpen(false);
                   if (onCancel) onCancel(booking);
