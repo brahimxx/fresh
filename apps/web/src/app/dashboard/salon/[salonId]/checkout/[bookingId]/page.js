@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft,
   CreditCard,
@@ -37,9 +38,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 
-import { useCheckout, useCreatePayment, useValidateDiscount, useCheckGiftCard, formatCurrency, PAYMENT_METHODS } from '@/hooks/use-payments';
+import { useCheckout, useValidateDiscount, useCheckGiftCard, formatCurrency, PAYMENT_METHODS } from '@/hooks/use-payments';
 import { useProducts } from '@/hooks/use-products';
 import { useSalon } from '@/providers/salon-provider';
+import api from '@/lib/api-client';
 import { AddProductDialog } from '@/components/checkout/add-product-dialog';
 import { PaymentSuccessDialog } from '@/components/checkout/payment-success';
 
@@ -48,6 +50,7 @@ export default function CheckoutPage({ params }) {
   var salonId = resolvedParams.salonId;
   var bookingId = resolvedParams.bookingId;
   var router = useRouter();
+  var queryClient = useQueryClient();
   var salonCtx = useSalon();
   var currency = salonCtx?.salon?.currency;
   
@@ -61,12 +64,12 @@ export default function CheckoutPage({ params }) {
   var [addProductOpen, setAddProductOpen] = useState(false);
   var [paymentSuccess, setPaymentSuccess] = useState(false);
   var [processing, setProcessing] = useState(false);
+  var [paymentError, setPaymentError] = useState(null);
   
   var { data: checkoutResponse, isLoading } = useCheckout(bookingId);
   var checkout = checkoutResponse?.data || checkoutResponse || null;
   var productsQuery = useProducts(salonId);
   var products = (productsQuery.data && productsQuery.data.data) || [];
-  var createPayment = useCreatePayment();
   var validateDiscount = useValidateDiscount();
   var checkGiftCard = useCheckGiftCard();
   
@@ -160,28 +163,44 @@ export default function CheckoutPage({ params }) {
   
   function handleProcessPayment() {
     setProcessing(true);
+    setPaymentError(null);
     
     var paymentData = {
-      booking_id: bookingId,
-      salon_id: salonId,
-      method: selectedMethod,
-      amount: total,
-      tip_amount: tipAmount,
-      discount_id: appliedDiscount?.id,
-      gift_card_id: appliedGiftCard?.id,
       products: addedProducts.map(function(p) {
-        return { product_id: p.id, quantity: p.quantity, price: p.price };
+        return { id: p.id, quantity: p.quantity || 1 };
       }),
+      discountId: appliedDiscount?.id || undefined,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
+      giftCardCode: appliedGiftCard?.code || undefined,
+      giftCardAmount: giftCardAmount > 0 ? giftCardAmount : undefined,
+      tipAmount: tipAmount,
+      paymentMethod: selectedMethod,
     };
     
-    createPayment.mutate(paymentData, {
-      onSuccess: function() {
-        setProcessing(false);
-        setPaymentSuccess(true);
-      },
-      onError: function() {
-        setProcessing(false);
-      },
+    // Use the full checkout endpoint that handles products, discounts, gift cards transactionally
+    api.post('/checkout/' + bookingId, paymentData).then(function() {
+      setProcessing(false);
+      setPaymentSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ['salon-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    }).catch(function(err) {
+      setProcessing(false);
+      var status = err?.status || err?.response?.status;
+      var message = err?.message || err?.data?.message || '';
+      
+      if (status === 409 || message.includes('already')) {
+        setPaymentError('This booking has already been paid. Redirecting...');
+        setTimeout(function() {
+          router.push('/dashboard/salon/' + salonId + '/calendar');
+        }, 2000);
+      } else if (status === 403) {
+        setPaymentError('You are not authorized to process this payment.');
+      } else if (status === 400) {
+        setPaymentError(message || 'Invalid payment data. Please check the amount and try again.');
+      } else {
+        setPaymentError(message || 'Payment failed. Please try again.');
+      }
     });
   }
   
@@ -191,7 +210,7 @@ export default function CheckoutPage({ params }) {
   
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
@@ -203,9 +222,40 @@ export default function CheckoutPage({ params }) {
       </div>
     );
   }
+
+  // Guard: booking already completed/paid
+  if (checkout?.booking?.status === 'completed') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={function() { router.back(); }}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Checkout</h1>
+            <p className="text-muted-foreground">Booking #{bookingId}</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle className="h-10 w-10 text-green-600" />
+            </div>
+            <h2 className="text-xl font-semibold">Already Paid</h2>
+            <p className="text-muted-foreground text-center max-w-sm">
+              This booking has already been checked out and payment has been recorded.
+            </p>
+            <Button onClick={function() { router.push('/dashboard/salon/' + salonId + '/calendar'); }}>
+              Back to Calendar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={function() { router.back(); }}>
@@ -482,11 +532,18 @@ export default function CheckoutPage({ params }) {
             </CardContent>
           </Card>
           
+          {/* Payment Error */}
+          {paymentError && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive font-medium">
+              {paymentError}
+            </div>
+          )}
+
           {/* Pay Button */}
           <Button 
             className="w-full h-12 text-lg"
             onClick={handleProcessPayment}
-            disabled={processing || total <= 0}
+            disabled={processing || total <= 0 || !!paymentError}
           >
             {processing ? (
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />

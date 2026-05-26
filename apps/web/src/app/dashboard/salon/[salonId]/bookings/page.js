@@ -424,10 +424,29 @@ export default function BookingsPage({ params }) {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <div className="flex flex-col items-end gap-0.5">
+                                  <div className="flex flex-col items-end gap-1">
                                     <span className="font-extrabold text-[15px]">
                                       {formatCurrency(Number(booking.total_price || booking.totalPrice || 0), salon?.currency)}
                                     </span>
+                                    {booking.paymentStatus && (
+                                      <span className={cn(
+                                        "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md",
+                                        booking.paymentStatus === 'paid' ? "bg-emerald-500/10 text-emerald-600" :
+                                        booking.paymentStatus === 'refunded' ? "bg-red-500/10 text-red-600" :
+                                        booking.paymentStatus === 'partially_refunded' ? "bg-orange-500/10 text-orange-600" :
+                                        "bg-amber-500/10 text-amber-600"
+                                      )}>
+                                        {booking.paymentStatus === 'paid' ? 'Paid' :
+                                         booking.paymentStatus === 'refunded' ? 'Refunded' :
+                                         booking.paymentStatus === 'partially_refunded' ? 'Partial Refund' :
+                                         'Unpaid'}
+                                      </span>
+                                    )}
+                                    {!booking.paymentStatus && (
+                                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
+                                        Unpaid
+                                      </span>
+                                    )}
                                     {booking.travelFeeAmount > 0 && (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600">
                                         <Car className="h-2.5 w-2.5" />

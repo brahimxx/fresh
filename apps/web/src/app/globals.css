@@ -247,3 +247,39 @@
     cursor: pointer;
   }
 }
+
+/* Modern slim scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 9999px;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -100,10 +100,53 @@ export async function PUT(request, { params }) {
       return forbidden('Not authorized to update this staff member');
     }
 
+    // ── Role hierarchy enforcement ──────────────────────────────────────────
+    const ROLE_RANK = { staff: 1, receptionist: 2, manager: 3, owner: 4 };
+    const targetRole = staff.role;
+
+    // Determine the acting user's role at this salon
+    let actorRole = null;
+    if (session.role === 'admin') {
+      actorRole = 'admin';
+    } else if (staff.owner_id === session.userId) {
+      actorRole = 'owner';
+    } else {
+      const actorStaff = await getOne(
+        'SELECT role FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
+        [staff.salon_id, session.userId]
+      );
+      actorRole = actorStaff?.role || null;
+    }
+
+    // Non-admin, non-owner cannot edit someone at or above their rank (unless editing themselves)
+    const isSelf = staff.user_id === session.userId;
+    if (actorRole !== 'admin' && actorRole !== 'owner' && !isSelf) {
+      if ((ROLE_RANK[targetRole] || 0) >= (ROLE_RANK[actorRole] || 0)) {
+        return forbidden('You cannot edit a team member at or above your role');
+      }
+    }
+
+    // Nobody can change their own role (except admin)
+    if (isSelf && body.role !== undefined && body.role !== staff.role && actorRole !== 'admin') {
+      return forbidden('You cannot change your own role');
+    }
+
+    // Only owner or admin can change someone's role
+    if (body.role !== undefined && body.role !== staff.role && actorRole !== 'owner' && actorRole !== 'admin') {
+      return forbidden('Only the salon owner can change roles');
+    }
+
+    // Cannot change the owner's role
+    if (targetRole === 'owner' && body.role !== undefined && body.role !== 'owner' && actorRole !== 'admin') {
+      return forbidden('The owner role cannot be changed');
+    }
+
     const {
       firstName,
       lastName,
+      phone,
       phoneSecondary,
+      email,
       title,
       bio,
       color,
@@ -123,6 +166,51 @@ export async function PUT(request, { params }) {
       homeLng,
     } = body;
 
+    // ── Update users table (phone, email) with uniqueness checks ────────────
+    if (phone !== undefined || email !== undefined) {
+      const userUpdates = [];
+      const userValues = [];
+
+      if (phone !== undefined) {
+        // Check phone uniqueness
+        if (phone && phone.trim()) {
+          const phoneConflict = await getOne(
+            'SELECT id FROM users WHERE phone = ? AND id != ? AND deleted_at IS NULL LIMIT 1',
+            [phone.trim(), staff.user_id]
+          );
+          if (phoneConflict) {
+            return error({ code: 'PHONE_TAKEN', message: 'This phone number is already used by another account' }, 409);
+          }
+        }
+        userUpdates.push('phone = ?');
+        userValues.push(phone ? phone.trim() : null);
+      }
+
+      if (email !== undefined) {
+        // Check email uniqueness
+        if (email && email.trim()) {
+          const emailConflict = await getOne(
+            'SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1',
+            [email.trim().toLowerCase(), staff.user_id]
+          );
+          if (emailConflict) {
+            return error({ code: 'EMAIL_TAKEN', message: 'This email is already used by another account' }, 409);
+          }
+        }
+        userUpdates.push('email = ?');
+        userValues.push(email ? email.trim().toLowerCase() : null);
+      }
+
+      if (userUpdates.length > 0) {
+        userValues.push(staff.user_id);
+        await query(
+          `UPDATE users SET ${userUpdates.join(', ')}, updated_at = NOW() WHERE id = ?`,
+          userValues
+        );
+      }
+    }
+
+    // ── Update staff table ──────────────────────────────────────────────────
     const updates = [];
     const values = [];
 
@@ -273,6 +361,41 @@ export async function DELETE(request, { params }) {
     const staff = await checkStaffAccess(staffId, session.userId, session.role);
     if (!staff) {
       return forbidden('Not authorized to delete this staff member');
+    }
+
+    // ── Role hierarchy enforcement ──────────────────────────────────────────
+    const ROLE_RANK = { staff: 1, receptionist: 2, manager: 3, owner: 4 };
+    const targetRole = staff.role;
+
+    // Cannot delete yourself
+    if (staff.user_id === session.userId) {
+      return forbidden('You cannot remove yourself from the team');
+    }
+
+    // Cannot delete the salon owner
+    if (targetRole === 'owner') {
+      return forbidden('The salon owner cannot be removed');
+    }
+
+    // Determine actor's role
+    let actorRole = null;
+    if (session.role === 'admin') {
+      actorRole = 'admin';
+    } else if (staff.owner_id === session.userId) {
+      actorRole = 'owner';
+    } else {
+      const actorStaff = await getOne(
+        'SELECT role FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
+        [staff.salon_id, session.userId]
+      );
+      actorRole = actorStaff?.role || null;
+    }
+
+    // Non-admin, non-owner cannot delete someone at or above their rank
+    if (actorRole !== 'admin' && actorRole !== 'owner') {
+      if ((ROLE_RANK[targetRole] || 0) >= (ROLE_RANK[actorRole] || 0)) {
+        return forbidden('You cannot remove a team member at or above your role');
+      }
     }
 
     // Soft delete - just mark as inactive

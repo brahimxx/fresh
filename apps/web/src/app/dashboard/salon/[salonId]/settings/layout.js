@@ -90,7 +90,7 @@ export default function SettingsLayout({ children }) {
   }
   
   return (
-    <div className="flex min-h-screen">
+    <div className="-mx-4 sm:-mx-8 -my-8 flex min-h-[calc(100vh-4rem)]">
       {/* Sidebar Navigation */}
       <aside className="w-72 border-r border-border/40 bg-background/60 backdrop-blur-xl shrink-0 hidden md:block">
         <div className="sticky top-0 pt-8 flex flex-col h-screen overflow-y-auto w-full">

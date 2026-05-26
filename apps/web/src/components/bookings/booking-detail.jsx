@@ -521,8 +521,8 @@ export function BookingDetailSheet({
                 </Button>
               )}
 
-              {/* Mark as Paid — show when booking is not already paid */}
-              {(booking.status === "confirmed" || booking.status === "completed") &&
+              {/* Mark as Paid — show only for confirmed bookings that aren't paid */}
+              {booking.status === "confirmed" &&
                 (booking.payment_status || booking.paymentStatus || booking.payment?.status) !== "paid" && (
                 <Button
                   variant="outline"

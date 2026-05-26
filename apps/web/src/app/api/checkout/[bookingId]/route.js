@@ -84,12 +84,12 @@ export async function GET(request, { params }) {
 
     // Calculate totals
     const servicesTotal = services.reduce((sum, s) => sum + parseFloat(s.price), 0);
-    const productsTotal = products.reduce((sum, p) => sum + parseFloat(p.price) * p.quantity, 0);
+    const productsTotal = products.reduce((sum, p) => sum + parseFloat(p.total_price || 0), 0);
     const subtotal = servicesTotal + productsTotal;
 
     let discountTotal = 0;
     for (const discount of discounts) {
-      discountTotal += parseFloat(discount.amount);
+      discountTotal += parseFloat(discount.amount_saved);
     }
 
     const giftCardAmount = giftCardPayment ? parseFloat(giftCardPayment.amount_used) : 0;
@@ -113,14 +113,14 @@ export async function GET(request, { params }) {
       products: products.map((p) => ({
         id: p.product_id,
         name: p.product_name,
-        price: parseFloat(p.price),
+        price: parseFloat(p.unit_price),
         quantity: p.quantity,
       })),
       discounts: discounts.map((d) => ({
         id: d.discount_id,
         name: d.discount_name,
         type: d.discount_type,
-        amount: parseFloat(d.amount),
+        amount: parseFloat(d.amount_saved),
       })),
       giftCard: giftCardPayment
         ? {
@@ -153,20 +153,30 @@ export async function GET(request, { params }) {
   }
 }
 
-// POST /api/checkout/[bookingId] - Complete checkout
+// POST /api/checkout/[bookingId] - Complete checkout (full-featured: products, discounts, gift cards, tips)
 export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
     const { bookingId: rawBookingId } = await params;
-  const bookingId = decodeId(rawBookingId);
+    const bookingId = decodeId(rawBookingId);
 
     const booking = await getOne(
-      'SELECT b.*, s.owner_id FROM bookings b JOIN salons s ON s.id = b.salon_id WHERE b.id = ?',
+      'SELECT b.*, s.owner_id, s.name as salon_name FROM bookings b JOIN salons s ON s.id = b.salon_id WHERE b.id = ?',
       [bookingId]
     );
 
     if (!booking) {
-      return error('Booking not found', 404);
+      return error({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' }, 404);
+    }
+
+    // Block already-completed bookings
+    if (booking.status === 'completed') {
+      return error({ code: 'ALREADY_COMPLETED', message: 'This booking has already been checked out' }, 409);
+    }
+
+    // Only confirmed or pending bookings can be checked out
+    if (!['confirmed', 'pending'].includes(booking.status)) {
+      return error({ code: 'INVALID_STATUS', message: `Cannot checkout a booking with status: ${booking.status}` }, 400);
     }
 
     const hasAccess = await checkSalonAccess(booking.salon_id, session.userId, session.role);
@@ -180,16 +190,15 @@ export async function POST(request, { params }) {
       discountId,
       discountAmount,
       giftCardCode,
-      giftCardAmount,
       tipAmount = 0,
-      paymentMethod,
+      paymentMethod = 'cash',
       stripePaymentId,
     } = body;
 
-    // Check for existing payment to prevent duplicates
+    // Check for existing paid payment to prevent duplicates
     const existingPayment = await getOne('SELECT id, status FROM payments WHERE booking_id = ?', [bookingId]);
     if (existingPayment && existingPayment.status === 'paid') {
-      return error({ code: 'PAYMENT_EXISTS', message: 'This booking has already been paid' }, 400);
+      return error({ code: 'PAYMENT_EXISTS', message: 'This booking has already been paid' }, 409);
     }
 
     const result = await transaction(async (conn) => {
@@ -197,9 +206,11 @@ export async function POST(request, { params }) {
       for (const product of products) {
         const [productData] = await conn.execute('SELECT price FROM products WHERE id = ?', [product.id]);
         if (productData.length > 0) {
+          const unitPrice = parseFloat(productData[0].price);
+          const qty = product.quantity || 1;
           await conn.execute(
-            'INSERT INTO booking_products (booking_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-            [bookingId, product.id, product.quantity || 1, productData[0].price]
+            'INSERT INTO booking_products (booking_id, product_id, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?)',
+            [bookingId, product.id, qty, unitPrice, (unitPrice * qty).toFixed(2)]
           );
         }
       }
@@ -207,17 +218,14 @@ export async function POST(request, { params }) {
       // Apply discount if provided
       if (discountId && discountAmount) {
         await conn.execute(
-          'INSERT INTO booking_discounts (booking_id, discount_id, amount) VALUES (?, ?, ?)',
-          [bookingId, discountId, discountAmount]
+          'INSERT INTO booking_discounts (booking_id, discount_id, discount_code, discount_type, discount_value, amount_saved) VALUES (?, ?, ?, ?, ?, ?)',
+          [bookingId, discountId, '', 'fixed', discountAmount, discountAmount]
         );
-
-        // Increment discount usage
         await conn.execute('UPDATE discounts SET current_uses = current_uses + 1 WHERE id = ?', [discountId]);
       }
 
-      // Apply gift card if provided — validate server-side (never trust frontend amount)
+      // Apply gift card if provided — validate server-side
       if (giftCardCode) {
-        // Check if a gift card was already applied during booking creation
         const [existingGc] = await conn.execute(
           'SELECT id FROM booking_gift_cards WHERE booking_id = ?',
           [bookingId]
@@ -226,7 +234,6 @@ export async function POST(request, { params }) {
           throw new Error('A gift card has already been applied to this booking');
         }
 
-        // Lock the gift card row and validate it's usable
         const [gcRows] = await conn.execute(
           `SELECT id, remaining_balance FROM gift_cards
            WHERE code = ?
@@ -241,13 +248,13 @@ export async function POST(request, { params }) {
           throw new Error('Gift card is invalid, expired, or depleted');
         }
 
-        // Calculate the actual amount to deduct server-side (never trust frontend)
+        // Calculate server-side deduction amount
         const [svcRes] = await conn.execute(
           'SELECT COALESCE(SUM(price), 0) as total FROM booking_services WHERE booking_id = ?',
           [bookingId]
         );
         const [prdRes] = await conn.execute(
-          'SELECT COALESCE(SUM(unit_price * quantity), 0) as total FROM booking_products WHERE booking_id = ?',
+          'SELECT COALESCE(SUM(total_price), 0) as total FROM booking_products WHERE booking_id = ?',
           [bookingId]
         );
         const [dscRes] = await conn.execute(
@@ -264,13 +271,10 @@ export async function POST(request, { params }) {
         );
 
         if (serverGiftCardAmount > 0) {
-          // Insert using gift_card_id (the actual FK column)
           await conn.execute(
             'INSERT INTO booking_gift_cards (booking_id, gift_card_id, amount_used) VALUES (?, ?, ?)',
             [bookingId, giftCard.id, serverGiftCardAmount.toFixed(2)]
           );
-
-          // Deduct from gift card balance and auto-set status when depleted
           await conn.execute(
             `UPDATE gift_cards
                 SET remaining_balance = remaining_balance - ?,
@@ -279,7 +283,6 @@ export async function POST(request, { params }) {
             [serverGiftCardAmount.toFixed(2), serverGiftCardAmount.toFixed(2), giftCard.id]
           );
 
-          // Record in audit ledger
           const newBalance = parseFloat(giftCard.remaining_balance) - serverGiftCardAmount;
           await recordGiftCardTransaction({
             giftCardId: giftCard.id,
@@ -295,17 +298,17 @@ export async function POST(request, { params }) {
         }
       }
 
-      // Calculate final total
+      // Calculate final total from DB (never trust frontend totals)
       const [servicesResult] = await conn.execute(
         'SELECT COALESCE(SUM(price), 0) as total FROM booking_services WHERE booking_id = ?',
         [bookingId]
       );
       const [productsResult] = await conn.execute(
-        'SELECT COALESCE(SUM(price * quantity), 0) as total FROM booking_products WHERE booking_id = ?',
+        'SELECT COALESCE(SUM(total_price), 0) as total FROM booking_products WHERE booking_id = ?',
         [bookingId]
       );
       const [discountsResult] = await conn.execute(
-        'SELECT COALESCE(SUM(amount), 0) as total FROM booking_discounts WHERE booking_id = ?',
+        'SELECT COALESCE(SUM(amount_saved), 0) as total FROM booking_discounts WHERE booking_id = ?',
         [bookingId]
       );
       const [giftCardsResult] = await conn.execute(
@@ -317,66 +320,73 @@ export async function POST(request, { params }) {
       const discountTotal = parseFloat(discountsResult[0].total);
       const giftCardTotal = parseFloat(giftCardsResult[0].total);
       const finalAmount = Math.max(0, subtotal - discountTotal - giftCardTotal);
-      const totalWithTip = finalAmount + parseFloat(tipAmount);
+      const tip = Math.max(0, parseFloat(tipAmount) || 0);
 
-      // Verify Stripe payment BEFORE committing to database
-      let verifiedStripePayment = null;
-      if (paymentMethod === 'card') {
-        if (!stripePaymentId) {
-           throw new Error('Stripe payment ID is required for card payments');
-        }
-        
+      // Verify Stripe payment for card payments
+      if (paymentMethod === 'card' && stripePaymentId) {
         const intent = await stripe.paymentIntents.retrieve(stripePaymentId);
         if (intent.status !== 'succeeded') {
           throw new Error(`Payment verification failed: status is ${intent.status}`);
         }
-        
-        // Check amount match (cents)
-        const expectedCents = Math.round(totalWithTip * 100);
+        const expectedCents = Math.round((finalAmount + tip) * 100);
         if (Math.abs(intent.amount - expectedCents) > 10) {
-           throw new Error(`Payment amount mismatch: paid ${intent.amount / 100}, expected ${totalWithTip}`);
+          throw new Error(`Payment amount mismatch: paid ${intent.amount / 100}, expected ${finalAmount + tip}`);
         }
-        
-        verifiedStripePayment = intent;
       }
 
-      // Create payment record
-      const [paymentResult] = await conn.execute(
-        `INSERT INTO payments (booking_id, amount, tip_amount, method, status, stripe_payment_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE 
-            amount = VALUES(amount),
-            tip_amount = VALUES(tip_amount),
-            method = VALUES(method),
-            status = VALUES(status),
-            stripe_payment_id = VALUES(stripe_payment_id),
-            updated_at = NOW()`,
-        [
-          bookingId,
-          finalAmount,
-          tipAmount,
-          paymentMethod,
-          paymentMethod === 'card' && stripePaymentId ? 'paid' : 'pending',
-          stripePaymentId || null,
-        ]
-      );
+      // Create payment record (INSERT only — no ON DUPLICATE KEY UPDATE)
+      // Salon-initiated checkout always marks as 'paid' immediately
+      if (existingPayment) {
+        // Update existing pending payment
+        await conn.execute(
+          `UPDATE payments SET amount = ?, tip_amount = ?, method = ?, status = 'paid', stripe_payment_id = ? WHERE id = ?`,
+          [finalAmount, tip, paymentMethod, stripePaymentId || null, existingPayment.id]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO payments (booking_id, amount, tip_amount, method, status, stripe_payment_id, created_at)
+           VALUES (?, ?, ?, ?, 'paid', ?, NOW())`,
+          [bookingId, finalAmount, tip, paymentMethod, stripePaymentId || null]
+        );
+      }
 
-      // Update booking status to completed
+      // Mark booking as completed
       await conn.execute("UPDATE bookings SET status = 'completed' WHERE id = ?", [bookingId]);
 
-      // Update salon_clients last_visit
+      // Update salon_clients visit stats
       await conn.execute(
         'UPDATE salon_clients SET last_visit_date = NOW(), total_visits = total_visits + 1 WHERE salon_id = ? AND client_id = ?',
         [booking.salon_id, booking.client_id]
       );
 
       return {
-        paymentId: paymentResult.insertId,
         amount: finalAmount,
-        tip: parseFloat(tipAmount),
-        total: totalWithTip,
+        tip,
+        total: finalAmount + tip,
       };
     });
+
+    // Send review notification (non-blocking, outside transaction)
+    try {
+      const client = await getOne('SELECT id, email, first_name FROM users WHERE id = ?', [booking.client_id]);
+      if (client) {
+        const { sendNotification } = require('@/lib/notifications');
+        sendNotification({
+          userId: client.id,
+          email: client.email,
+          type: 'email',
+          title: 'Thank you for your visit!',
+          message: `
+            <p>Hi ${client.first_name || 'there'},</p>
+            <p>Thank you for visiting <strong>${booking.salon_name || 'the salon'}</strong>! Your payment has been successfully processed.</p>
+            <p>We'd love to hear about your experience.</p>
+          `,
+          data: { bookingId, status: 'completed', event: 'review_prompt' }
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to send review notification:', notifErr);
+    }
 
     return created({
       success: true,
@@ -386,6 +396,7 @@ export async function POST(request, { params }) {
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();
     console.error('Complete checkout error:', err);
-    return error({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to complete checkout' }, 500);
+    const message = err?.message || 'Failed to complete checkout';
+    return error({ code: 'CHECKOUT_FAILED', message }, 500);
   }
 }

@@ -138,12 +138,12 @@ export default function WidgetPage() {
   }
   
   return (
-    <div className="">
+    <div className="space-y-8 p-6 sm:p-8">
       {/* Decorative Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/10 p-8 sm:p-10 mb-8 group"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/10 p-8 sm:p-10 group"
       >
         <div className="absolute top-0 right-0 p-8 opacity-20 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
           <Code className="w-48 h-48 sm:w-64 sm:h-64 text-indigo-500" strokeWidth={1} />
@@ -426,14 +426,14 @@ export default function WidgetPage() {
             </CardContent>
             
             <div className="p-6 border-t border-border/50 bg-muted/10 flex justify-between items-center">
-               <span className="text-sm text-muted-foreground">Modifications map globally in real-time.</span>
+               <span className="text-sm text-muted-foreground">Save your widget settings.</span>
                <Button 
                 onClick={handleSave} 
                 disabled={updateWidget.isPending}
                 size="lg"
                 className="rounded-xl px-8 shadow-md hover:shadow-lg transition-all"
                >
-                 {updateWidget.isPending ? "Syncing Network..." : "Publish Settings"}
+                 {updateWidget.isPending ? "Saving..." : "Save Changes"}
                </Button>
             </div>
           </Card>

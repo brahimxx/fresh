@@ -475,12 +475,12 @@ export default function GeneralSettingsPage() {
   }
 
   return (
-    <div className="">
+    <div className="space-y-8 p-6 sm:p-8">
       {/* Decorative Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 mb-8 group"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 group"
       >
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
           <Building2
@@ -1328,11 +1328,17 @@ export default function GeneralSettingsPage() {
             </div>
           </motion.div>
 
-          {/* Sticky Submit Bar */}
-          <motion.div variants={itemVariants} className="sticky bottom-6 z-20">
+          {/* Sticky Submit Bar — only show when form is dirty */}
+          {form.formState.isDirty && (
+          <motion.div 
+            variants={itemVariants} 
+            className="sticky bottom-6 z-20"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
             <div className="flex items-center justify-between p-4 sm:p-6 bg-background/80 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl shadow-black/5">
               <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">
-                Modifications map globally in real-time.
+                You have unsaved changes.
               </span>
               <Button
                 type="submit"
@@ -1341,11 +1347,12 @@ export default function GeneralSettingsPage() {
                 className="rounded-xl px-8 shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
               >
                 {updateSettings.isPending
-                  ? "Syncing..."
-                  : "Publish Application Changes"}
+                  ? "Saving..."
+                  : "Save Changes"}
               </Button>
             </div>
           </motion.div>
+          )}
         </motion.form>
       </Form>
 

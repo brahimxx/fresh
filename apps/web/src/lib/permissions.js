@@ -351,4 +351,62 @@ export function canManageGallery(staffRole, customPermissions) {
   return resolvePermission(staffRole, customPermissions, 'gallery');
 }
 
+// ─── Team hierarchy helpers ────────────────────────────────────────────────
+
+/**
+ * Can the actor edit a specific team member?
+ * Rules:
+ *   - Owner can edit anyone
+ *   - You can always edit yourself (limited fields enforced by API)
+ *   - Otherwise, you can only edit members below your rank
+ *
+ * @param {string} actorRole - The current user's staff role
+ * @param {string} targetRole - The target member's staff role
+ * @param {boolean} isSelf - Whether the actor IS the target
+ * @returns {boolean}
+ */
+export function canEditStaffMember(actorRole, targetRole, isSelf = false) {
+  if (actorRole === 'owner') return true;
+  if (isSelf) return true;
+  return (ROLE_RANK[actorRole] || 0) > (ROLE_RANK[targetRole] || 0);
+}
+
+/**
+ * Can the actor delete/remove a specific team member?
+ * Rules:
+ *   - Cannot delete yourself
+ *   - Cannot delete the owner
+ *   - Owner can delete anyone else
+ *   - Otherwise, you can only delete members below your rank
+ *
+ * @param {string} actorRole - The current user's staff role
+ * @param {string} targetRole - The target member's staff role
+ * @param {boolean} isSelf - Whether the actor IS the target
+ * @returns {boolean}
+ */
+export function canDeleteStaffMember(actorRole, targetRole, isSelf = false) {
+  if (isSelf) return false;
+  if (targetRole === 'owner') return false;
+  if (actorRole === 'owner') return true;
+  return (ROLE_RANK[actorRole] || 0) > (ROLE_RANK[targetRole] || 0);
+}
+
+/**
+ * Can the actor change a team member's role?
+ * Rules:
+ *   - Only owner (or admin at API level) can change roles
+ *   - Nobody can change their own role
+ *   - The owner's role cannot be changed
+ *
+ * @param {string} actorRole - The current user's staff role
+ * @param {string} targetRole - The target member's current role
+ * @param {boolean} isSelf - Whether the actor IS the target
+ * @returns {boolean}
+ */
+export function canChangeStaffRole(actorRole, targetRole, isSelf = false) {
+  if (isSelf) return false;
+  if (targetRole === 'owner') return false;
+  return actorRole === 'owner';
+}
+
 

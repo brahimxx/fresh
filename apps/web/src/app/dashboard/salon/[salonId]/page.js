@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -23,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { BookingDetailSheet } from '@/components/bookings/booking-detail';
 import { useSalon } from '@/providers/salon-provider';
 import api from '@/lib/api-client';
 import { formatCurrency } from '@/lib/format';
@@ -75,7 +77,7 @@ function StatCard({ title, value, description, icon: Icon, trend }) {
   );
 }
 
-function BookingItem({ booking, salonId }) {
+function BookingItem({ booking, salonId, onClick }) {
   const statusConfig = {
     pending: { bg: 'bg-yellow-500/10', text: 'text-yellow-600 dark:text-yellow-400', label: 'Pending' },
     confirmed: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Confirmed' },
@@ -84,13 +86,33 @@ function BookingItem({ booking, salonId }) {
     no_show: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'No Show' },
   };
 
+  const paymentConfig = {
+    paid: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Paid' },
+    pending: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: 'Unpaid' },
+    refunded: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', label: 'Refunded' },
+    partially_refunded: { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', label: 'Partial Refund' },
+  };
+
   const status = statusConfig[booking.status] || { bg: 'bg-muted', text: 'text-foreground', label: booking.status };
-  const startTime = booking.start_datetime || booking.startDateTime;
+  const paymentStatus = booking.paymentStatus ? (paymentConfig[booking.paymentStatus] || null) : null;
+  const startTime = booking.startDatetime || booking.start_datetime || booking.startDateTime;
+
+  const clientName = booking.client
+    ? (booking.client.firstName + ' ' + booking.client.lastName).trim()
+    : (booking.client_name || booking.clientName || 'Walk-in Guest');
+
+  const staffName = booking.staff
+    ? (booking.staff.firstName + ' ' + booking.staff.lastName).trim()
+    : (booking.staff_name || booking.staffName || 'Staff');
+
+  const serviceNames = booking.services && booking.services.length > 0
+    ? booking.services.map(s => s.name).join(', ')
+    : (booking.service_names || booking.serviceName || 'Service');
 
   return (
-    <Link
-      href={'/dashboard/salon/' + salonId + '/bookings/' + booking.id}
-      className="block outline-none"
+    <div
+      onClick={() => onClick && onClick(booking)}
+      className="block outline-none cursor-pointer"
     >
       <div className="flex items-center justify-between p-4 rounded-2xl border border-transparent hover:border-border/50 hover:bg-muted/10 transition-all duration-200 group">
         <div className="flex items-center gap-4">
@@ -104,31 +126,43 @@ function BookingItem({ booking, salonId }) {
           </div>
           <div className="min-w-0">
             <div className="font-bold text-[15px] text-foreground truncate">
-              {booking.client_name || booking.clientName || 'Walk-in Guest'}
+              {clientName}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs font-semibold text-muted-foreground truncate max-w-[120px] sm:max-w-[200px]">
-                {booking.service_names || booking.serviceName || 'Standard Service'}
+                {serviceNames}
               </span>
               <div className="w-1 h-1 rounded-full bg-border/50" />
               <span className="text-xs font-medium text-muted-foreground truncate">
-                with {booking.staff_name || booking.staffName || 'Staff'}
+                with {staffName}
               </span>
             </div>
           </div>
         </div>
-        <div className="shrink-0 pl-2">
+        <div className="shrink-0 pl-2 flex flex-col items-end gap-1">
           <Badge className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border-0", status.bg, status.text)} variant="secondary">
             {status.label}
           </Badge>
+          {paymentStatus && (
+            <Badge className={cn("text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0 border-0", paymentStatus.bg, paymentStatus.text)} variant="secondary">
+              {paymentStatus.label}
+            </Badge>
+          )}
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
 export default function SalonDashboardPage() {
   const { salon, salonId, isLoading: salonLoading, staffRole, staffId, customPermissions } = useSalon();
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const handleBookingClick = useCallback((booking) => {
+    setSelectedBooking(booking);
+    setDetailOpen(true);
+  }, []);
 
   const showFinancials = canSeeFinancials(staffRole, customPermissions);
   const showAllBookings = canSeeAllBookings(staffRole, customPermissions);
@@ -138,6 +172,8 @@ export default function SalonDashboardPage() {
     queryFn: function () { return api.get('/reports/overview', { salonId: salonId }); },
     enabled: !!salonId && showFinancials,
     select: function (response) { return response.data || {}; },
+    refetchOnMount: 'always',
+    staleTime: 1000 * 30,
   });
 
   const { data: upcomingBookings, isLoading: bookingsLoading } = useQuery({
@@ -155,7 +191,8 @@ export default function SalonDashboardPage() {
       return api.get('/bookings', params);
     },
     enabled: !!salonId,
-    select: function (response) { return response.data || []; },
+    select: function (response) { return response.data?.bookings || []; },
+    refetchOnMount: 'always',
   });
 
   const { data: banners } = useQuery({
@@ -185,9 +222,18 @@ export default function SalonDashboardPage() {
   var dashboardStats = {
     todayBookings: (stats && stats.todayBookings) || (stats && stats.bookingsToday) || 0,
     todayRevenue: (stats && stats.todayRevenue) || (stats && stats.revenueToday) || 0,
+    yesterdayRevenue: (stats && stats.yesterdayRevenue) || 0,
     newClients: (stats && stats.newClients) || (stats && stats.newClientsThisWeek) || 0,
     pendingBookings: (stats && stats.pendingBookings) || 0,
   };
+
+  // Calculate revenue trend vs yesterday
+  var revenueTrend = 0;
+  if (dashboardStats.yesterdayRevenue > 0) {
+    revenueTrend = Math.round(((dashboardStats.todayRevenue - dashboardStats.yesterdayRevenue) / dashboardStats.yesterdayRevenue) * 100);
+  } else if (dashboardStats.todayRevenue > 0) {
+    revenueTrend = 100;
+  }
 
   var calendarUrl = '/dashboard/salon/' + salonId + '/calendar';
   var bookingsUrl = '/dashboard/salon/' + salonId + '/bookings';
@@ -281,7 +327,7 @@ export default function SalonDashboardPage() {
               title="Today's Revenue"
               value={formatCurrency(Number(dashboardStats.todayRevenue), salon?.currency)}
               icon={CreditCard}
-              trend={12}
+              trend={revenueTrend}
               description="from yesterday"
             />
             <StatCard
@@ -357,7 +403,7 @@ export default function SalonDashboardPage() {
                            transition={{ delay: i * 0.05 }}
                            key={booking.id}
                          >
-                           <BookingItem booking={booking} salonId={salonId} />
+                           <BookingItem booking={booking} salonId={salonId} onClick={handleBookingClick} />
                          </motion.div>
                       )
                     })}
@@ -423,6 +469,12 @@ export default function SalonDashboardPage() {
 
         </div>
       </motion.div>
+
+      <BookingDetailSheet
+        booking={selectedBooking}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 }

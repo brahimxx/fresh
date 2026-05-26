@@ -175,7 +175,7 @@ export function DayView({
             {nowPos != null && (
               <div
                 id="current-time-indicator"
-                className="absolute right-0 z-20 pointer-events-none"
+                className="absolute right-0 z-[12] pointer-events-none"
                 style={{ top: nowPos - 10 + "px" }}
               >
                 <div className="bg-rose-400/90 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-sm mr-0.5">
@@ -290,7 +290,7 @@ export function DayView({
 
                   {/* Now indicator line */}
                   {nowPos != null && (
-                    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowPos + "px" }}>
+                    <div className="absolute left-0 right-0 z-[12] pointer-events-none" style={{ top: nowPos + "px" }}>
                       <div className="w-full border-t border-red-400" />
                     </div>
                   )}
@@ -381,7 +381,7 @@ export function DayView({
                         role="button"
                         tabIndex={0}
                         aria-label={`Booking: ${clientName} at ${format(startTime, "HH:mm")}`}
-                        className={"absolute px-0.5 pb-0.5 transition-all duration-200 " + (isHovered ? "z-50" : "z-10")}
+                        className={"absolute px-0.5 pb-0.5 transition-all duration-200 " + (isHovered ? "z-[15]" : "z-10")}
                         onMouseEnter={() => onHoverBooking(bookingId)}
                         onMouseLeave={() => onHoverBooking(null)}
                         style={{

@@ -70,6 +70,50 @@ export async function GET(request) {
       [salonId, prevStart, prevEnd]
     );
 
+    // Today-specific stats for dashboard cards
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStart = `${todayStr} 00:00:00`;
+    const todayEnd = `${todayStr} 23:59:59`;
+
+    const [todayRevenueResult] = await query(`
+      SELECT COALESCE(SUM(p.amount), 0) as total
+      FROM payments p JOIN bookings b ON b.id = p.booking_id
+      WHERE b.salon_id = ? AND p.status = 'paid' AND p.created_at BETWEEN ? AND ?`,
+      [salonId, todayStart, todayEnd]
+    );
+
+    const [yesterdayRevenueResult] = await query(`
+      SELECT COALESCE(SUM(p.amount), 0) as total
+      FROM payments p JOIN bookings b ON b.id = p.booking_id
+      WHERE b.salon_id = ? AND p.status = 'paid' AND p.created_at BETWEEN ? AND ?`,
+      [salonId, 
+       new Date(Date.now() - 86400000).toISOString().split('T')[0] + ' 00:00:00',
+       new Date(Date.now() - 86400000).toISOString().split('T')[0] + ' 23:59:59']
+    );
+
+    const [todayBookingsResult] = await query(`
+      SELECT COUNT(*) as total
+      FROM bookings WHERE salon_id = ? AND DATE(start_datetime) = ? AND status != 'cancelled' AND deleted_at IS NULL`,
+      [salonId, todayStr]
+    );
+
+    const [pendingBookingsResult] = await query(`
+      SELECT COUNT(*) as total
+      FROM bookings WHERE salon_id = ? AND status = 'pending' AND deleted_at IS NULL`,
+      [salonId]
+    );
+
+    // New clients this week
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+
+    const [newClientsWeekResult] = await query(`
+      SELECT COUNT(*) as total
+      FROM salon_clients WHERE salon_id = ? AND first_visit_date >= ?`,
+      [salonId, weekStartStr]
+    );
+
     // Daily Revenue Breakdown
     const dailyRevenue = await query(`
       SELECT DATE(p.created_at) as d, COALESCE(SUM(p.amount), 0) as total
@@ -161,6 +205,13 @@ export async function GET(request) {
 
     // Final response matches exactly what the frontend "data" object expects
     return success({
+      // Today-specific stats for dashboard cards
+      todayBookings: parseInt(todayBookingsResult?.total || 0, 10),
+      todayRevenue: parseFloat(todayRevenueResult?.total || 0),
+      yesterdayRevenue: parseFloat(yesterdayRevenueResult?.total || 0),
+      newClients: parseInt(newClientsWeekResult?.total || 0, 10),
+      pendingBookings: parseInt(pendingBookingsResult?.total || 0, 10),
+      // Period-based stats
       revenue: {
         total: parseFloat(revenueResult?.total || 0),
         previous: parseFloat(prevRevenueResult?.total || 0),

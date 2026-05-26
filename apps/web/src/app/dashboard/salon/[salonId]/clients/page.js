@@ -17,7 +17,9 @@ import {
   Clock,
   ArrowUpDown,
   Users,
-  Contact2
+  Contact2,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -110,13 +112,13 @@ export default function ClientsPage({ params }) {
         <div className="relative z-10 flex flex-col gap-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
             <Users className="w-3.5 h-3.5" />
-            <span>CRM & Profiling</span>
+            <span>Client Management</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight max-w-2xl">
-            Client Directory
+            Clients
           </h1>
           <p className="text-muted-foreground text-lg font-medium max-w-xl">
-            Unify your client relationships. Track contact information, booking history, and platform metrics across the business.
+            Manage your client relationships, track visit history, and keep contact details up to date.
           </p>
         </div>
 
@@ -126,22 +128,22 @@ export default function ClientsPage({ params }) {
             className="flex-1 sm:flex-none h-12 px-6 rounded-xl border-border/50 bg-background/50 backdrop-blur-md hover:bg-background shadow-sm text-[15px]"
           >
             <Download className="h-5 w-5 mr-2 text-muted-foreground" />
-             Export Data
+             Export
           </Button>
           <Button
             className="flex-1 sm:flex-none h-12 px-6 rounded-xl shadow-md text-[15px]"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="h-5 w-5 mr-2" />
-            New Client
+            Add Client
           </Button>
         </div>
       </motion.div>
 
       {error ? (
         <DataError
-          title="Failed to load client matrix"
-          message="Unable to fetch your relationship list. Please try again."
+          title="Failed to load clients"
+          message="Unable to fetch your client list. Please try again."
           onRetry={refetch}
           error={error}
         />
@@ -157,7 +159,7 @@ export default function ClientsPage({ params }) {
              <div className="relative w-full sm:max-w-md">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                 <Input
-                  placeholder="Search by identity, email, or digital contact..."
+                  placeholder="Search by name, email, or phone..."
                   className="pl-10 h-11 bg-background rounded-xl border-border/50 focus-visible:ring-primary/50 shadow-sm font-medium"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -166,11 +168,11 @@ export default function ClientsPage({ params }) {
             
             <div className="flex items-center gap-4">
               <div className="text-[13px] font-bold text-muted-foreground px-2 bg-muted/30 py-1.5 rounded-lg border border-border/50">
-                <span className="text-foreground">{clients.length}</span> recorded profiles
+                <span className="text-foreground">{clients.length}</span> clients
               </div>
               <Button variant="outline" className="h-11 rounded-xl shadow-sm border-border/50">
                 <Filter className="h-4 w-4 mr-2" />
-                Segment
+                Filter
               </Button>
             </div>
           </div>
@@ -197,10 +199,10 @@ export default function ClientsPage({ params }) {
               <Table className="px-4">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border/50 [&_th]:h-14">
-                    <TableHead className="pl-8 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[300px]">Client Identity</TableHead>
-                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Digital Comms</TableHead>
-                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Booking History</TableHead>
-                    <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Lifetime Value</TableHead>
+                    <TableHead className="pl-8 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[300px]">Client</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Contact</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Last Booking</TableHead>
+                    <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Value</TableHead>
                     <TableHead className="w-[80px] pr-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -233,7 +235,7 @@ export default function ClientsPage({ params }) {
                                 </p>
                                 <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-muted-foreground">
                                   <CalendarIcon className="h-3.5 w-3.5 opacity-50" />
-                                  <span>Acquired {format(new Date(client.firstVisitDate || new Date()), "MMM yyyy")}</span>
+                                  <span>Since {format(new Date(client.firstVisitDate || new Date()), "MMM yyyy")}</span>
                                 </div>
                                 {client.tags?.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5 mt-3">
@@ -263,7 +265,7 @@ export default function ClientsPage({ params }) {
                               ) : (
                                 <div className="flex items-center gap-2.5 text-[14px] text-muted-foreground/50 italic font-medium">
                                   <Phone className="h-4 w-4 opacity-50" />
-                                  Unrecorded
+                                  No phone
                                 </div>
                               )}
                               
@@ -277,7 +279,7 @@ export default function ClientsPage({ params }) {
                               ) : (
                                 <div className="flex items-center gap-2.5 text-sm text-muted-foreground/50 italic font-medium">
                                   <Mail className="h-4 w-4 opacity-50" />
-                                  Unrecorded
+                                  No email
                                 </div>
                               )}
                             </div>
@@ -329,21 +331,23 @@ export default function ClientsPage({ params }) {
                                 <DropdownMenuContent align="end" className="w-[180px] rounded-2xl" onClick={(e) => e.stopPropagation()}>
                                   <DropdownMenuItem onClick={() => handleViewClient(client)} className="font-medium gap-2">
                                      <User className="h-4 w-4 text-primary" />
-                                    Launch Profile
+                                    View Profile
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => setEditClient(client)} className="font-medium gap-2">
-                                     Edit Framework
+                                     <Pencil className="h-4 w-4 text-muted-foreground" />
+                                     Edit Details
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem 
                                     className="font-medium gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
                                     onClick={() => {
-                                      if (confirm("Remove this client from the database?")) {
+                                      if (confirm("Remove this client from your list?")) {
                                         deleteClientMutation.mutate({ salonId, clientId: client.id });
                                       }
                                     }}
                                   >
-                                    Terminate Client
+                                    <Trash2 className="h-4 w-4" />
+                                    Remove Client
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

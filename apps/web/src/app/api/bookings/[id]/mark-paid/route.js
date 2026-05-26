@@ -67,6 +67,12 @@ export async function POST(request, { params }) {
       );
     }
 
+    // Mark booking as completed (service was delivered, payment collected)
+    await query(
+      "UPDATE bookings SET status = 'completed' WHERE id = ? AND status IN ('confirmed', 'pending')",
+      [bookingId]
+    );
+
     return success({ message: 'Payment recorded successfully', amount });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();

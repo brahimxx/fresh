@@ -73,8 +73,8 @@ export async function POST(request) {
     if (!firstName) {
       return error({ code: "MISSING_NAME", message: "first_name is required" }, 400);
     }
-    if (!phone && !email) {
-      return error({ code: "MISSING_CONTACT", message: "phone or email is required" }, 400);
+    if (!phone) {
+      return error({ code: "MISSING_PHONE", message: "phone is required" }, 400);
     }
 
     // ── Access control ───────────────────────────────────────────────────────

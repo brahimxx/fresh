@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 import { formatCurrency } from '@/hooks/use-payments';
 import { useSalon } from '@/providers/salon-provider';
@@ -21,7 +23,10 @@ export function PaymentSuccessDialog({
   var displayCurrency = currency || salon?.currency;
   return (
     <Dialog open={open} onOpenChange={function() {}}>
-      <DialogContent className="max-w-sm text-center" hideClose>
+      <DialogContent className="max-w-sm text-center" showCloseButton={false}>
+        <VisuallyHidden>
+          <DialogTitle>Payment Successful</DialogTitle>
+        </VisuallyHidden>
         <div className="py-6 space-y-6">
           <div className="flex justify-center">
             <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">

@@ -8,16 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 
 import { useStaffSchedule, useUpdateStaffSchedule } from '@/hooks/use-staff';
 
-var DAYS = [
+const DAYS = [
   { key: 'monday', label: 'Monday' },
   { key: 'tuesday', label: 'Tuesday' },
   { key: 'wednesday', label: 'Wednesday' },
@@ -27,7 +27,7 @@ var DAYS = [
   { key: 'sunday', label: 'Sunday' },
 ];
 
-var DEFAULT_SCHEDULE = {
+const DEFAULT_SCHEDULE = {
   monday: { enabled: true, start: '09:00', end: '18:00' },
   tuesday: { enabled: true, start: '09:00', end: '18:00' },
   wednesday: { enabled: true, start: '09:00', end: '18:00' },
@@ -37,26 +37,20 @@ var DEFAULT_SCHEDULE = {
   sunday: { enabled: false, start: null, end: null },
 };
 
-export function StaffScheduleDialog({ 
-  open, 
-  onOpenChange, 
-  staff, 
-  salonId 
-}) {
-  var [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
-  var { data: savedSchedule, isLoading } = useStaffSchedule(staff?.id);
-  var updateSchedule = useUpdateStaffSchedule();
-  
-  // Load saved schedule when available
-  useEffect(function() {
+export function StaffScheduleDialog({ open, onOpenChange, staff, salonId }) {
+  const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
+  const { data: savedSchedule, isLoading } = useStaffSchedule(staff?.id);
+  const updateSchedule = useUpdateStaffSchedule();
+
+  useEffect(() => {
     if (savedSchedule) {
-      var newSchedule = {};
-      DAYS.forEach(function(day) {
+      const newSchedule = {};
+      DAYS.forEach((day) => {
         newSchedule[day.key] = { enabled: false, start: null, end: null };
       });
-      
-      var hasAnySchedule = false;
-      savedSchedule.forEach(function(day) {
+
+      let hasAnySchedule = false;
+      savedSchedule.forEach((day) => {
         if (newSchedule[day.day_of_week]) {
           hasAnySchedule = true;
           newSchedule[day.day_of_week] = {
@@ -66,7 +60,7 @@ export function StaffScheduleDialog({
           };
         }
       });
-      
+
       if (hasAnySchedule) {
         setSchedule(newSchedule);
       } else {
@@ -74,45 +68,35 @@ export function StaffScheduleDialog({
       }
     }
   }, [savedSchedule, open]);
-  
+
   function toggleDay(day) {
-    setSchedule(function(prev) {
-      var updated = { ...prev };
-      updated[day] = {
-        ...updated[day],
-        enabled: !updated[day].enabled,
-      };
-      return updated;
-    });
+    setSchedule((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], enabled: !prev[day].enabled },
+    }));
   }
-  
+
   function updateTime(day, field, value) {
-    setSchedule(function(prev) {
-      var updated = { ...prev };
-      updated[day] = {
-        ...updated[day],
-        [field]: value,
-      };
-      return updated;
-    });
+    setSchedule((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
   }
-  
+
   function copyToAll(sourceDay) {
-    var source = schedule[sourceDay];
-    setSchedule(function(prev) {
-      var updated = {};
-      DAYS.forEach(function(d) {
-        updated[d.key] = { ...source };
-      });
+    const source = schedule[sourceDay];
+    setSchedule(() => {
+      const updated = {};
+      DAYS.forEach((d) => { updated[d.key] = { ...source }; });
       return updated;
     });
   }
-  
+
   function handleSave() {
     if (!staff) return;
-    
-    var scheduleData = DAYS.map(function(day) {
-      var s = schedule[day.key];
+
+    const scheduleData = DAYS.map((day) => {
+      const s = schedule[day.key];
       return {
         day_of_week: day.key,
         is_working: s.enabled,
@@ -120,206 +104,191 @@ export function StaffScheduleDialog({
         end_time: s.enabled && s.end ? s.end + ':00' : null,
       };
     });
-    
+
     updateSchedule.mutate(
       { staffId: staff.id, schedule: scheduleData },
-      {
-        onSuccess: function() {
-          onOpenChange(false);
-        },
-      }
+      { onSuccess: () => onOpenChange(false) }
     );
   }
-  
-  if (!staff) return null;
-  
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl">
-            Set Working Hours
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Define when {staff.name} is available to take appointments
-          </p>
-        </DialogHeader>
-        
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Quick copy:</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={function() { copyToAll('monday'); }}
-              >
-                Copy Monday to all
-              </Button>
-            </div>
 
-            {/* Schedule Grid */}
-            <div className="space-y-2">
-              {DAYS.map(function(day) {
-                var daySchedule = schedule[day.key];
-                return (
-                  <div 
-                    key={day.key} 
-                    className={
-                      'border rounded-lg p-4 transition-colors ' +
-                      (daySchedule.enabled ? 'bg-card border-border' : 'bg-muted/30 border-muted')
-                    }
+  if (!staff) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/50">
+            <SheetTitle className="text-xl font-bold">Working Hours</SheetTitle>
+            <SheetDescription>
+              Set when {staff.name} is available for appointments.
+            </SheetDescription>
+          </SheetHeader>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/30 rounded-xl border border-border/50">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground">Presets:</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs h-7"
+                    onClick={() => {
+                      setSchedule({
+                        monday: { enabled: true, start: '09:00', end: '18:00' },
+                        tuesday: { enabled: true, start: '09:00', end: '18:00' },
+                        wednesday: { enabled: true, start: '09:00', end: '18:00' },
+                        thursday: { enabled: true, start: '09:00', end: '18:00' },
+                        friday: { enabled: true, start: '09:00', end: '18:00' },
+                        saturday: { enabled: false, start: null, end: null },
+                        sunday: { enabled: false, start: null, end: null },
+                      });
+                    }}
                   >
-                    <div className="flex items-start gap-4">
-                      {/* Day Toggle */}
-                      <div className="flex items-center gap-3 w-32">
-                        <Switch
-                          checked={daySchedule.enabled}
-                          onCheckedChange={function() { toggleDay(day.key); }}
-                        />
-                        <Label className={
-                          'font-medium cursor-pointer ' + 
-                          (!daySchedule.enabled ? 'text-muted-foreground' : '')
-                        }>
-                          {day.label}
-                        </Label>
-                      </div>
-                      
-                      {/* Time Inputs */}
-                      {daySchedule.enabled ? (
-                        <div className="flex-1 grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">Start Time</Label>
-                            <Input
-                              type="time"
-                              value={daySchedule.start || ''}
-                              onChange={function(e) { updateTime(day.key, 'start', e.target.value); }}
-                              className="h-9"
-                            />
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">End Time</Label>
-                            <Input
-                              type="time"
-                              value={daySchedule.end || ''}
-                              onChange={function(e) { updateTime(day.key, 'end', e.target.value); }}
-                              className="h-9"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex items-center">
-                          <span className="text-sm text-muted-foreground">Not working this day</span>
-                        </div>
-                      )}
-                      
-                      {/* Copy Button */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 shrink-0"
-                        onClick={function() { copyToAll(day.key); }}
-                        title={'Copy ' + day.label + ' to all days'}
-                        disabled={!daySchedule.enabled}
+                    Mon–Fri 9–18
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs h-7"
+                    onClick={() => {
+                      setSchedule({
+                        monday: { enabled: true, start: '10:00', end: '19:00' },
+                        tuesday: { enabled: true, start: '10:00', end: '19:00' },
+                        wednesday: { enabled: true, start: '10:00', end: '19:00' },
+                        thursday: { enabled: true, start: '10:00', end: '19:00' },
+                        friday: { enabled: true, start: '10:00', end: '19:00' },
+                        saturday: { enabled: true, start: '10:00', end: '17:00' },
+                        sunday: { enabled: false, start: null, end: null },
+                      });
+                    }}
+                  >
+                    Mon–Sat 10–19
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg text-xs h-7"
+                    onClick={() => {
+                      const allOff = {};
+                      DAYS.forEach((d) => { allOff[d.key] = { enabled: false, start: null, end: null }; });
+                      setSchedule(allOff);
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+
+                {/* Schedule Grid */}
+                <div className="space-y-2">
+                  {DAYS.map((day) => {
+                    const daySchedule = schedule[day.key];
+                    return (
+                      <div
+                        key={day.key}
+                        className={
+                          'rounded-xl border p-4 transition-colors ' +
+                          (daySchedule.enabled ? 'bg-background border-border/50' : 'bg-muted/20 border-border/30')
+                        }
                       >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    {/* Time Summary */}
-                    {daySchedule.enabled && daySchedule.start && daySchedule.end && (
-                      <div className="mt-2 pl-44 text-xs text-muted-foreground">
-                        Available from {daySchedule.start} to {daySchedule.end}
+                        <div className="flex items-center gap-4">
+                          {/* Day Toggle */}
+                          <div className="flex items-center gap-3 w-28 shrink-0">
+                            <Switch
+                              checked={daySchedule.enabled}
+                              onCheckedChange={() => toggleDay(day.key)}
+                            />
+                            <Label className={
+                              'font-semibold text-sm cursor-pointer ' +
+                              (!daySchedule.enabled ? 'text-muted-foreground' : '')
+                            }>
+                              {day.label.slice(0, 3)}
+                            </Label>
+                          </div>
+
+                          {/* Time Inputs */}
+                          {daySchedule.enabled ? (
+                            <div className="flex-1 flex items-center gap-3">
+                              <Input
+                                type="time"
+                                value={daySchedule.start || ''}
+                                onChange={(e) => updateTime(day.key, 'start', e.target.value)}
+                                className="h-9 w-28"
+                              />
+                              <span className="text-xs text-muted-foreground font-medium">to</span>
+                              <Input
+                                type="time"
+                                value={daySchedule.end || ''}
+                                onChange={(e) => updateTime(day.key, 'end', e.target.value)}
+                                className="h-9 w-28"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex-1">
+                              <span className="text-sm text-muted-foreground/60 italic">Day off</span>
+                            </div>
+                          )}
+
+                          {/* Copy Button */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-lg"
+                            onClick={() => copyToAll(day.key)}
+                            title={'Copy ' + day.label + ' to all days'}
+                            disabled={!daySchedule.enabled}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 pt-4 border-t">
-              <span className="text-sm text-muted-foreground">Quick set:</span>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm"
-                onClick={function() {
-                  setSchedule({
-                    monday: { enabled: true, start: '09:00', end: '18:00', break_start: '12:00', break_end: '13:00' },
-                    tuesday: { enabled: true, start: '09:00', end: '18:00', break_start: '12:00', break_end: '13:00' },
-                    wednesday: { enabled: true, start: '09:00', end: '18:00', break_start: '12:00', break_end: '13:00' },
-                    thursday: { enabled: true, start: '09:00', end: '18:00', break_start: '12:00', break_end: '13:00' },
-                    friday: { enabled: true, start: '09:00', end: '18:00', break_start: '12:00', break_end: '13:00' },
-                    saturday: { enabled: false, start: null, end: null, break_start: null, break_end: null },
-                    sunday: { enabled: false, start: null, end: null, break_start: null, break_end: null },
-                  });
-                }}
-              >
-                Mon-Fri 9-18
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm"
-                onClick={function() {
-                  setSchedule({
-                    monday: { enabled: true, start: '10:00', end: '19:00', break_start: null, break_end: null },
-                    tuesday: { enabled: true, start: '10:00', end: '19:00', break_start: null, break_end: null },
-                    wednesday: { enabled: true, start: '10:00', end: '19:00', break_start: null, break_end: null },
-                    thursday: { enabled: true, start: '10:00', end: '19:00', break_start: null, break_end: null },
-                    friday: { enabled: true, start: '10:00', end: '19:00', break_start: null, break_end: null },
-                    saturday: { enabled: true, start: '10:00', end: '17:00', break_start: null, break_end: null },
-                    sunday: { enabled: false, start: null, end: null, break_start: null, break_end: null },
-                  });
-                }}
-              >
-                Mon-Sat 10-19
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm"
-                onClick={function() {
-                  var allOff = {};
-                  DAYS.forEach(function(d) {
-                    allOff[d.key] = { enabled: false, start: null, end: null, break_start: null, break_end: null };
-                  });
-                  setSchedule(allOff);
-                }}
-              >
-                Clear All
-              </Button>
-            </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
-        )}
-        
-        <DialogFooter>
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={function() { onOpenChange(false); }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            disabled={updateSchedule.isPending}
-          >
-            {updateSchedule.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Save Schedule
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          {/* Footer */}
+          <div className="border-t border-border/50 px-6 py-4 flex items-center justify-end gap-3 bg-muted/5">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => onOpenChange(false)}
+              disabled={updateSchedule.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl min-w-[120px]"
+              onClick={handleSave}
+              disabled={updateSchedule.isPending}
+            >
+              {updateSchedule.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Schedule"
+              )}
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Search, Plus, User, Check, UserCog, MapPin, Clock } from "lucide-react";
+import { CalendarIcon, Search, Plus, User, Check, UserCog, MapPin, Clock, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDuration } from "@/lib/format";
 import { calculateTravelFee } from "@/lib/geo";
@@ -16,13 +17,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Popover,
   PopoverContent,
@@ -69,6 +69,8 @@ export function BookingFormDialog({
   var { salonId: contextSalonId, salon } = useSalon();
   var salonId = propSalonId || contextSalonId;
   var salonCurrency = salon?.currency;
+  var router = useRouter();
+  var [goToCheckout, setGoToCheckout] = useState(false);
   var [clientSearch, setClientSearch] = useState("");
   var [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   var [selectedClient, setSelectedClient] = useState(null);
@@ -480,7 +482,7 @@ export function BookingFormDialog({
       }
 
       // End time is computed server-side from DB service durations; never sent by client.
-      await createBooking.mutateAsync({
+      var result = await createBooking.mutateAsync({
         salonId: salon.id,
         clientId: clientId,
         staffId: Object.values(staffAssignments)[0] || "ANYONE_VIRTUAL",
@@ -499,6 +501,12 @@ export function BookingFormDialog({
       });
 
       onOpenChange(false);
+
+      // Redirect to checkout if requested
+      if (goToCheckout && result?.data?.id) {
+        router.push("/dashboard/salon/" + salonId + "/checkout/" + result.data.id);
+      }
+      setGoToCheckout(false);
     } catch (error) {
       console.error("Booking error:", error);
 
@@ -578,16 +586,16 @@ export function BookingFormDialog({
   var timeSlots = availableSlots;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl lg:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{isReschedule ? "Reschedule Booking" : "New Booking"}</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-0" side="right">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
+          <SheetTitle className="text-2xl">{isReschedule ? "Reschedule Booking" : "New Booking"}</SheetTitle>
+          <SheetDescription>
             {isReschedule
               ? `Change the date and time for booking #${initialBooking?.id}.`
               : "Create a new appointment for your client."}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <form
           onSubmit={form.handleSubmit(onSubmit, function (errors) {
@@ -595,15 +603,17 @@ export function BookingFormDialog({
             var firstError = Object.values(errors)[0];
             if (firstError?.message) setFormError(firstError.message);
           })}
-          className="space-y-4"
+          className="flex flex-col h-[calc(100%-5rem)]"
         >
           {/* General error banner */}
           {formError && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
+            <div className="mx-6 mt-4 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
               {formError}
             </div>
           )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
 {/* Client Selection */}
           <div className="space-y-2">
@@ -847,15 +857,17 @@ export function BookingFormDialog({
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal",
+                      "w-full h-10 justify-start text-left font-normal truncate",
                       (!watchServiceIds.length || !watchFulfillmentType) && "opacity-50 cursor-not-allowed"
                     )}
                     disabled={!watchServiceIds.length || !watchFulfillmentType}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="truncate">
                     {form.watch("date")
                       ? format(form.watch("date"), "PPP")
                       : "Pick a date"}
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -1187,10 +1199,11 @@ export function BookingFormDialog({
 
                       </div>
           </div>
+          </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0 items-end">
+          <div className="sticky bottom-0 bg-background px-6 py-4 border-t space-y-3">
             {travelWarning && (
-              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-sm text-amber-600 w-full mb-2 flex flex-col gap-2">
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-sm text-amber-600 w-full flex flex-col gap-2">
                 <span className="font-medium">⚠️ {travelWarning}</span>
                 <span className="text-xs">Do you want to override this warning and force the booking?</span>
               </div>
@@ -1217,19 +1230,39 @@ export function BookingFormDialog({
                     : "Proceed Anyway"}
                 </Button>
               ) : (
-                <Button
-                  type="submit"
-                  disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
-                >
-                  {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
-                    ? (isReschedule ? "Rescheduling..." : "Creating...")
-                    : (isReschedule ? "Reschedule" : "Create Booking")}
-                </Button>
+                <>
+                  {!isReschedule && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
+                      onClick={function () {
+                        setGoToCheckout(true);
+                        form.handleSubmit(onSubmit, function (errors) {
+                          var firstError = Object.values(errors)[0];
+                          if (firstError?.message) setFormError(firstError.message);
+                          setGoToCheckout(false);
+                        })();
+                      }}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      {(createBooking.isPending && goToCheckout) ? "Creating..." : "Checkout"}
+                    </Button>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={createBooking.isPending || rescheduleBooking.isPending || isValidating}
+                  >
+                    {(createBooking.isPending || rescheduleBooking.isPending || isValidating)
+                      ? (isReschedule ? "Rescheduling..." : "Creating...")
+                      : (isReschedule ? "Reschedule" : "Save")}
+                  </Button>
+                </>
               )}
             </div>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

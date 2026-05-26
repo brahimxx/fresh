@@ -169,12 +169,12 @@ export default function BusinessHoursPage() {
   };
   
   return (
-    <div className="">
+    <div className="space-y-8 p-6 sm:p-8">
       {/* Decorative Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 mb-8 group"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-8 sm:p-10 group"
       >
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6">
           <Clock className="w-48 h-48 sm:w-64 sm:h-64 text-primary" strokeWidth={1} />

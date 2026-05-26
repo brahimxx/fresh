@@ -60,6 +60,8 @@ import {
 import { StaffCreationWizard } from "@/components/staff/staff-creation-wizard";
 import { StaffFormDialog } from "@/components/staff/staff-form";
 import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
+import { useSalon } from "@/providers/salon-provider";
+import { canEditStaffMember, canDeleteStaffMember } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 const containerVariants = {
@@ -87,6 +89,7 @@ function TeamContent({ params }) {
   const resolvedParams = use(params);
   const salonId = resolvedParams.salonId;
   const router = useRouter();
+  const { staffRole: currentUserRole, staffId: currentStaffId, salon } = useSalon();
 
   const [staffFormOpen, setStaffFormOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -134,6 +137,17 @@ function TeamContent({ params }) {
 
   const activeStaff = staff ? staff.filter((s) => s.isActive) : [];
   const inactiveStaff = staff ? staff.filter((s) => !s.isActive) : [];
+
+  // Permission helpers using centralized engine
+  const canEditMember = (member) => {
+    const isSelf = member.id === currentStaffId;
+    return canEditStaffMember(currentUserRole, member.role, isSelf);
+  };
+
+  const canDeleteMember = (member) => {
+    const isSelf = member.id === currentStaffId;
+    return canDeleteStaffMember(currentUserRole, member.role, isSelf);
+  };
 
   const handleEdit = (member) => {
     setEditStaff(member);
@@ -203,6 +217,7 @@ function TeamContent({ params }) {
                 <DropdownMenuContent
                   align="end"
                   className="w-56 shadow-2xl rounded-2xl p-2 z-50 border-border/50"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <DropdownMenuItem
                     onSelect={() => {
@@ -212,27 +227,35 @@ function TeamContent({ params }) {
                     }}
                     className="rounded-xl font-medium gap-2 py-2"
                   >
-                    <User className="h-4 w-4 text-primary" /> Launch Profile
+                    <User className="h-4 w-4 text-primary" /> View Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => handleEdit(member)}
-                    className="rounded-xl font-medium gap-2 py-2"
-                  >
-                    <Pencil className="h-4 w-4" /> Edit Framework
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => handleSchedule(member)}
-                    className="rounded-xl font-medium gap-2 py-2"
-                  >
-                    <Calendar className="h-4 w-4" /> Operational Hours
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="my-1.5" />
-                  <DropdownMenuItem
-                    className="rounded-xl text-red-600 focus:text-red-700 focus:bg-red-500/10 font-bold gap-2 py-2 cursor-pointer"
-                    onSelect={() => setDeleteStaff(member)}
-                  >
-                    <Trash2 className="h-4 w-4" /> Terminate Access
-                  </DropdownMenuItem>
+                  {canEditMember(member) && (
+                    <DropdownMenuItem
+                      onSelect={() => handleEdit(member)}
+                      className="rounded-xl font-medium gap-2 py-2"
+                    >
+                      <Pencil className="h-4 w-4" /> Edit Details
+                    </DropdownMenuItem>
+                  )}
+                  {canEditMember(member) && (
+                    <DropdownMenuItem
+                      onSelect={() => handleSchedule(member)}
+                      className="rounded-xl font-medium gap-2 py-2"
+                    >
+                      <Calendar className="h-4 w-4" /> Working Hours
+                    </DropdownMenuItem>
+                  )}
+                  {canDeleteMember(member) && (
+                    <>
+                      <DropdownMenuSeparator className="my-1.5" />
+                      <DropdownMenuItem
+                        className="rounded-xl text-red-600 focus:text-red-700 focus:bg-red-500/10 font-bold gap-2 py-2 cursor-pointer"
+                        onSelect={() => setDeleteStaff(member)}
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove Member
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -270,7 +293,7 @@ function TeamContent({ params }) {
                   <Phone className="h-3.5 w-3.5 opacity-60" />
                 </div>
                 {member.phone || (
-                  <span className="italic opacity-40">Unrecorded phone</span>
+                  <span className="italic opacity-40">No phone</span>
                 )}
               </div>
               <div
@@ -282,7 +305,7 @@ function TeamContent({ params }) {
                 </div>
                 <span className="truncate">
                   {member.email || (
-                    <span className="italic opacity-40">Unrecorded email</span>
+                    <span className="italic opacity-40">No email</span>
                   )}
                 </span>
               </div>
@@ -308,13 +331,13 @@ function TeamContent({ params }) {
         <div className="relative z-10 flex flex-col gap-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-primary/20 text-xs font-semibold text-primary w-fit">
             <Users className="w-3.5 h-3.5" />
-            <span>Personnel Engine</span>
+            <span>Team Management</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight max-w-2xl">
-            Staff Directory
+            Team
           </h1>
           <p className="text-muted-foreground text-lg font-medium max-w-xl">
-            Regulate active personnel, define access clearances, and map operational schedules across the business framework.
+            Manage your team members, roles, and working hours.
           </p>
         </div>
 
@@ -325,14 +348,14 @@ function TeamContent({ params }) {
             onClick={() => setStaffFormOpen(true)}
           >
             <UserPlus className="h-5 w-5 mr-2 text-muted-foreground" />
-             Direct Inject
+             Add Manually
           </Button>
           <Button
             className="flex-1 sm:flex-none h-12 px-6 rounded-xl shadow-md text-[15px]"
             onClick={() => setWizardOpen(true)}
           >
             <Plus className="h-5 w-5 mr-2" />
-            New Operative
+            Invite Member
           </Button>
         </div>
       </motion.div>
@@ -358,14 +381,14 @@ function TeamContent({ params }) {
                   <UserPlus className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-extrabold tracking-tight">Pending Clearances</h2>
-                  <p className="text-[13px] font-semibold text-muted-foreground">Approve or deny incoming structural joins</p>
+                  <h2 className="text-xl font-extrabold tracking-tight">Pending Requests</h2>
+                  <p className="text-[13px] font-semibold text-muted-foreground">People who want to join your team</p>
                 </div>
                 <Badge
                   variant="secondary"
                   className="ml-auto bg-primary/10 text-primary border-0 text-[13px] px-2.5 py-0.5 rounded-lg"
                 >
-                  {requests.length} Waitlisted
+                  {requests.length} pending
                 </Badge>
               </div>
               
@@ -402,7 +425,7 @@ function TeamContent({ params }) {
                           <div className="mb-4 bg-muted/40 p-4 rounded-2xl border border-border/50 text-sm">
                             <p className="flex items-center text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
                               <MessageSquare className="w-3 h-3 mr-1.5 opacity-60" />
-                              Applicant Note
+                              Their message
                             </p>
                             <p className="text-[13px] font-medium text-foreground italic leading-relaxed">
                               "{request.message}"
@@ -455,7 +478,7 @@ function TeamContent({ params }) {
           <motion.div variants={itemVariants} className="space-y-10">
              <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-extrabold tracking-tight">Active Rosters</h2>
+                  <h2 className="text-xl font-extrabold tracking-tight">Active Team</h2>
                 </div>
               </div>
 
@@ -486,9 +509,9 @@ function TeamContent({ params }) {
             <motion.div variants={itemVariants} className="space-y-6 pt-6">
               <div className="flex items-center justify-between border-b border-border/50 pb-3">
                 <h3 className="text-lg font-bold text-muted-foreground flex items-center gap-2">
-                  Suspended Accounts
+                  Inactive Members
                   <Badge variant="secondary" className="bg-muted text-muted-foreground font-bold border-0 px-2 rounded-md">
-                    {inactiveStaff.length} Offline
+                    {inactiveStaff.length}
                   </Badge>
                 </h3>
               </div>
@@ -503,12 +526,12 @@ function TeamContent({ params }) {
           <div className="h-24 w-24 bg-background rounded-full border border-border/50 shadow-sm flex items-center justify-center mb-6">
             <Briefcase className="h-10 w-10 text-muted-foreground opacity-50" />
           </div>
-          <h2 className="text-2xl font-extrabold mb-3 tracking-tight">Construct Your Framework</h2>
+          <h2 className="text-2xl font-extrabold mb-3 tracking-tight">Build Your Team</h2>
           <p className="text-muted-foreground font-medium max-w-lg mb-8 leading-relaxed">
-            Populate your roster with authorized personnel. Assign operational clearances, map capabilities to services, and open their schedules.
+            Add your team members to start managing schedules, assigning services, and tracking performance.
           </p>
           <Button size="lg" className="rounded-xl h-12 px-8 font-bold shadow-md text-[15px]" onClick={() => setWizardOpen(true)}>
-            Initialize Team Member
+            Add First Member
           </Button>
         </div>
       )}
@@ -529,7 +552,7 @@ function TeamContent({ params }) {
           setStaffFormOpen(open);
         }}
         salonId={salonId}
-        staffMember={editStaff}
+        staff={editStaff}
       />
 
       {scheduleStaff && (
@@ -559,30 +582,30 @@ function TeamContent({ params }) {
               <Trash2 className="w-6 h-6 text-red-600 dark:text-red-500" />
             </div>
             <AlertDialogTitle className="text-2xl font-bold text-red-600 dark:text-red-500">
-              Terminate Access?
+              Remove team member?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[15px] font-medium text-foreground tracking-tight leading-relaxed">
-              Are you sure you want to permanently erase the operative profile for{" "}
+              Are you sure you want to remove{" "}
               <strong>
                 {deleteStaff?.firstName} {deleteStaff?.lastName}
-              </strong>
-              ?
+              </strong>{" "}
+              from your team?
               <br />
               <br />
-              All associated bookings will require reassignment.
+              Their existing bookings will need to be reassigned to another team member.
               <br />
               <span className="text-muted-foreground text-[13px] mt-2 block">
-                This database destructive action cannot be reversed.
+                This action cannot be undone.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 gap-2 sm:gap-0">
-            <AlertDialogCancel className="rounded-xl h-11 font-bold">Abort</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl h-11 font-bold">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600 rounded-xl h-11 font-bold shadow-md"
               onClick={handleDeleteConfirm}
             >
-              Confirm Termination
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

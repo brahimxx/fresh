@@ -6,31 +6,16 @@ import { encodeId } from "@/lib/id";
 import {
   ArrowLeft,
   Briefcase,
-  Mail,
-  Phone,
-  Calendar,
-  MoreVertical,
   Pencil,
-  Trash2,
-  Share,
   CalendarClock,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 import { useStaffMember, STAFF_ROLES } from "@/hooks/use-staff";
 import { StaffPersonalTab } from "@/components/staff/staff-personal-tab";
@@ -46,6 +31,7 @@ import { StaffPayRunsTab } from "@/components/staff/staff-pay-runs-tab";
 import { StaffFormDialog } from "@/components/staff/staff-form";
 import { StaffScheduleDialog } from "@/components/staff/staff-schedule";
 import { useSalon } from "@/providers/salon-provider";
+import { canEditStaffMember } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export default function StaffDetailPage({ params }) {
@@ -53,12 +39,17 @@ export default function StaffDetailPage({ params }) {
   const salonId = resolvedParams.salonId;
   const staffId = resolvedParams.staffId;
   const router = useRouter();
-  const { staffRole: currentUserRole } = useSalon();
+  const { staffRole: currentUserRole, staffId: currentStaffId } = useSalon();
 
   const [activeTab, setActiveTab] = useState("personal");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [staffFormOpen, setStaffFormOpen] = useState(false);
   const { data: staff, isLoading, error } = useStaffMember(staffId);
+
+  // Permission check using centralized engine
+  const canEdit = staff
+    ? canEditStaffMember(currentUserRole, staff.role, Number(staff.id) === Number(currentStaffId))
+    : false;
 
   const getInitials = (firstName, lastName) => {
     const first = (firstName || "")[0] || "";
@@ -110,9 +101,9 @@ export default function StaffDetailPage({ params }) {
         <div className="h-20 w-20 bg-muted/30 rounded-full flex items-center justify-center mb-6">
           <Briefcase className="h-10 w-10 text-muted-foreground opacity-50" />
         </div>
-        <h2 className="text-2xl font-extrabold mb-2 tracking-tight">Profile Terminated</h2>
+        <h2 className="text-2xl font-extrabold mb-2 tracking-tight">Member Not Found</h2>
         <p className="text-muted-foreground font-medium mb-8 max-w-md">
-          This personnel record cannot be located within the current database schema.
+          This team member could not be found. They may have been removed or you don't have access.
         </p>
         <Button
           variant="outline"
@@ -121,7 +112,7 @@ export default function StaffDetailPage({ params }) {
             router.push(`/dashboard/salon/${encodeId(salonId)}/team`)
           }
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Return to Directory
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Team
         </Button>
       </div>
     );
@@ -140,7 +131,7 @@ export default function StaffDetailPage({ params }) {
           router.push(`/dashboard/salon/${encodeId(salonId)}/team`)
         }
       >
-        <ArrowLeft className="mr-2 h-3.5 w-3.5" /> Back to Directory
+        <ArrowLeft className="mr-2 h-3.5 w-3.5" /> Back to Team
       </Button>
 
       {/* Profile Header Pane */}
@@ -177,7 +168,7 @@ export default function StaffDetailPage({ params }) {
                         variant="secondary"
                         className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-0 font-bold uppercase tracking-wider text-[11px] align-middle mt-1.5"
                       >
-                        Suspended
+                        Inactive
                       </Badge>
                     )}
                   </h1>
@@ -200,20 +191,24 @@ export default function StaffDetailPage({ params }) {
                 </div>
 
                 <div className="flex shrink-0 gap-3 items-center">
-                  <Button 
-                    variant="outline" 
-                    className="h-12 px-6 rounded-xl shadow-sm border-border/50 bg-background/50 backdrop-blur-md hover:bg-background font-bold text-[14px]"
-                    onClick={() => setScheduleDialogOpen(true)}
-                  >
-                    <CalendarClock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    Operational Hours
-                  </Button>
-                  <Button 
-                    className="h-12 px-6 rounded-xl shadow-md font-bold text-[14px]"
-                    onClick={() => setStaffFormOpen(true)}
-                  >
-                    <Pencil className="h-4 w-4 mr-2" /> Modify Profile
-                  </Button>
+                  {canEdit && (
+                    <Button 
+                      variant="outline" 
+                      className="h-12 px-6 rounded-xl shadow-sm border-border/50 bg-background/50 backdrop-blur-md hover:bg-background font-bold text-[14px]"
+                      onClick={() => setScheduleDialogOpen(true)}
+                    >
+                      <CalendarClock className="h-4 w-4 mr-2 text-muted-foreground" />
+                      Working Hours
+                    </Button>
+                  )}
+                  {canEdit && (
+                    <Button 
+                      className="h-12 px-6 rounded-xl shadow-md font-bold text-[14px]"
+                      onClick={() => setStaffFormOpen(true)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" /> Edit Profile
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -226,12 +221,12 @@ export default function StaffDetailPage({ params }) {
         <div className="relative mb-8 overflow-hidden rounded-xl bg-muted/30 p-1.5">
           <TabsList className="w-full justify-start h-auto bg-transparent p-0 flex flex-wrap gap-1 sm:gap-2 overflow-visible">
             {[
-              { id: "personal", label: "Identity Data" },
-              { id: "addresses", label: "Location" },
+              { id: "personal", label: "Personal" },
+              { id: "addresses", label: "Addresses" },
               { id: "emergency", label: "Emergency" },
-              { id: "workplace", label: "Workplace Engine" },
-              ...(staff.role !== "receptionist" && staff.role !== "owner" ? [{ id: "pay", label: "Financial Setup" }] : []),
-              ...(currentUserRole === "owner" ? [{ id: "permissions", label: "Security & Clearances" }] : [])
+              { id: "workplace", label: "Services & Schedule" },
+              ...(staff.role !== "receptionist" && staff.role !== "owner" ? [{ id: "pay", label: "Pay & Commission" }] : []),
+              ...(currentUserRole === "owner" ? [{ id: "permissions", label: "Permissions" }] : [])
             ].map(tab => (
               <TabsTrigger
                 key={tab.id}
@@ -264,13 +259,13 @@ export default function StaffDetailPage({ params }) {
             <Tabs defaultValue="services" className="space-y-6">
               <TabsList className="bg-muted/40 p-1.5 rounded-xl border border-border/50">
                 <TabsTrigger value="services" className="rounded-lg font-bold text-[13px] px-4">
-                  Approved Services
+                  Services
                 </TabsTrigger>
                 <TabsTrigger value="locations" className="rounded-lg font-bold text-[13px] px-4">
-                  Assigned Locations
+                  Locations
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="rounded-lg font-bold text-[13px] px-4">
-                  App Settings
+                  Settings
                 </TabsTrigger>
               </TabsList>
 
@@ -346,7 +341,7 @@ export default function StaffDetailPage({ params }) {
         open={staffFormOpen}
         onOpenChange={setStaffFormOpen}
         salonId={salonId}
-        staffMember={staff}
+        staff={staff}
       />
     </div>
   );

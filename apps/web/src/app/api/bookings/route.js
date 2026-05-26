@@ -1,4 +1,4 @@
-import { decodeId } from '@/lib/id';
+import { decodeId, encodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { canSeeAllBookings } from "@/lib/permissions";
@@ -109,8 +109,14 @@ export async function GET(request) {
     }
 
     if (status) {
-      sql += " AND b.status = ?";
-      params.push(status);
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        sql += " AND b.status = ?";
+        params.push(statuses[0]);
+      } else if (statuses.length > 1) {
+        sql += " AND b.status IN (" + statuses.map(() => '?').join(',') + ")";
+        params.push(...statuses);
+      }
     }
 
     if (startDate) {
@@ -122,6 +128,14 @@ export async function GET(request) {
       sql += " AND b.end_datetime <= ?";
       params.push(endDate);
     }
+
+    // Count total matching rows (before LIMIT/OFFSET) for pagination
+    const countSql = sql.replace(
+      /SELECT b\.\*[\s\S]*?FROM bookings b/,
+      "SELECT COUNT(*) as total FROM bookings b"
+    );
+    const [countResult] = await query(countSql, params);
+    const total = countResult?.total || 0;
 
     sql += " ORDER BY b.created_at DESC LIMIT ? OFFSET ?";
     params.push(limit, offset);
@@ -150,7 +164,7 @@ export async function GET(request) {
       const computedTotal = bServices.reduce((sum, bs) => sum + parseFloat(bs.price || 0), 0) + parseFloat(b.travel_fee_amount || 0);
 
       return {
-        id: b.id,
+        id: encodeId(b.id),
         salonId: b.salon_id,
         salonName: b.salon_name,
         client: {
@@ -196,7 +210,15 @@ export async function GET(request) {
       };
     });
 
-    return success({ bookings: result });
+    return success({ 
+      bookings: result,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      }
+    });
   } catch (err) {
     if (err.message === "Unauthorized") return unauthorized();
     console.error("Get bookings error:", err);

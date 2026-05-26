@@ -12,13 +12,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import {
   Form,
   FormControl,
@@ -211,18 +210,20 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
   const currentStepInfo = STEPS[currentStep - 1];
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Team Member</DialogTitle>
-          <DialogDescription>
-            Step {currentStep} of {STEPS.length}: {currentStepInfo.title}
-            {!currentStepInfo.required && ' (Optional)'}
-          </DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={handleClose}>
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0">
+        <div className="flex flex-col h-full">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/50">
+            <SheetTitle className="text-xl font-bold">Add Team Member</SheetTitle>
+            <SheetDescription>
+              Step {currentStep} of {STEPS.length}: {currentStepInfo.title}
+              {!currentStepInfo.required && ' (Optional)'}
+            </SheetDescription>
+          </SheetHeader>
 
         {/* Progress Indicator */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="px-6 pt-4">
+          <div className="flex items-center gap-2 mb-2">
           {STEPS.map((step, index) => (
             <div key={step.id} className="flex items-center flex-1">
               <div
@@ -251,10 +252,12 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
               )}
             </div>
           ))}
+          </div>
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-6 py-6">
             {/* Step 1: Basic Info */}
             {currentStep === 1 && (
               <div className="space-y-4">
@@ -808,12 +811,14 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
               </div>
             )}
 
-            <DialogFooter className="flex items-center justify-between gap-2 pt-6 border-t">
+            </div>
+            <div className="border-t border-border/50 px-6 py-4 flex items-center justify-between gap-2 bg-muted/5">
               <div className="flex gap-2">
                 {!isFirstStep && (
                   <Button
                     type="button"
                     variant="outline"
+                    className="rounded-xl"
                     onClick={handleBack}
                   >
                     <ChevronLeft className="h-4 w-4 mr-2" />
@@ -827,6 +832,7 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
                   <Button
                     type="button"
                     variant="ghost"
+                    className="rounded-xl"
                     onClick={handleSkip}
                   >
                     Skip
@@ -834,23 +840,24 @@ export function StaffCreationWizard({ open, onOpenChange, salonId }) {
                 )}
                 
                 {!isLastStep ? (
-                  <Button type="button" onClick={handleNext}>
+                  <Button type="button" className="rounded-xl" onClick={handleNext}>
                     Next
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>
                 ) : (
-                  <Button type="submit" disabled={createStaff.isPending}>
+                  <Button type="submit" className="rounded-xl" disabled={createStaff.isPending}>
                     {createStaff.isPending && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     )}
-                    Create Team Member
+                    Add Member
                   </Button>
                 )}
               </div>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
