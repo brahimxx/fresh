@@ -34,8 +34,8 @@ export async function GET(request, { params }) {
     const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [invoice.salon_id]);
     if (
       session.role !== 'admin' &&
-      invoice.client_id !== session.userId &&
-      salon?.owner_id !== session.userId
+      Number(invoice.client_id) !== Number(session.userId) &&
+      Number(salon?.owner_id) !== Number(session.userId)
     ) {
       return forbidden('Not authorized to view this invoice');
     }

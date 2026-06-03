@@ -10,7 +10,7 @@ async function checkCampaignAccess(campaignId, userId, role) {
   );
   if (!campaign) return { access: false, campaign: null };
   if (role === 'admin') return { access: true, campaign };
-  if (campaign.owner_id === userId) return { access: true, campaign };
+  if (Number(campaign.owner_id) === Number(userId)) return { access: true, campaign };
   return { access: false, campaign: null };
 }
 

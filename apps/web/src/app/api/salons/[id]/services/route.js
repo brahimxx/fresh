@@ -160,6 +160,7 @@ export async function POST(request, { params }) {
       isActive = true,
       staffIds = [],
       description = null,
+      cost_price = 0,
       bufferTime = 0,
       isPopular = false,
       offeringType,
@@ -187,17 +188,18 @@ export async function POST(request, { params }) {
 
     const result = await query(
       `INSERT INTO services
-         (salon_id, category_id, name, duration_minutes, price, is_active,
+         (salon_id, category_id, name, duration_minutes, price, cost_price, is_active,
           description, buffer_time_minutes, is_popular,
           can_physical, can_mobile, can_virtual,
           mobile_price_override, virtual_price_override)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         categoryId || null,
         name,
         duration,
         price,
+        cost_price,
         isActive,
         description,
         bufferTime,

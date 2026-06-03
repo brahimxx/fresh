@@ -2,18 +2,9 @@ import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
+import { checkSalonAccess } from '@/lib/permissions-server';
 
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId]
-  );
-  return !!staff;
-}
+
 
 // GET /api/salons/[id]/closures - List all closures for a salon
 export async function GET(request, { params }) {

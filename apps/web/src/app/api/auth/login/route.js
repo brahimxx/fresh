@@ -63,9 +63,10 @@ export async function POST(request) {
       }
     }
 
-    // Create token
+    // Create token — userId is cast to Number to guarantee strict-equality
+    // comparisons against MySQL integer columns (e.g. salons.owner_id) always work.
     const token = await createToken({
-      userId: user.id,
+      userId: Number(user.id),
       email: user.email,
       role: user.role,
     });

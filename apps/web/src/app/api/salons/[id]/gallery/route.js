@@ -15,7 +15,7 @@ async function checkGalleryAccess(salonId, userId, role) {
   // Owner check
   const salon = await getOne('SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL', [salonId]);
   if (!salon) return false;
-  if (salon.owner_id === userId) return true;
+  if (Number(salon.owner_id) === Number(userId)) return true;
 
   // Staff/manager check — must be at least manager level
   const staffRow = await getOne(

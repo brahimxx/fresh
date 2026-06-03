@@ -2,6 +2,7 @@ import { decodeId } from "@/lib/id";
 import { getOne } from "@/lib/db";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { checkSalonAccess } from '@/lib/permissions-server';
 import {
   success,
   error,
@@ -10,20 +11,6 @@ import {
   forbidden,
 } from "@/lib/response";
 
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
-  const salon = await getOne(
-    "SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL",
-    [salonId],
-  );
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId],
-  );
-  return !!staff;
-}
 
 // GET /api/clients/[id]/notes?salon_id=3
 // Returns the single notes text stored on the salon_clients relationship row.

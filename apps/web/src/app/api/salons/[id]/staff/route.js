@@ -1,6 +1,7 @@
 import { decodeId } from "@/lib/id";
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { checkSalonAccess } from '@/lib/permissions-server';
 import {
   success,
   error,
@@ -10,20 +11,7 @@ import {
   forbidden,
 } from "@/lib/response";
 
-// Helper to check if user owns the salon or is manager
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
-  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
-    salonId,
-  ]);
-  if (salon && salon.owner_id === userId) return true;
-  // Check if user is a manager at this salon
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId],
-  );
-  return !!staff;
-}
+
 
 // GET /api/salons/[id]/staff - Get salon staff
 export async function GET(request, { params }) {

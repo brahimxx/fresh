@@ -2,33 +2,9 @@ import { decodeId } from '@/lib/id';
 import { getOne, query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, notFound, forbidden } from '@/lib/response';
+import { checkStaffAccess } from '@/lib/permissions-server';
 
-// Helper to check staff access
-async function checkStaffAccess(staffId, userId, role) {
-  if (role === 'admin') return true;
-  
-  const staff = await getOne(
-    `SELECT s.*, sal.owner_id 
-     FROM staff s
-     JOIN salons sal ON sal.id = s.salon_id
-     WHERE s.id = ?`,
-    [staffId]
-  );
-  
-  if (!staff) return null;
-  
-  // Owner of the salon or the staff member themselves
-  if (staff.owner_id === userId || staff.user_id === userId) return staff;
-  
-  // Manager at the same salon
-  const manager = await getOne(
-    `SELECT id FROM staff 
-     WHERE salon_id = ? AND user_id = ? AND role IN ('manager', 'owner') AND is_active = 1`,
-    [staff.salon_id, userId]
-  );
-  
-  return manager ? staff : null;
-}
+
 
 // GET /api/staff/[staffId] - Get staff member details
 export async function GET(request, { params }) {
@@ -108,7 +84,7 @@ export async function PUT(request, { params }) {
     let actorRole = null;
     if (session.role === 'admin') {
       actorRole = 'admin';
-    } else if (staff.owner_id === session.userId) {
+    } else if (Number(staff.owner_id) === Number(session.userId)) {
       actorRole = 'owner';
     } else {
       const actorStaff = await getOne(
@@ -119,7 +95,7 @@ export async function PUT(request, { params }) {
     }
 
     // Non-admin, non-owner cannot edit someone at or above their rank (unless editing themselves)
-    const isSelf = staff.user_id === session.userId;
+    const isSelf = Number(staff.user_id) === Number(session.userId);
     if (actorRole !== 'admin' && actorRole !== 'owner' && !isSelf) {
       if ((ROLE_RANK[targetRole] || 0) >= (ROLE_RANK[actorRole] || 0)) {
         return forbidden('You cannot edit a team member at or above your role');
@@ -368,7 +344,7 @@ export async function DELETE(request, { params }) {
     const targetRole = staff.role;
 
     // Cannot delete yourself
-    if (staff.user_id === session.userId) {
+    if (Number(staff.user_id) === Number(session.userId)) {
       return forbidden('You cannot remove yourself from the team');
     }
 
@@ -381,7 +357,7 @@ export async function DELETE(request, { params }) {
     let actorRole = null;
     if (session.role === 'admin') {
       actorRole = 'admin';
-    } else if (staff.owner_id === session.userId) {
+    } else if (Number(staff.owner_id) === Number(session.userId)) {
       actorRole = 'owner';
     } else {
       const actorStaff = await getOne(

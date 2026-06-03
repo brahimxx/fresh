@@ -35,15 +35,15 @@ export async function POST(request) {
       return unauthorized('User not found');
     }
 
-    // Create new tokens
+    // Create new tokens — userId cast to Number for ownership comparisons.
     const newAccessToken = await createToken({
-      userId: user.id,
+      userId: Number(user.id),
       email: user.email,
       role: user.role,
     });
 
     const newRefreshToken = await createToken({
-      userId: user.id,
+      userId: Number(user.id),
       type: 'refresh',
     }, { expiresIn: '30d' });
 

@@ -81,7 +81,7 @@ export async function GET() {
     // to 'owner' or 'staff' but old cookie never refreshed).
     if (session.role !== user.role) {
       const freshToken = await createToken({
-        userId: user.id,
+        userId: Number(user.id),
         email: user.email,
         role: user.role,
         ...(session.impersonatorAdminId

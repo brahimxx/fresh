@@ -26,7 +26,7 @@ export async function GET(request) {
     // Verify salon access
     if (session.role !== 'admin') {
       const [salon] = await query('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-      if (!salon || salon.owner_id !== session.userId) {
+      if (!salon || Number(salon.owner_id) !== Number(session.userId)) {
         return forbidden('Not authorized for this salon');
       }
     }

@@ -9,6 +9,7 @@ import {
   forbidden,
 } from "@/lib/response";
 import { findOrCreateClient, normalizePhone, ClientError } from "@/lib/client";
+import { checkSalonAccess } from '@/lib/permissions-server';
 
 // ---------------------------------------------------------------------------
 // checkSalonAccess
@@ -18,22 +19,7 @@ import { findOrCreateClient, normalizePhone, ClientError } from "@/lib/client";
 // Staff: ANY active staff member of the salon can create/view clients.
 //        Managers and regular staff (receptionists) both work here daily.
 // ---------------------------------------------------------------------------
-async function checkSalonAccess(salonId, userId, role) {
-  const salon = await getOne(
-    "SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL",
-    [salonId],
-  );
-  if (!salon) return false;
-  if (role === "admin") return true;
-  if (salon.owner_id === userId) return true;
 
-  // Any active staff member (manager OR receptionist) can manage this salon's clients.
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId],
-  );
-  return !!staff;
-}
 
 // ---------------------------------------------------------------------------
 // normalizePhone — re-exported from lib/client for use in GET search

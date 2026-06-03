@@ -54,7 +54,7 @@ export function StaffServicesTab({ staffId, salonId }) {
           <div className="space-y-6">
             {Object.entries(
               allServices.reduce(function (acc, service) {
-                var category = service.category_name || "Uncategorized";
+                var category = service.categoryName || service.category_name || "Uncategorized";
                 if (!acc[category]) acc[category] = [];
                 acc[category].push(service);
                 return acc;

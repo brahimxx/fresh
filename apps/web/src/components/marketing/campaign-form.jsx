@@ -7,11 +7,13 @@ import { z } from "zod";
 import { Mail, MessageSquare } from "lucide-react";
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter
+} from "@/components/ui/sheet";
 import {
   Form,
   FormControl,
@@ -107,7 +109,11 @@ export function CampaignForm({
 
   function onSubmit(data) {
     var payload = {
-      ...data,
+      name: data.name,
+      type: data.type,
+      subject: data.subject,
+      content: data.message,
+      target_audience: data.audience_type,
       salon_id: salonId,
       status: "draft",
     };
@@ -152,21 +158,27 @@ export function CampaignForm({
   var isPending = createCampaign.isPending || updateCampaign.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? "Edit Campaign" : "Create Campaign"}
-          </DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="sm:max-w-md w-full flex flex-col h-full p-0 border-l shadow-2xl">
+        <div className="px-6 py-6 border-b">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              {isEditing ? "Edit Campaign" : "Create Campaign"}
+            </SheetTitle>
+            <SheetDescription>
+              {isEditing ? "Update your campaign details." : "Configure a new marketing broadcast."}
+            </SheetDescription>
+          </SheetHeader>
+        </div>
 
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col flex-1 overflow-hidden"
           >
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4 pb-4">
+            <ScrollArea className="flex-1 px-6">
+              <div className="space-y-6 py-6">
                 {/* Name */}
                 <FormField
                   control={form.control}
@@ -174,7 +186,7 @@ export function CampaignForm({
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Campaign Name</FormLabel>
+                        <FormLabel className="font-semibold">Campaign Name</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
@@ -197,14 +209,14 @@ export function CampaignForm({
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Campaign Type</FormLabel>
+                        <FormLabel className="font-semibold">Campaign Type</FormLabel>
                         <div className="grid grid-cols-2 gap-4">
                           <div
                             className={
-                              "border rounded-lg p-4 cursor-pointer transition-colors " +
+                              "border rounded-xl p-4 cursor-pointer transition-all " +
                               (field.value === "email"
-                                ? "border-primary bg-primary/5"
-                                : "hover:bg-muted")
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
+                                : "hover:bg-muted/50 border-border/50")
                             }
                             onClick={function () {
                               field.onChange("email");
@@ -212,23 +224,23 @@ export function CampaignForm({
                           >
                             <Mail
                               className={
-                                "h-6 w-6 mb-2 " +
+                                "h-6 w-6 mb-2 transition-colors " +
                                 (field.value === "email"
                                   ? "text-primary"
                                   : "text-muted-foreground")
                               }
                             />
                             <p className="font-medium">Email</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mt-0.5">
                               Rich HTML content
                             </p>
                           </div>
                           <div
                             className={
-                              "border rounded-lg p-4 cursor-pointer transition-colors " +
+                              "border rounded-xl p-4 cursor-pointer transition-all " +
                               (field.value === "sms"
-                                ? "border-primary bg-primary/5"
-                                : "hover:bg-muted")
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
+                                : "hover:bg-muted/50 border-border/50")
                             }
                             onClick={function () {
                               field.onChange("sms");
@@ -236,14 +248,14 @@ export function CampaignForm({
                           >
                             <MessageSquare
                               className={
-                                "h-6 w-6 mb-2 " +
+                                "h-6 w-6 mb-2 transition-colors " +
                                 (field.value === "sms"
                                   ? "text-primary"
                                   : "text-muted-foreground")
                               }
                             />
                             <p className="font-medium">SMS</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mt-0.5">
                               Text messages
                             </p>
                           </div>
@@ -262,7 +274,7 @@ export function CampaignForm({
                     render={function ({ field }) {
                       return (
                         <FormItem>
-                          <FormLabel>Subject Line</FormLabel>
+                          <FormLabel className="font-semibold">Subject Line</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -283,7 +295,7 @@ export function CampaignForm({
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>Target Audience</FormLabel>
+                        <FormLabel className="font-semibold">Target Audience</FormLabel>
                         <Select
                           value={field.value}
                           onValueChange={field.onChange}
@@ -319,7 +331,7 @@ export function CampaignForm({
                   render={function ({ field }) {
                     return (
                       <FormItem>
-                        <FormLabel>
+                        <FormLabel className="font-semibold">
                           {campaignType === "email"
                             ? "Email Body"
                             : "SMS Message"}
@@ -333,14 +345,15 @@ export function CampaignForm({
                                 : "Write your SMS message (max 160 characters)..."
                             }
                             rows={campaignType === "email" ? 8 : 4}
+                            className="resize-y"
                           />
                         </FormControl>
                         {campaignType === "sms" && (
-                          <FormDescription>
-                            {field.value?.length || 0}/160 characters
-                          </FormDescription>
+                          <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                            <span>{field.value?.length || 0}/160 characters</span>
+                          </div>
                         )}
-                        <FormDescription>
+                        <FormDescription className="pt-1">
                           Use placeholders: {"{{first_name}}"},{" "}
                           {"{{salon_name}}"}, {"{{booking_link}}"}
                         </FormDescription>
@@ -352,29 +365,30 @@ export function CampaignForm({
               </div>
             </ScrollArea>
 
-            {/* Actions */}
-            <div className="flex gap-2 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={function () {
-                  onOpenChange(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isPending}>
-                {isPending
-                  ? "Saving..."
-                  : isEditing
-                  ? "Update"
-                  : "Save as Draft"}
-              </Button>
+            <div className="px-6 py-4 border-t bg-muted/20 mt-auto">
+              <SheetFooter className="flex-row gap-3 justify-end sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={function () {
+                    onOpenChange(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1 sm:flex-none" disabled={isPending}>
+                  {isPending
+                    ? "Saving..."
+                    : isEditing
+                    ? "Update Campaign"
+                    : "Save as Draft"}
+                </Button>
+              </SheetFooter>
             </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

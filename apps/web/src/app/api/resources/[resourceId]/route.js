@@ -43,7 +43,7 @@ export async function PUT(request, { params }) {
       return notFound('Resource not found');
     }
 
-    if (session.role !== 'admin' && resource.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(resource.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to update this resource');
     }
 
@@ -84,7 +84,7 @@ export async function DELETE(request, { params }) {
       return notFound('Resource not found');
     }
 
-    if (session.role !== 'admin' && resource.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(resource.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to delete this resource');
     }
 

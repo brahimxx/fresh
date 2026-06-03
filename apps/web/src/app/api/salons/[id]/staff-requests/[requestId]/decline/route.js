@@ -25,7 +25,7 @@ export async function POST(request, { params }) {
 
     const isAuthorized =
       (roleCheck && ["owner", "manager"].includes(roleCheck.role)) ||
-      (ownerCheck && ownerCheck.owner_id === session.userId);
+      (ownerCheck && Number(ownerCheck.owner_id) === Number(session.userId));
 
     if (!isAuthorized) return forbidden("Permission denied");
 

@@ -49,9 +49,10 @@ export async function GET(request, { params }) {
 
     // Get services this staff can perform
     const services = await query(
-      `SELECT s.id, s.name, s.duration_minutes, s.price
+      `SELECT s.id, s.name, s.duration_minutes, s.price, sc.name as category_name
        FROM service_staff ss
        JOIN services s ON s.id = ss.service_id
+       LEFT JOIN service_categories sc ON s.category_id = sc.id
        WHERE ss.staff_id = ?`,
       [staffId]
     );
@@ -86,6 +87,7 @@ export async function GET(request, { params }) {
       services: services.map((s) => ({
         id: s.id,
         name: s.name,
+        category_name: s.category_name,
         duration: s.duration_minutes,
         price: s.price,
       })),

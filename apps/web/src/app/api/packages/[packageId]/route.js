@@ -61,7 +61,7 @@ export async function PUT(request, { params }) {
       return notFound('Package not found');
     }
 
-    if (session.role !== 'admin' && pkg.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(pkg.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to update this package');
     }
 
@@ -142,7 +142,7 @@ export async function DELETE(request, { params }) {
       return notFound('Package not found');
     }
 
-    if (session.role !== 'admin' && pkg.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(pkg.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to delete this package');
     }
 

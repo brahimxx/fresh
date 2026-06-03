@@ -48,6 +48,7 @@ var serviceSchema = z.object({
   description: z.string().optional(),
   duration: z.coerce.number().min(5, "Duration must be at least 5 minutes"),
   price: z.coerce.number().min(0, "Price must be 0 or more"),
+  cost_price: z.coerce.number().min(0).default(0),
   category_id: z.string().optional(),
   buffer_before: z.coerce.number().min(0).optional(),
   buffer_after: z.coerce.number().min(0).optional(),
@@ -114,6 +115,7 @@ export function ServiceFormDialog({
       description: "",
       duration: 60,
       price: 0,
+      cost_price: 0,
       category_id: "none",
       buffer_before: 0,
       buffer_after: 0,
@@ -146,6 +148,7 @@ export function ServiceFormDialog({
             description: service.description || "",
             duration: service.duration || service.duration_minutes || 60,
             price: service.price || 0,
+            cost_price: service.cost_price || 0,
             category_id:
               service.category_id || service.categoryId
                 ? String(service.category_id || service.categoryId)
@@ -170,6 +173,7 @@ export function ServiceFormDialog({
             description: "",
             duration: 60,
             price: 0,
+            cost_price: 0,
             category_id: categoryId ? String(categoryId) : "none",
             buffer_before: 0,
             buffer_after: 0,
@@ -529,6 +533,33 @@ export function ServiceFormDialog({
                               {...field}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cost_price"
+                    render={function ({ field }) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Cost Price (EUR)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-[10px] leading-tight">
+                            Cost of materials (deducted before staff commission)
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       );

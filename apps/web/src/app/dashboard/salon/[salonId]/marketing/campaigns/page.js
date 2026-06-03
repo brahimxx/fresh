@@ -15,13 +15,15 @@ import {
   Users,
   BarChart3,
   Clock,
-  MoreVertical
+  MoreVertical,
+  TrendingUp
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -73,6 +75,7 @@ export default function CampaignsPage({ params }) {
   var [searchQuery, setSearchQuery] = useState('');
   var [typeFilter, setTypeFilter] = useState('all');
   var [statusFilter, setStatusFilter] = useState('all');
+  var [showDeleted, setShowDeleted] = useState(false);
   var [showForm, setShowForm] = useState(false);
   var [editingCampaign, setEditingCampaign] = useState(null);
   var [deleteCampaign, setDeleteCampaign] = useState(null);
@@ -85,8 +88,15 @@ export default function CampaignsPage({ params }) {
   var deleteCampaignMutation = useDeleteCampaign();
   var sendCampaignMutation = useSendCampaign();
   
-  // Filter by search
+  // Base filter for cancelled campaigns
   var filteredCampaigns = campaigns || [];
+  if (!showDeleted) {
+    filteredCampaigns = filteredCampaigns.filter(function(c) {
+      return c.status !== 'cancelled';
+    });
+  }
+
+  // Filter by search
   if (searchQuery) {
     var query = searchQuery.toLowerCase();
     filteredCampaigns = filteredCampaigns.filter(function(c) {
@@ -100,8 +110,8 @@ export default function CampaignsPage({ params }) {
     return c.status === 'sent';
   }).length;
   
-  var totalRecipients = (campaigns || []).reduce(function(sum, c) {
-    return sum + Number(c.recipients_count || 0);
+  var totalReached = (campaigns || []).reduce(function(sum, c) {
+    return sum + Number(c.recipient_count || 0);
   }, 0);
   
   function handleDelete() {
@@ -166,44 +176,69 @@ export default function CampaignsPage({ params }) {
       {/* Stats */}
       
   <div className="grid gap-4 md:grid-cols-4">
-    <Card>
+    <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+        <Mail className="w-16 h-16" />
+      </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
-        <Mail className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-sm font-medium text-muted-foreground">Total Campaigns</CardTitle>
+        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
+          <Mail className="h-4 w-4" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{(campaigns || []).length}</div>
-        <p className="text-xs text-muted-foreground mt-1">Lifetime campaigns</p>
+        <div className="text-3xl font-bold tracking-tight">{(campaigns || []).length}</div>
+        <p className="text-xs text-muted-foreground mt-1 flex items-center">Lifetime campaigns</p>
       </CardContent>
     </Card>
-    <Card>
+    
+    <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+        <Send className="w-16 h-16" />
+      </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Broadcasts Sent</CardTitle>
-        <Send className="h-4 w-4 text-green-500" />
+        <CardTitle className="text-sm font-medium text-muted-foreground">Broadcasts Sent</CardTitle>
+        <div className="p-2 bg-green-500/10 rounded-lg text-green-600">
+          <Send className="h-4 w-4" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-green-600">{totalSent}</div>
-        <p className="text-xs text-muted-foreground mt-1">Successfully dispatched</p>
+        <div className="text-3xl font-bold tracking-tight text-green-600">{totalSent}</div>
+        <p className="text-xs text-muted-foreground mt-1 flex items-center">Successfully dispatched</p>
       </CardContent>
     </Card>
-    <Card>
+    
+    <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+        <Users className="w-16 h-16" />
+      </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Total Reached</CardTitle>
-        <Users className="h-4 w-4 text-blue-500" />
+        <CardTitle className="text-sm font-medium text-muted-foreground">Total Reached</CardTitle>
+        <div className="p-2 bg-fuchsia-500/10 rounded-lg text-fuchsia-600">
+          <Users className="h-4 w-4" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{totalReached}</div>
-        <p className="text-xs text-muted-foreground mt-1">Clients contacted</p>
+        <div className="text-3xl font-bold tracking-tight">{totalReached}</div>
+        <p className="text-xs text-muted-foreground mt-1 flex items-center">Unique clients contacted</p>
       </CardContent>
     </Card>
-    <Card>
+    
+    <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+        <BarChart3 className="w-16 h-16" />
+      </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Open Rate</CardTitle>
-        <BarChart3 className="h-4 w-4 text-purple-500" />
+        <CardTitle className="text-sm font-medium text-muted-foreground">Open Rate</CardTitle>
+        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-600">
+          <BarChart3 className="h-4 w-4" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">64%</div>
-        <p className="text-xs text-muted-foreground mt-1">Average engagement</p>
+        <div className="text-3xl font-bold tracking-tight">64%</div>
+        <p className="text-xs text-muted-foreground mt-1 flex items-center text-green-600">
+          <TrendingUp className="h-3 w-3 mr-1" /> +2.4% this month
+        </p>
       </CardContent>
     </Card>
   </div>
@@ -239,8 +274,22 @@ export default function CampaignsPage({ params }) {
             <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="scheduled">Scheduled</SelectItem>
             <SelectItem value="sent">Sent</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center space-x-2">
+          <Checkbox 
+            id="showDeleted" 
+            checked={showDeleted}
+            onCheckedChange={setShowDeleted}
+          />
+          <label 
+            htmlFor="showDeleted" 
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Show deleted
+          </label>
+        </div>
       </div>
       
       {/* Campaigns List */}
@@ -256,100 +305,155 @@ export default function CampaignsPage({ params }) {
             var TypeIcon = getTypeIcon(campaign.type);
             
             return (
-              <Card key={campaign.id}>
-                <CardHeader className="pb-2">
+              <Card 
+                key={campaign.id} 
+                className={`group transition-all duration-300 relative overflow-hidden ${
+                  campaign.status === 'cancelled'
+                    ? 'opacity-60 grayscale bg-muted/30 border-dashed'
+                    : ['sent', 'completed'].includes(campaign.status) 
+                    ? 'opacity-90' 
+                    : 'hover:shadow-md hover:-translate-y-1 cursor-pointer'
+                }`}
+                onClick={function() {
+                  if (['sent', 'completed', 'cancelled'].includes(campaign.status)) return;
+                  setEditingCampaign(campaign);
+                  setShowForm(true);
+                }}
+              >
+                {/* Left accent border */}
+                <div className={`absolute top-0 bottom-0 left-0 w-1 transition-colors ${
+                  campaign.status === 'sent' ? 'bg-green-500' :
+                  campaign.status === 'scheduled' ? 'bg-amber-500' :
+                  campaign.status === 'completed' ? 'bg-blue-500' : 'bg-muted'
+                }`} />
+
+                <CardHeader className="pb-2 pt-5">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-4 pl-2">
                       <div className={
-                        'p-2 rounded-lg ' + 
-                        (campaign.type === 'email' ? 'bg-blue-100' : 'bg-green-100')
+                        'p-2.5 rounded-xl transition-colors duration-300 ' + 
+                        (campaign.type === 'email' ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600')
                       }>
-                        <TypeIcon className={
-                          'h-5 w-5 ' +
-                          (campaign.type === 'email' ? 'text-blue-600' : 'text-green-600')
-                        } />
+                        <TypeIcon className="h-5 w-5" strokeWidth={1.5} />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{campaign.name}</CardTitle>
+                        <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                          <span className={campaign.status === 'cancelled' ? 'line-through text-muted-foreground' : ''}>
+                            {campaign.name}
+                          </span>
+                          {campaign.audience_type && (
+                            <Badge variant="outline" className="ml-2 text-xs font-normal border-primary/20 text-primary">
+                              {campaign.audience_type}
+                            </Badge>
+                          )}
+                        </CardTitle>
                         {campaign.subject && (
-                          <CardDescription className="mt-1">
+                          <CardDescription className="mt-1.5 text-sm">
+                            <span className="font-medium text-foreground/80">Subject: </span>
                             {campaign.subject}
                           </CardDescription>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       {getStatusBadge(campaign.status)}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={function() { 
-                            setEditingCampaign(campaign); 
-                            setShowForm(true); 
-                          }}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
+                        <DropdownMenuContent align="end" className="w-40" onClick={(e) => e.stopPropagation()}>
+                          {!['sent', 'completed', 'cancelled'].includes(campaign.status) && (
+                            <DropdownMenuItem onClick={function(e) { 
+                              e.stopPropagation();
+                              setEditingCampaign(campaign); 
+                              setShowForm(true); 
+                            }}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
                           {campaign.status === 'draft' && (
-                            <DropdownMenuItem onClick={function() { setSendCampaign(campaign); }}>
+                            <DropdownMenuItem onClick={function(e) { 
+                              e.stopPropagation();
+                              setSendCampaign(campaign); 
+                            }}>
                               <Send className="h-4 w-4 mr-2" />
                               Send Now
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={function() { setDeleteCampaign(campaign); }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          {campaign.status !== 'active' && campaign.status !== 'cancelled' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-red-600 focus:text-red-600 focus:bg-red-100"
+                                onClick={function(e) { 
+                                  e.stopPropagation();
+                                  setDeleteCampaign(campaign); 
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
+                
+                <CardContent className="pb-4 pl-16">
+                  <div className="flex items-center gap-8 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
                       <Users className="h-4 w-4" />
-                      <span>{campaign.recipients_count || 0} recipients</span>
+                      <span><strong className="text-foreground">{campaign.recipient_count || 0}</strong> recipients</span>
                     </div>
-                    {campaign.audience_type && (
-                      <div>
-                        Audience: {campaign.audience_type}
-                      </div>
-                    )}
-                    {campaign.sent_at && (
-                      <div>
-                        Sent: {format(new Date(campaign.sent_at), 'MMM d, yyyy HH:mm')}
+                    {campaign.completed_at && (
+                      <div className="flex items-center gap-1.5">
+                        <Send className="h-4 w-4" />
+                        <span>Sent on <strong className="text-foreground">{format(new Date(campaign.completed_at), 'MMM d, yyyy')}</strong></span>
                       </div>
                     )}
                     {campaign.scheduled_at && campaign.status === 'scheduled' && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 text-amber-600">
                         <Clock className="h-4 w-4" />
-                        Scheduled: {format(new Date(campaign.scheduled_at), 'MMM d, yyyy HH:mm')}
+                        <span>Scheduled: <strong className="text-foreground">{format(new Date(campaign.scheduled_at), 'MMM d, HH:mm')}</strong></span>
                       </div>
                     )}
                   </div>
                 </CardContent>
-                {campaign.status === 'sent' && (
-                  <CardFooter className="pt-2 border-t">
-                    <div className="flex items-center gap-6 text-sm">
-                      {campaign.open_rate !== undefined && (
-                        <div>
-                          <span className="text-muted-foreground">Open Rate: </span>
-                          <span className="font-medium">{campaign.open_rate}%</span>
+                
+                {['sent', 'completed'].includes(campaign.status) && (
+                  <CardFooter className="pt-3 pb-3 bg-muted/20 border-t mt-auto">
+                    <div className="flex items-center gap-8 text-sm w-full pl-10">
+                      {campaign.open_rate !== undefined ? (
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Open Rate</span>
+                          <span className="font-medium text-base">{campaign.open_rate}%</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Open Rate</span>
+                          <span className="font-medium text-base">--</span>
                         </div>
                       )}
-                      {campaign.click_rate !== undefined && (
-                        <div>
-                          <span className="text-muted-foreground">Click Rate: </span>
-                          <span className="font-medium">{campaign.click_rate}%</span>
+                      
+                      {campaign.click_rate !== undefined ? (
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Click Rate</span>
+                          <span className="font-medium text-base">{campaign.click_rate}%</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Click Rate</span>
+                          <span className="font-medium text-base">--</span>
                         </div>
                       )}
                     </div>

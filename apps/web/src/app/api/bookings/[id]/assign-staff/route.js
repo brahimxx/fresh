@@ -20,7 +20,7 @@ export async function PUT(request, { params }) {
     }
 
     // Only salon owner, manager, or admin can reassign staff
-    const isOwner = booking.owner_id === session.userId;
+    const isOwner = Number(booking.owner_id) === Number(session.userId);
     const isAdmin = session.role === 'admin';
 
     let isManager = false;

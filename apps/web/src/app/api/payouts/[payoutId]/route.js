@@ -20,7 +20,7 @@ export async function GET(request, { params }) {
       return notFound('Payout not found');
     }
 
-    if (session.role !== 'admin' && payout.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(payout.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to view this payout');
     }
 

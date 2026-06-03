@@ -20,8 +20,8 @@ export async function PUT(request, { params }) {
     }
 
     // Check authorization (client, salon owner, or staff)
-    const isClient = booking.client_id === session.userId;
-    const isOwner = booking.owner_id === session.userId;
+    const isClient = Number(booking.client_id) === Number(session.userId);
+    const isOwner = Number(booking.owner_id) === Number(session.userId);
     const isAdmin = session.role === 'admin';
 
     let isStaff = false;

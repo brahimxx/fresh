@@ -28,9 +28,9 @@ export async function POST(request) {
             [session.userId]
         );
 
-        // Create a new token with the updated role
+        // Create a new token with the updated role — userId cast to Number.
         const newToken = await createToken({
-            userId: user.id,
+            userId: Number(user.id),
             email: user.email,
             role: user.role,
         });

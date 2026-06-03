@@ -2,21 +2,9 @@ import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { success, error, created, forbidden } from "@/lib/response";
+import { checkSalonAccess } from '@/lib/permissions-server';
 
-// Helper to check salon access
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
-  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
-    salonId,
-  ]);
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager') AND is_active = 1",
-    [salonId, userId],
-  );
-  return !!staff;
-}
+
 
 // GET /api/staff - Get all staff (optionally filtered by salon_id)
 export async function GET(request) {
@@ -160,7 +148,7 @@ export async function POST(request) {
 
     if (session.role !== 'admin') {
       const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salon_id]);
-      const isOwner = salon && salon.owner_id === session.userId;
+      const isOwner = salon && Number(salon.owner_id) === Number(session.userId);
 
       if (!isOwner) {
         // Non-owner: can only create roles below their own

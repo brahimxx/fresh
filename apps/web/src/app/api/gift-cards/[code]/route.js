@@ -70,7 +70,7 @@ export async function PUT(request, { params }) {
     const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [giftCard.salon_id]);
     if (!salon) return notFound('Salon not found');
 
-    if (session.role !== 'admin' && salon.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(salon.owner_id) !== Number(session.userId)) {
       const staff = await getOne(
         "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager') AND is_active = 1",
         [giftCard.salon_id, session.userId]

@@ -25,7 +25,7 @@ export async function POST(request, { params }) {
     if (!booking) return notFound('Booking not found');
 
     // Only owner, admin, or staff can send payment links
-    if (session.role !== 'admin' && booking.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(booking.owner_id) !== Number(session.userId)) {
       const staff = await getOne(
         'SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
         [booking.salon_id, session.userId]

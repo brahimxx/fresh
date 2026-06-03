@@ -27,12 +27,15 @@ export function SalonProvider({ children }) {
     // Admin fast-return: admins always get owner-level access
     if (user.role === 'admin') return { staffRole: 'owner', staffId: null, customPermissions: null };
 
-    // Check if user is the salon owner
-    if (salon.ownerId === user.id) return { staffRole: 'owner', staffId: null, customPermissions: null };
+    // Check if user is the salon owner.
+    // Use Number() on both sides: the API returns salon.ownerId as a MySQL integer
+    // while user.id from /auth/me is also a number, but defensive coercion ensures
+    // old JWTs with string-serialised IDs still resolve correctly.
+    if (Number(salon.ownerId) === Number(user.id)) return { staffRole: 'owner', staffId: null, customPermissions: null };
 
     // Otherwise, find the user's staff record in this salon
     const staffRecord = (salon.staff || []).find(
-      (s) => s.userId === user.id && s.isActive
+      (s) => Number(s.userId) === Number(user.id) && s.isActive
     );
 
     if (staffRecord) {

@@ -16,7 +16,7 @@ export async function GET(request, { params }) {
       return error('Salon not found', 404);
     }
 
-    if (session.role !== 'admin' && salon.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(salon.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to view payouts');
     }
 

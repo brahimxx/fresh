@@ -2,18 +2,9 @@ import { query, getOne, execute } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, forbidden, notFound } from '@/lib/response';
 import { validate, replyReviewSchema } from '@/lib/validate';
+import { checkSalonAccess } from '@/lib/permissions-server';
 
-// Helper to check salon access
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (salon && salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId]
-  );
-  return !!staff;
-}
+
 
 // PATCH /api/salons/[id]/reviews/[reviewId]/reply
 export async function PATCH(request, { params }) {

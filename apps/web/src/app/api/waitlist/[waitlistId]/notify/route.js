@@ -21,7 +21,7 @@ export async function POST(request, { params }) {
       return notFound('Waitlist entry not found');
     }
 
-    if (session.role !== 'admin' && entry.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(entry.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to notify this client');
     }
 

@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import { verifyAuth } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/response";
+import { decodeId } from "@/lib/id";
 
 // GET /api/campaigns - List all campaigns for the salon
 export async function GET(request) {
@@ -22,9 +23,19 @@ export async function GET(request) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status");
     const type = searchParams.get("type");
+    const encodedSalonId = searchParams.get("salon_id");
+    
+    let actualSalonId = auth.salonId;
+    if (!actualSalonId && encodedSalonId) {
+      actualSalonId = decodeId(encodedSalonId);
+    }
+    
+    if (!actualSalonId) {
+      return errorResponse("Salon ID is required", 400);
+    }
 
     let whereClause = "WHERE salon_id = ?";
-    const params = [auth.salonId];
+    const params = [actualSalonId];
 
     if (search) {
       whereClause += " AND (name LIKE ? OR subject LIKE ?)";
@@ -91,7 +102,17 @@ export async function POST(request) {
       target_audience = "all",
       status = "draft",
       scheduled_at,
+      salon_id
     } = body;
+    
+    let actualSalonId = auth.salonId;
+    if (!actualSalonId && salon_id) {
+      actualSalonId = decodeId(salon_id);
+    }
+    
+    if (!actualSalonId) {
+      return errorResponse("Salon ID is required", 400);
+    }
 
     // Validation
     if (!name || name.trim() === "") {
@@ -130,7 +151,7 @@ export async function POST(request) {
       `INSERT INTO campaigns (salon_id, name, type, subject, content, target_audience, status, scheduled_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        auth.salonId,
+        actualSalonId,
         name.trim(),
         type,
         subject || null,

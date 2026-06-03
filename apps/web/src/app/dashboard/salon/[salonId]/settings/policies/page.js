@@ -45,6 +45,7 @@ export default function PoliciesPage() {
     no_show_fee_amount: 50,
     booking_buffer_minutes: 0,
     max_advance_booking_days: 60,
+    deduct_discounts_before_commission: false,
   });
   
   // Load saved policies
@@ -442,6 +443,33 @@ export default function PoliciesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </motion.div>
+
+            {/* Payroll Policies */}
+            <motion.div variants={itemVariants} className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center gap-3 border-b border-border/50 pb-6 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold tracking-tight">Payroll & Commissions</h2>
+                  <p className="text-sm text-muted-foreground">Internal rules for staff payouts</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between p-5 rounded-2xl border border-border/50 bg-muted/20 hover:bg-muted/30 transition-colors">
+                <div className="pr-4">
+                  <Label className="text-base font-bold text-foreground">Deduct Promo Discounts from Commissions</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    If enabled, the cost of promotional discounts (e.g. $20 off) will be deducted from the service revenue before staff commission is calculated, so staff share the cost of the promo. If disabled, the salon absorbs the full cost of the promo.
+                  </p>
+                </div>
+                <Switch
+                  checked={policies.deduct_discounts_before_commission}
+                  onCheckedChange={function(checked) { updatePolicy('deduct_discounts_before_commission', checked); }}
+                  className="data-[state=checked]:bg-primary shrink-0"
+                />
               </div>
             </motion.div>
           </div>

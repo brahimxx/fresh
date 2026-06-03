@@ -1,6 +1,7 @@
 import { decodeId } from '@/lib/id';
 import pool, { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { checkSalonAccess } from '@/lib/permissions-server';
 import {
   success,
   error,
@@ -15,20 +16,7 @@ import {
 
 // Any active staff member of the salon may read/edit its clients.
 // (Consistent with /api/clients/route.js — managers AND receptionists.)
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
-  const salon = await getOne(
-    "SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL",
-    [salonId],
-  );
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId],
-  );
-  return !!staff;
-}
+
 
 // Strip whitespace / dashes / dots so "0555 12-34" and "055512-34"
 // resolve to the same string for duplicate detection.

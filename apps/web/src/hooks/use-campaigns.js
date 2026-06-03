@@ -190,3 +190,65 @@ export function useScheduleCampaign() {
     },
   });
 }
+
+// === AUTOMATED CAMPAIGNS ===
+
+export function useAutomatedCampaigns(salonId) {
+  return useQuery({
+    queryKey: [...campaignKeys.all, 'automated', salonId],
+    queryFn: async function() {
+      var res = await fetch('/api/salons/' + salonId + '/marketing/automated');
+      if (!res.ok) throw new Error('Failed to fetch automated campaigns');
+      var json = await res.json();
+      return json.data || [];
+    },
+    enabled: !!salonId,
+  });
+}
+
+export function useUpdateAutomatedCampaign(salonId) {
+  var queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async function(params) {
+      var autoId = params.autoId;
+      var data = params.data;
+      
+      var res = await fetch('/api/salons/' + salonId + '/marketing/automated/' + autoId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        var error = await res.json();
+        throw new Error(error.message || 'Failed to update automation');
+      }
+      return res.json();
+    },
+    onSuccess: function() {
+      queryClient.invalidateQueries({ queryKey: [...campaignKeys.all, 'automated', salonId] });
+    },
+  });
+}
+
+export function useCreateAutomatedCampaign(salonId) {
+  var queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async function(data) {
+      var res = await fetch('/api/salons/' + salonId + '/marketing/automated', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        var error = await res.json();
+        throw new Error(error.message || 'Failed to create automation');
+      }
+      return res.json();
+    },
+    onSuccess: function() {
+      queryClient.invalidateQueries({ queryKey: [...campaignKeys.all, 'automated', salonId] });
+    },
+  });
+}

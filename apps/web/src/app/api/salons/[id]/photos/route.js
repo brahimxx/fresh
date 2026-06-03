@@ -7,7 +7,7 @@ import { success, error, created, unauthorized, forbidden } from '@/lib/response
 async function checkSalonOwnership(salonId, userId, role) {
   if (role === 'admin') return true;
   const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  return salon && salon.owner_id === userId;
+  return salon && Number(salon.owner_id) === Number(userId);
 }
 
 // GET /api/salons/[id]/photos - Get salon photos

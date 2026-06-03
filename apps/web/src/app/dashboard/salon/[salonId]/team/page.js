@@ -184,7 +184,7 @@ function TeamContent({ params }) {
           )
         }
       >
-        <div className="absolute inset-0 bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-lg pointer-events-none" />
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl transition-transform duration-300  group-hover:shadow-lg pointer-events-none" />
         <div className="relative overflow-hidden rounded-3xl h-full flex flex-col pt-0">
           {/* Top aesthetic banner */}
           <div

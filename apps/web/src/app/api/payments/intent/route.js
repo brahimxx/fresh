@@ -32,7 +32,7 @@ export async function POST(request) {
     }
 
     // Allow: admin, the booking's client, the salon owner, or salon staff
-    if (session.role !== 'admin' && booking.client_id !== session.userId && booking.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(booking.client_id) !== Number(session.userId) && Number(booking.owner_id) !== Number(session.userId)) {
       const staff = await getOne(
         'SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
         [booking.salon_id, session.userId]

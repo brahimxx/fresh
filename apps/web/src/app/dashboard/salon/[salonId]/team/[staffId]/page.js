@@ -79,7 +79,7 @@ export default function StaffDetailPage({ params }) {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-6xl mx-auto px-2 pt-4">
+      <div className="space-y-6">
         <div className="flex items-center gap-6">
           <Skeleton className="h-28 w-28 rounded-3xl" />
           <div className="space-y-3">
@@ -122,11 +122,11 @@ export default function StaffDetailPage({ params }) {
   const bgColor = staff.color || "#09090b";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-24 px-4 sm:px-8 mt-4">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Navigation Breadcrumb */}
       <Button
         variant="ghost"
-        className="text-muted-foreground hover:text-foreground pl-0 -ml-2 hover:bg-transparent font-bold text-[13px] tracking-wider uppercase h-auto pb-2"
+        className=" text-muted-foreground hover:text-foreground pl-0 -ml-2 hover:bg-transparent font-bold text-[13px] tracking-wider uppercase h-auto pb-2"
         onClick={() =>
           router.push(`/dashboard/salon/${encodeId(salonId)}/team`)
         }
@@ -135,7 +135,7 @@ export default function StaffDetailPage({ params }) {
       </Button>
 
       {/* Profile Header Pane */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4 }}
@@ -192,8 +192,8 @@ export default function StaffDetailPage({ params }) {
 
                 <div className="flex shrink-0 gap-3 items-center">
                   {canEdit && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="h-12 px-6 rounded-xl shadow-sm border-border/50 bg-background/50 backdrop-blur-md hover:bg-background font-bold text-[14px]"
                       onClick={() => setScheduleDialogOpen(true)}
                     >
@@ -202,7 +202,7 @@ export default function StaffDetailPage({ params }) {
                     </Button>
                   )}
                   {canEdit && (
-                    <Button 
+                    <Button
                       className="h-12 px-6 rounded-xl shadow-md font-bold text-[14px]"
                       onClick={() => setStaffFormOpen(true)}
                     >
@@ -232,7 +232,7 @@ export default function StaffDetailPage({ params }) {
                 key={tab.id}
                 value={tab.id}
                 className={cn(
-                  "data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg py-2.5 px-4 sm:px-6 font-bold text-[13px] transition-all",
+                  "cursor-pointer data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-lg py-2.5 px-4 sm:px-6 font-bold text-[13px] transition-all",
                   "hover:bg-background/50 text-muted-foreground uppercase tracking-wider"
                 )}
               >
@@ -258,13 +258,13 @@ export default function StaffDetailPage({ params }) {
           <TabsContent value="workplace" className="mt-0 outline-none">
             <Tabs defaultValue="services" className="space-y-6">
               <TabsList className="bg-muted/40 p-1.5 rounded-xl border border-border/50">
-                <TabsTrigger value="services" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="services" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Services
                 </TabsTrigger>
-                <TabsTrigger value="locations" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="locations" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Locations
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="settings" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Settings
                 </TabsTrigger>
               </TabsList>
@@ -292,13 +292,13 @@ export default function StaffDetailPage({ params }) {
           <TabsContent value="pay" className="mt-0 outline-none">
             <Tabs defaultValue="wages" className="space-y-6">
               <TabsList className="bg-muted/40 p-1.5 rounded-xl border border-border/50">
-                <TabsTrigger value="wages" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="wages" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Wages & Timesheets
                 </TabsTrigger>
-                <TabsTrigger value="commissions" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="commissions" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Commissions
                 </TabsTrigger>
-                <TabsTrigger value="payruns" className="rounded-lg font-bold text-[13px] px-4">
+                <TabsTrigger value="payruns" className="cursor-pointer rounded-lg font-bold text-[13px] px-4">
                   Pay Runs
                 </TabsTrigger>
               </TabsList>

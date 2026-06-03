@@ -11,6 +11,10 @@ export var staffKeys = {
   schedule: function(id) { return [...staffKeys.all, 'schedule', id]; },
   services: function(id) { return [...staffKeys.all, 'services', id]; },
   commissions: function(id) { return [...staffKeys.all, 'commissions', id]; },
+  locations: function(id) { return [...staffKeys.all, 'locations', id]; },
+  wages: function(id) { return [...staffKeys.all, 'wages', id]; },
+  timesheets: function(id) { return [...staffKeys.all, 'timesheets', id]; },
+  payRuns: function(id) { return [...staffKeys.all, 'pay-runs', id]; },
   availability: function(salonId, date, serviceId) { return [...staffKeys.all, 'availability', salonId, date, serviceId]; },
 };
 
@@ -210,8 +214,235 @@ export function useStaffCommissions(staffId, options) {
     queryKey: staffKeys.commissions(staffId),
     queryFn: function() { return api.get('/staff/' + staffId + '/commissions'); },
     enabled: !!staffId,
-    select: function(response) { return response.data?.commissions || []; },
+    select: function(response) { return response.data; },
     ...resolvedOptions,
+  });
+}
+
+export function useUpdateStaffCommissions() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/commissions', params.data); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.commissions(variables.staffId) });
+      toast.success('Commission structure updated');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to update commissions');
+    },
+  });
+}
+
+export function useStaffLocations(staffId, options) {
+  var resolvedOptions = options ?? {};
+  return useQuery({
+    queryKey: staffKeys.locations(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/locations'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data; },
+    ...resolvedOptions,
+  });
+}
+
+export function useUpdateStaffLocations() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.put('/staff/' + params.staffId + '/locations', { locations: params.locations }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.locations(variables.staffId) });
+      toast.success('Locations updated successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to update locations');
+    },
+  });
+}
+
+// ============ WAGES HOOKS ============
+
+export function useStaffWages(staffId, options) {
+  var resolvedOptions = options ?? {};
+  return useQuery({
+    queryKey: staffKeys.wages(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/wages'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data; },
+    ...resolvedOptions,
+  });
+}
+
+export function useUpdateStaffWages() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/wages', params.data); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.wages(variables.staffId) });
+      toast.success('Wage configuration updated successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to update wages');
+    },
+  });
+}
+
+// ============ TIMESHEET HOOKS ============
+
+export function useStaffTimesheets(staffId, options) {
+  var resolvedOptions = options ?? {};
+  return useQuery({
+    queryKey: staffKeys.timesheets(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/timesheets'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data || []; },
+    ...resolvedOptions,
+  });
+}
+
+export function useApproveTimesheet() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/timesheets', { action: 'approve', timesheetId: params.timesheetId }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.timesheets(variables.staffId) });
+      toast.success('Timesheet hours approved');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to approve timesheet');
+    },
+  });
+}
+
+export function useCreateTimesheet() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/timesheets', { action: 'create', ...params.data }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.timesheets(variables.staffId) });
+      toast.success('Manual timesheet entry logged successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to add timesheet entry');
+    },
+  });
+}
+
+export function useEditTimesheet() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/timesheets', { action: 'edit', ...params.data }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.timesheets(variables.staffId) });
+      toast.success('Timesheet entry updated successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to update timesheet entry');
+    },
+  });
+}
+
+export function useDeleteTimesheet() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/timesheets', { action: 'delete', timesheetId: params.timesheetId }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.timesheets(variables.staffId) });
+      toast.success('Timesheet entry removed successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to remove timesheet entry');
+    },
+  });
+}
+
+export function useAutoFillTimesheets() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/timesheets/auto-fill', params.data); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.timesheets(variables.staffId) });
+      toast.success(response.message || 'Timesheets auto-filled successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to auto-fill timesheets');
+    },
+  });
+}
+
+
+// ============ PAY RUNS HOOKS ============
+
+export function useStaffPayRuns(staffId, options) {
+  var resolvedOptions = options ?? {};
+  return useQuery({
+    queryKey: staffKeys.payRuns(staffId),
+    queryFn: function() { return api.get('/staff/' + staffId + '/pay-runs'); },
+    enabled: !!staffId,
+    select: function(response) { return response.data || []; },
+    ...resolvedOptions,
+  });
+}
+
+export function useGeneratePayRun() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.post('/staff/' + params.staffId + '/pay-runs', { periodStart: params.periodStart, periodEnd: params.periodEnd }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.payRuns(variables.staffId) });
+      toast.success('Pay run generated successfully');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to generate pay run');
+    },
+  });
+}
+
+export function useUpdatePayRunStatus() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.patch('/staff/' + params.staffId + '/pay-runs/' + params.payRunId, { status: params.status }); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.payRuns(variables.staffId) });
+      toast.success('Pay run status updated');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to update pay run status');
+    },
+  });
+}
+
+export function useDeletePayRun() {
+  var queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function(params) { 
+      return api.delete('/staff/' + params.staffId + '/pay-runs/' + params.payRunId); 
+    },
+    onSuccess: function(response, variables) {
+      queryClient.invalidateQueries({ queryKey: staffKeys.payRuns(variables.staffId) });
+      toast.success('Pay run deleted');
+    },
+    onError: function(error) {
+      toast.error(error.message || 'Failed to delete pay run');
+    },
   });
 }
 

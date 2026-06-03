@@ -10,7 +10,7 @@ async function checkDiscountAccess(discountId, userId, role) {
   );
   if (!discount) return { access: false, discount: null };
   if (role === 'admin') return { access: true, discount };
-  if (discount.owner_id === userId) return { access: true, discount };
+  if (Number(discount.owner_id) === Number(userId)) return { access: true, discount };
   return { access: false, discount: null };
 }
 

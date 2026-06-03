@@ -71,16 +71,16 @@ export async function POST(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, description, price, sku, stockQuantity, categoryId, isActive = true } = body;
+    const { name, description, price, cost_price, sku, stockQuantity, categoryId, isActive = true } = body;
 
     if (!name || price === undefined) {
       return error('Name and price are required');
     }
 
     const result = await query(
-      `INSERT INTO products (salon_id, name, description, price, sku, stock_quantity, category_id, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [id, name, description || null, price, sku || null, stockQuantity || 0, categoryId || null, isActive]
+      `INSERT INTO products (salon_id, name, description, price, cost_price, sku, stock_quantity, category_id, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [id, name, description || null, price, cost_price || 0, sku || null, stockQuantity || 0, categoryId || null, isActive]
     );
 
     return created({

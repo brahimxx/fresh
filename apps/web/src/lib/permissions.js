@@ -409,4 +409,3 @@ export function canChangeStaffRole(actorRole, targetRole, isSelf = false) {
   return actorRole === 'owner';
 }
 
-

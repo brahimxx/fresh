@@ -29,7 +29,7 @@ async function checkBookingAccess(bookingId, userId, userRole) {
   }
 
   // Owner has access to their salon's bookings
-  if (booking.owner_id === userId) {
+  if (Number(booking.owner_id) === Number(userId)) {
     return { access: true, booking };
   }
 

@@ -17,7 +17,7 @@ async function checkBookingAccess(bookingId, userId, role) {
   );
   if (!booking) return { access: false, booking: null };
   if (role === 'admin') return { access: true, booking };
-  if (booking.owner_id === userId) return { access: true, booking };
+  if (Number(booking.owner_id) === Number(userId)) return { access: true, booking };
   const staff = await getOne(
     'SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1',
     [booking.salon_id, userId]

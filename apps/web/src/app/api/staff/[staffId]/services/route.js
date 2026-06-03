@@ -2,33 +2,9 @@ import { decodeId } from '@/lib/id';
 import { query, getOne } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { success, error, notFound, forbidden } from "@/lib/response";
+import { checkStaffAccess } from '@/lib/permissions-server';
 
-// Helper to check staff access
-async function checkStaffAccess(staffId, userId, role) {
-  if (role === "admin") return true;
 
-  const staff = await getOne(
-    "SELECT s.*, sa.owner_id FROM staff s JOIN salons sa ON sa.id = s.salon_id WHERE s.id = ?",
-    [staffId]
-  );
-
-  if (!staff) return null;
-
-  // Owner has access
-  if (staff.owner_id === userId) return staff;
-
-  // Manager has access
-  const isManager = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [staff.salon_id, userId]
-  );
-  if (isManager) return staff;
-
-  // Staff member can view their own data
-  if (staff.user_id === userId) return staff;
-
-  return null;
-}
 
 // GET /api/staff/[staffId]/services - Get staff member's assigned services
 export async function GET(request, { params }) {
@@ -44,9 +20,10 @@ export async function GET(request, { params }) {
 
     // Get assigned services
     const services = await query(
-      `SELECT s.id, s.name, s.description, s.duration_minutes, s.price, s.category_id
+      `SELECT s.id, s.name, s.description, s.duration_minutes, s.price, s.category_id, sc.name as category_name
        FROM services s
        JOIN service_staff ss ON ss.service_id = s.id
+       LEFT JOIN service_categories sc ON s.category_id = sc.id
        WHERE ss.staff_id = ?
        ORDER BY s.name ASC`,
       [staffId]
@@ -60,6 +37,7 @@ export async function GET(request, { params }) {
         duration: s.duration_minutes,
         price: s.price,
         categoryId: s.category_id,
+        category_name: s.category_name,
       }))
     );
   } catch (err) {
@@ -82,8 +60,9 @@ export async function PUT(request, { params }) {
       return notFound("Staff member not found or access denied");
     }
 
-    // Only owner or manager can update services (not self)
-    if (session.role !== "admin" && staff.user_id === session.userId) {
+    // Only owner or manager can update services. Regular staff cannot update their own services.
+    const isOwner = Number(staff.owner_id) === Number(session.userId);
+    if (session.role !== "admin" && !isOwner && Number(staff.user_id) === Number(session.userId)) {
       return forbidden("You cannot modify your own service assignments");
     }
 

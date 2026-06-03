@@ -140,7 +140,7 @@ export async function POST(request) {
 
     // Create Email Verification Token
     const verificationToken = await createToken(
-      { type: "email_verification", userId, email },
+      { type: "email_verification", userId: Number(userId), email },
       { expiresIn: "24h" },
     );
 
@@ -154,9 +154,9 @@ export async function POST(request) {
       text: `Welcome to Fresh! Please verify your email by clicking the following link: ${verifyUrl}`,
     }).catch((e) => console.error("Email send failed, continuing:", e));
 
-    // Create standard auth token
+    // Create standard auth token — userId cast to Number for ownership comparisons.
     const token = await createToken({
-      userId,
+      userId: Number(userId),
       email,
       role,
     });

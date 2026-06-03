@@ -2,25 +2,14 @@ import { decodeId } from '@/lib/id';
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, forbidden } from '@/lib/response';
-
-// Helper to check salon access
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (salon && salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId]
-  );
-  return !!staff;
-}
+import { checkSalonAccess } from '@/lib/permissions-server';
 
 // GET /api/salons/[id]/commissions - Get commission settings and data
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
     const { id: rawId } = await params;
-  const id = decodeId(rawId);
+    const id = decodeId(rawId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
@@ -30,71 +19,198 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const staffId = searchParams.get('staffId');
+    const filterStaffId = searchParams.get('staffId');
 
-    // Get commission settings for all staff
+    // 1. Get current commission settings for all salon staff (latest active structure where effective_to is null)
     const staffSettings = await query(
       `SELECT sc.*, st.id as staff_id, u.first_name, u.last_name
        FROM staff_commissions sc
        JOIN staff st ON st.id = sc.staff_id
        JOIN users u ON u.id = st.user_id
-       WHERE st.salon_id = ? AND st.is_active = 1`,
+       WHERE st.salon_id = ? AND st.is_active = 1 AND sc.effective_to IS NULL`,
       [id]
     );
 
-    // Build commission data query
-    let dataQuery = `
+    // 2. Fetch completed booking services for all salon staff with their historically active rates
+    let servicesSql = `
       SELECT 
-        st.id as staff_id,
-        u.first_name,
-        u.last_name,
-        COUNT(DISTINCT b.id) as total_bookings,
-        COALESCE(SUM(p.amount), 0) as total_revenue,
-        COALESCE(SUM(bs.price), 0) as services_revenue
+        b.staff_id,
+        bs.price as service_price,
+        sc.commission_type,
+        sc.service_commission as default_rate,
+        sic.commission_rate as override_rate
+      FROM bookings b
+      JOIN booking_services bs ON bs.booking_id = b.id
+      JOIN staff st ON st.id = b.staff_id
+      LEFT JOIN staff_commissions sc ON sc.staff_id = b.staff_id 
+        AND b.start_datetime >= sc.effective_from 
+        AND (sc.effective_to IS NULL OR b.start_datetime < sc.effective_to)
+      LEFT JOIN staff_item_commissions sic ON sic.staff_commission_id = sc.id 
+        AND sic.item_type = 'service' AND sic.item_id = bs.service_id
+      WHERE st.salon_id = ? AND b.status = 'completed'
+    `;
+    const servicesParams = [id];
+    if (startDate && endDate) {
+      servicesSql += ' AND DATE(b.start_datetime) BETWEEN ? AND ?';
+      servicesParams.push(startDate, endDate);
+    }
+    if (filterStaffId) {
+      servicesSql += ' AND b.staff_id = ?';
+      servicesParams.push(filterStaffId);
+    }
+    const serviceItems = await query(servicesSql, servicesParams);
+
+    // 3. Fetch completed booking products with historical rates
+    let productsSql = `
+      SELECT 
+        b.staff_id,
+        bp.total_price as product_total,
+        sc.product_commission as default_rate,
+        sic.commission_rate as override_rate
+      FROM bookings b
+      JOIN booking_products bp ON bp.booking_id = b.id
+      JOIN staff st ON st.id = b.staff_id
+      LEFT JOIN staff_commissions sc ON sc.staff_id = b.staff_id 
+        AND b.start_datetime >= sc.effective_from 
+        AND (sc.effective_to IS NULL OR b.start_datetime < sc.effective_to)
+      LEFT JOIN staff_item_commissions sic ON sic.staff_commission_id = sc.id 
+        AND sic.item_type = 'product' AND sic.item_id = bp.product_id
+      WHERE st.salon_id = ? AND b.status = 'completed'
+    `;
+    const productsParams = [id];
+    if (startDate && endDate) {
+      productsSql += ' AND DATE(b.start_datetime) BETWEEN ? AND ?';
+      productsParams.push(startDate, endDate);
+    }
+    if (filterStaffId) {
+      productsSql += ' AND b.staff_id = ?';
+      productsParams.push(filterStaffId);
+    }
+    const productItems = await query(productsSql, productsParams);
+
+    // 4. Fetch tips with historical rates
+    let tipsSql = `
+      SELECT 
+        b.staff_id,
+        pay.tip_amount,
+        sc.tip_commission as tip_rate
+      FROM bookings b
+      JOIN payments pay ON pay.booking_id = b.id AND pay.status = 'paid'
+      JOIN staff st ON st.id = b.staff_id
+      LEFT JOIN staff_commissions sc ON sc.staff_id = b.staff_id 
+        AND b.start_datetime >= sc.effective_from 
+        AND (sc.effective_to IS NULL OR b.start_datetime < sc.effective_to)
+      WHERE st.salon_id = ? AND b.status = 'completed'
+    `;
+    const tipsParams = [id];
+    if (startDate && endDate) {
+      tipsSql += ' AND DATE(b.start_datetime) BETWEEN ? AND ?';
+      tipsParams.push(startDate, endDate);
+    }
+    if (filterStaffId) {
+      tipsSql += ' AND b.staff_id = ?';
+      tipsParams.push(filterStaffId);
+    }
+    const tipItems = await query(tipsSql, tipsParams);
+
+    // 5. Fetch booking counts per staff
+    let bookingsSql = `
+      SELECT 
+        b.staff_id,
+        COUNT(DISTINCT b.id) as total_bookings
+      FROM bookings b
+      JOIN staff st ON st.id = b.staff_id
+      WHERE st.salon_id = ? AND b.status = 'completed'
+    `;
+    const bookingsParams = [id];
+    if (startDate && endDate) {
+      bookingsSql += ' AND DATE(b.start_datetime) BETWEEN ? AND ?';
+      bookingsParams.push(startDate, endDate);
+    }
+    if (filterStaffId) {
+      bookingsSql += ' AND b.staff_id = ?';
+      bookingsParams.push(filterStaffId);
+    }
+    bookingsSql += ' GROUP BY b.staff_id';
+    const bookingCounts = await query(bookingsSql, bookingsParams);
+
+    // Get all active staff in salon
+    let staffQuery = `
+      SELECT st.id as staff_id, u.first_name, u.last_name
       FROM staff st
       JOIN users u ON u.id = st.user_id
-      LEFT JOIN bookings b ON b.staff_id = st.id AND b.status = 'completed'
-      LEFT JOIN payments p ON p.booking_id = b.id AND p.status = 'paid'
-      LEFT JOIN booking_services bs ON bs.booking_id = b.id
       WHERE st.salon_id = ? AND st.is_active = 1
     `;
-    const dataParams = [id];
-
-    if (startDate && endDate) {
-      dataQuery += ' AND DATE(b.start_datetime) BETWEEN ? AND ?';
-      dataParams.push(startDate, endDate);
+    const staffParams = [id];
+    if (filterStaffId) {
+      staffQuery += ' AND st.id = ?';
+      staffParams.push(filterStaffId);
     }
+    const salonStaff = await query(staffQuery, staffParams);
 
-    if (staffId) {
-      dataQuery += ' AND st.id = ?';
-      dataParams.push(staffId);
-    }
+    // Build aggregate report
+    const staffWithCommissions = salonStaff.map((st) => {
+      const staffId = st.staff_id;
+      const settings = staffSettings.find((s) => Number(s.staff_id) === Number(staffId));
+      
+      const bkCount = bookingCounts.find(b => Number(b.staff_id) === Number(staffId));
+      const totalBookings = bkCount ? parseInt(bkCount.total_bookings) : 0;
 
-    dataQuery += ' GROUP BY st.id, u.first_name, u.last_name';
+      // Filter items for this staff member
+      const myServices = serviceItems.filter(item => Number(item.staff_id) === Number(staffId));
+      const myProducts = productItems.filter(item => Number(item.staff_id) === Number(staffId));
+      const myTips = tipItems.filter(item => Number(item.staff_id) === Number(staffId));
 
-    const commissionData = await query(dataQuery, dataParams);
+      let servicesRevenue = 0;
+      let servicesCommission = 0;
 
-    // Calculate commissions
-    const staffWithCommissions = commissionData.map((staff) => {
-      const settings = staffSettings.find((s) => s.staff_id === staff.staff_id);
-      const commissionType = settings?.commission_type || 'percentage';
-      const commissionValue = parseFloat(settings?.service_commission || 0);
+      myServices.forEach((item) => {
+        const price = parseFloat(item.service_price || 0);
+        servicesRevenue += price;
 
-      let commissionAmount = 0;
-      if (commissionType === 'percentage') {
-        commissionAmount = parseFloat(staff.services_revenue) * (commissionValue / 100);
-      } else {
-        commissionAmount = parseFloat(staff.total_bookings) * commissionValue;
-      }
+        const commType = item.commission_type || 'percentage';
+        const rate = item.override_rate !== null ? parseFloat(item.override_rate) : parseFloat(item.default_rate || 0);
+
+        if (commType === 'percentage') {
+          servicesCommission += price * (rate / 100);
+        } else {
+          servicesCommission += rate; // Flat commission per service
+        }
+      });
+
+      let productsRevenue = 0;
+      let productsCommission = 0;
+
+      myProducts.forEach((item) => {
+        const total = parseFloat(item.product_total || 0);
+        productsRevenue += total;
+
+        const rate = item.override_rate !== null ? parseFloat(item.override_rate) : parseFloat(item.default_rate || 0);
+        productsCommission += total * (rate / 100);
+      });
+
+      let tipsRevenue = 0;
+      let tipsCommission = 0;
+
+      myTips.forEach((item) => {
+        const tip = parseFloat(item.tip_amount || 0);
+        tipsRevenue += tip;
+
+        const rate = parseFloat(item.tip_rate || 100);
+        tipsCommission += tip * (rate / 100);
+      });
+
+      const totalRevenue = servicesRevenue + productsRevenue;
+      const commissionAmount = servicesCommission + productsCommission + tipsCommission;
 
       return {
-        staffId: staff.staff_id,
-        staffName: `${staff.first_name} ${staff.last_name}`,
-        totalBookings: parseInt(staff.total_bookings),
-        totalRevenue: parseFloat(staff.total_revenue),
-        servicesRevenue: parseFloat(staff.services_revenue),
-        commissionType,
-        commissionValue,
+        staffId,
+        staffName: `${st.first_name} ${st.last_name}`,
+        totalBookings,
+        totalRevenue,
+        servicesRevenue,
+        commissionType: settings?.commission_type || 'percentage',
+        commissionValue: parseFloat(settings?.service_commission || 0),
         commissionAmount,
       };
     });
@@ -124,7 +240,7 @@ export async function POST(request, { params }) {
   try {
     const session = await requireAuth();
     const { id: rawId } = await params;
-  const id = decodeId(rawId);
+    const id = decodeId(rawId);
 
     const hasAccess = await checkSalonAccess(id, session.userId, session.role);
     if (!hasAccess) {
@@ -149,17 +265,19 @@ export async function POST(request, { params }) {
     }
 
     // Check if settings exist
-    const existing = await getOne('SELECT id FROM staff_commissions WHERE staff_id = ?', [staffId]);
+    const existing = await getOne('SELECT id FROM staff_commissions WHERE staff_id = ? AND effective_to IS NULL', [staffId]);
+
+    const val = parseFloat(commissionValue);
 
     if (existing) {
       await query(
-        'UPDATE staff_commissions SET commission_type = ?, service_commission = ? WHERE staff_id = ?',
-        [commissionType, commissionValue, staffId]
+        'UPDATE staff_commissions SET commission_type = ?, service_commission = ? WHERE id = ?',
+        [commissionType, val, existing.id]
       );
     } else {
       await query(
-        'INSERT INTO staff_commissions (staff_id, commission_type, service_commission, created_at) VALUES (?, ?, ?, NOW())',
-        [staffId, commissionType, commissionValue]
+        'INSERT INTO staff_commissions (staff_id, commission_type, service_commission, effective_from) VALUES (?, ?, ?, NOW())',
+        [staffId, commissionType, val]
       );
     }
 
@@ -167,7 +285,7 @@ export async function POST(request, { params }) {
       message: 'Commission settings updated successfully',
       staffId,
       commissionType,
-      commissionValue,
+      commissionValue: val,
     });
   } catch (err) {
     if (err.message === 'Unauthorized') return unauthorized();

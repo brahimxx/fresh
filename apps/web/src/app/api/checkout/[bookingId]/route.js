@@ -4,20 +4,11 @@ import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
 import { recordGiftCardTransaction } from '@/lib/gift-card-ledger';
 import Stripe from 'stripe';
+import { checkSalonAccess } from '@/lib/permissions-server';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Helper to check salon access
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === 'admin') return true;
-  const salon = await getOne('SELECT owner_id FROM salons WHERE id = ?', [salonId]);
-  if (salon && salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId]
-  );
-  return !!staff;
-}
+
 
 // GET /api/checkout/[bookingId] - Get checkout details for a booking
 export async function GET(request, { params }) {
@@ -39,7 +30,7 @@ export async function GET(request, { params }) {
     }
 
     const hasAccess = await checkSalonAccess(booking.salon_id, session.userId, session.role);
-    if (!hasAccess && booking.client_id !== session.userId) {
+    if (!hasAccess && Number(booking.client_id) !== Number(session.userId)) {
       return forbidden('Not authorized');
     }
 

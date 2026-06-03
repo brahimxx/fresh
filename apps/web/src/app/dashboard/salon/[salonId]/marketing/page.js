@@ -84,6 +84,17 @@ const MARKETING_SECTIONS = [
     hoverShadow: "hover:shadow-rose-500/10",
     stats: "8 Waiting",
   },
+  {
+    title: "Automations",
+    description: "Manage background smart triggers (birthdays, win-backs, reviews).",
+    href: "automations",
+    icon: Sparkles,
+    bgColor: "bg-fuchsia-500/10",
+    iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
+    hoverBorder: "hover:border-fuchsia-500/30",
+    hoverShadow: "hover:shadow-fuchsia-500/10",
+    stats: "Active",
+  },
 ];
 
 export default function MarketingPage({ params }) {

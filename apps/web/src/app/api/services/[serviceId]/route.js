@@ -7,25 +7,9 @@ import {
   notFound,
   forbidden,
 } from "@/lib/response";
+import { checkServiceAccess } from '@/lib/permissions-server';
 
-// Helper to check salon access via service
-async function checkServiceAccess(serviceId, userId, role) {
-  if (role === "admin") return true;
-  const service = await getOne(
-    `SELECT s.salon_id, sa.owner_id
-     FROM services s
-     JOIN salons sa ON sa.id = s.salon_id
-     WHERE s.id = ?`,
-    [serviceId],
-  );
-  if (!service) return false;
-  if (service.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [service.salon_id, userId],
-  );
-  return !!staff;
-}
+
 
 function deriveOfferingTypeFromFlags(canPhysical, canMobile, canVirtual) {
   const p = !!canPhysical;
@@ -145,6 +129,7 @@ export async function PUT(request, { params }) {
       duration,
       duration_minutes,
       price,
+      cost_price,
       isActive,
       is_active,
       staffIds,
@@ -218,6 +203,10 @@ export async function PUT(request, { params }) {
     if (price !== undefined) {
       updates.push("price = ?");
       values.push(price);
+    }
+    if (cost_price !== undefined) {
+      updates.push("cost_price = ?");
+      values.push(cost_price);
     }
     if (finalActive !== undefined) {
       updates.push("is_active = ?");

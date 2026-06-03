@@ -3,27 +3,9 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
 import { validateShifts } from '@/lib/validate';
+import { canManageStaff } from '@/lib/permissions-server';
 
-// Helper to check if user can manage this staff
-async function canManageStaff(staffId, userId, role) {
-  if (role === 'admin') return true;
-  const staff = await getOne(
-    `SELECT st.*, s.owner_id 
-     FROM staff st 
-     JOIN salons s ON s.id = st.salon_id 
-     WHERE st.id = ?`,
-    [staffId]
-  );
-  if (!staff) return false;
-  if (staff.owner_id === userId) return true;
-  if (staff.user_id === userId) return true;
-  // Check if manager at same salon
-  const manager = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [staff.salon_id, userId]
-  );
-  return !!manager;
-}
+
 
 // GET /api/staff/[staffId]/working-hours - Get staff working hours
 export async function GET(request, { params }) {

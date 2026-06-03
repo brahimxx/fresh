@@ -33,7 +33,7 @@ export async function POST(request, { params }) {
       return errorResponse('Review not found', 404);
     }
 
-    if (review.owner_id !== session.userId) {
+    if (Number(review.owner_id) !== Number(session.userId)) {
       const activeStaff = await query(
         `SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1`,
         [review.salon_id, session.userId]

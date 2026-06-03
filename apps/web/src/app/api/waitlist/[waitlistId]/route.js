@@ -18,7 +18,7 @@ export async function PUT(request, { params }) {
     }
 
     // Check authorization (salon owner or the client)
-    if (session.role !== 'admin' && entry.owner_id !== session.userId && entry.client_id !== session.userId) {
+    if (session.role !== 'admin' && Number(entry.owner_id) !== Number(session.userId) && Number(entry.client_id) !== Number(session.userId)) {
       return forbidden('Not authorized to update this entry');
     }
 
@@ -82,7 +82,7 @@ export async function DELETE(request, { params }) {
       return notFound('Waitlist entry not found');
     }
 
-    if (session.role !== 'admin' && entry.owner_id !== session.userId && entry.client_id !== session.userId) {
+    if (session.role !== 'admin' && Number(entry.owner_id) !== Number(session.userId) && Number(entry.client_id) !== Number(session.userId)) {
       return forbidden('Not authorized to delete this entry');
     }
 

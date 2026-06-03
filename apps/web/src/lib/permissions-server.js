@@ -100,7 +100,9 @@ export async function assertSalonAccess({ session, salonId, perm, ownerOnly = fa
 
   // 5. Salon owner is always allowed (cannot be restricted, mirrors
   //    `resolvePermission` short-circuit for the `'owner'` staff role).
-  if (salon.owner_id === session.userId) {
+  //    Use Number() on both sides — JWT payloads can deserialise integer IDs
+  //    as strings on older tokens, and MySQL returns numeric owner_id.
+  if (Number(salon.owner_id) === Number(session.userId)) {
     return { ok: true, status: 200, role: 'owner', salonId: resolvedSalonId };
   }
 
@@ -135,4 +137,152 @@ export async function assertSalonAccess({ session, salonId, perm, ownerOnly = fa
   }
 
   return { ok: true, status: 200, role: staff.role, salonId: resolvedSalonId };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// checkSalonAccess
+// Used by: services/route.js, staff/route.js, salons/[id]/*/route.js, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Can the user manage a salon and its resources?
+ *
+ * @param {number|string} salonId
+ * @param {number|string} userId  — from JWT, may be a string
+ * @param {string}        role    — global users.role
+ * @returns {Promise<boolean>}
+ */
+export async function checkSalonAccess(salonId, userId, role) {
+  if (role === 'admin') return true;
+
+  const salon = await getOne(
+    'SELECT owner_id FROM salons WHERE id = ? AND deleted_at IS NULL',
+    [salonId],
+  );
+  if (!salon) return false;
+
+  if (Number(salon.owner_id) === Number(userId)) return true;
+
+  const staff = await getOne(
+    `SELECT id FROM staff
+     WHERE salon_id = ? AND user_id = ? AND role IN ('manager', 'owner') AND is_active = 1`,
+    [salonId, userId],
+  );
+  return !!staff;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// checkServiceAccess
+// Used by: services/[serviceId]/route.js  (PUT, DELETE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Can the user mutate (PUT / DELETE) a specific service?
+ * Regular stylists cannot edit services — only owner or manager/owner staff.
+ *
+ * @param {number|string} serviceId
+ * @param {number|string} userId
+ * @param {string}        role
+ * @returns {Promise<boolean>}
+ */
+export async function checkServiceAccess(serviceId, userId, role) {
+  if (role === 'admin') return true;
+
+  const service = await getOne(
+    `SELECT s.salon_id, sa.owner_id
+     FROM services s
+     JOIN salons sa ON sa.id = s.salon_id
+     WHERE s.id = ? AND s.deleted_at IS NULL`,
+    [serviceId],
+  );
+  if (!service) return false;
+
+  if (Number(service.owner_id) === Number(userId)) return true;
+
+  const staff = await getOne(
+    `SELECT id FROM staff
+     WHERE salon_id = ? AND user_id = ? AND role IN ('manager', 'owner') AND is_active = 1`,
+    [service.salon_id, userId],
+  );
+  return !!staff;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// checkStaffAccess
+// Used by: staff/[staffId]/route.js, emergency-contacts, services, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Can the user view or edit a staff record?
+ * Returns the staff row on success (so callers can use it), or null on failure.
+ *
+ * @param {number|string} staffId
+ * @param {number|string} userId
+ * @param {string}        role
+ * @returns {Promise<object|null>}
+ */
+export async function checkStaffAccess(staffId, userId, role) {
+  const staff = await getOne(
+    `SELECT s.*, sal.owner_id
+     FROM staff s
+     JOIN salons sal ON sal.id = s.salon_id
+     WHERE s.id = ?`,
+    [staffId],
+  );
+
+  if (role === 'admin') return staff || null;
+  if (!staff) return null;
+
+  if (Number(staff.owner_id) === Number(userId)) return staff;
+  if (Number(staff.user_id) === Number(userId)) return staff;
+
+  const manager = await getOne(
+    `SELECT id FROM staff
+     WHERE salon_id = ? AND user_id = ? AND role IN ('manager', 'owner') AND is_active = 1`,
+    [staff.salon_id, userId],
+  );
+  return manager ? staff : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// canManageStaff
+// Used by: staff/[staffId]/schedule, time-off, working-hours
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Can the user manage operational data for a staff member?
+ * (schedule, time-off, working hours)
+ *
+ * KEY DISTINCTION from checkStaffAccess:
+ *   The "peer" branch is restricted to role = 'manager' ONLY.
+ *   A plain stylist must NOT be able to overwrite a colleague's schedule.
+ *
+ * @param {number|string} staffId
+ * @param {number|string} userId
+ * @param {string}        role
+ * @returns {Promise<boolean>}
+ */
+export async function canManageStaff(staffId, userId, role) {
+  if (role === 'admin') return true;
+
+  const staff = await getOne(
+    `SELECT st.user_id, st.salon_id, s.owner_id
+     FROM staff st
+     JOIN salons s ON s.id = st.salon_id
+     WHERE st.id = ?`,
+    [staffId],
+  );
+  if (!staff) return false;
+
+  if (Number(staff.owner_id) === Number(userId)) return true;
+  if (Number(staff.user_id) === Number(userId)) return true;
+
+  // Managers only — regular staff cannot manage peers
+  const manager = await getOne(
+    `SELECT id FROM staff
+     WHERE salon_id = ? AND user_id = ? AND role = 'manager' AND is_active = 1`,
+    [staff.salon_id, userId],
+  );
+  return !!manager;
 }

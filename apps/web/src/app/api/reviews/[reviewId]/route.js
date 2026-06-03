@@ -47,7 +47,7 @@ export async function PUT(request, { params }) {
       return notFound('Review not found');
     }
 
-    if (review.client_id !== session.userId && session.role !== 'admin') {
+    if (Number(review.client_id) !== Number(session.userId) && session.role !== 'admin') {
       return forbidden('You can only update your own reviews');
     }
 
@@ -97,8 +97,8 @@ export async function DELETE(request, { params }) {
 
     // Allow client, salon owner, or admin to delete
     if (
-      review.client_id !== session.userId &&
-      review.owner_id !== session.userId &&
+      Number(review.client_id) !== Number(session.userId) &&
+      Number(review.owner_id) !== Number(session.userId) &&
       session.role !== 'admin'
     ) {
       return forbidden('Not authorized to delete this review');

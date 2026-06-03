@@ -19,8 +19,8 @@ async function checkBookingAccess(bookingId, userId, role) {
   if (!booking) return { access: false, booking: null };
 
   if (role === 'admin') return { access: true, booking };
-  if (booking.client_id === userId) return { access: true, booking };
-  if (booking.owner_id === userId) return { access: true, booking };
+  if (Number(booking.client_id) === Number(userId)) return { access: true, booking };
+  if (Number(booking.owner_id) === Number(userId)) return { access: true, booking };
 
   // Check if staff member
   const staff = await getOne(

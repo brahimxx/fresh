@@ -56,6 +56,7 @@ import {
   useMarkPaid,
   useSendPaymentLink,
 } from "@/hooks/use-bookings";
+import { useStaffPayRuns } from "@/hooks/use-staff";
 import { formatDuration } from "@/lib/format";
 
 var STATUS_CONFIG = {
@@ -117,6 +118,19 @@ export function BookingDetailSheet({
   // Check for invalid dates
   var hasValidDates = isValid(startTime) && isValid(endTime);
 
+  var staffId = booking.staff_id || booking.staffId || booking.staff?.id;
+  var { data: payRuns } = useStaffPayRuns(staffId, { enabled: !!staffId });
+
+  var lockedPayRun = null;
+  if (hasValidDates && payRuns) {
+    var bookingDateStr = format(startTime, "yyyy-MM-dd");
+    lockedPayRun = payRuns.find(run => 
+      run.status === 'paid' && 
+      bookingDateStr >= (run.period_start || run.periodStart) && 
+      bookingDateStr <= (run.period_end || run.periodEnd)
+    );
+  }
+
   function handleConfirm() {
     confirmBooking.mutate(booking.id, {
       onSuccess: function () {
@@ -161,6 +175,14 @@ export function BookingDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0">
         <SheetHeader className="space-y-3 px-6 pt-6 pb-6 border-b">
+          {lockedPayRun && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-400 p-3 rounded-md text-xs font-medium border border-amber-200/50 flex items-start gap-2 mb-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p>
+                <strong>Warning:</strong> This booking is locked in a paid pay run ({format(new Date(lockedPayRun.period_start || lockedPayRun.periodStart), "MMM d")} - {format(new Date(lockedPayRun.period_end || lockedPayRun.periodEnd), "MMM d")}). Financial edits will not affect historical payouts.
+              </p>
+            </div>
+          )}
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <SheetTitle className="text-2xl">Booking Details</SheetTitle>

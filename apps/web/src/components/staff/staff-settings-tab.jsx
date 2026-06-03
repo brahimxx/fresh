@@ -112,25 +112,11 @@ export function StaffSettingsTab({ staff, staffId, salonId }) {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Accept Online Bookings</Label>
-              <p className="text-sm text-muted-foreground">
-                Allow clients to book appointments with this staff member
-              </p>
-            </div>
-            <Switch checked />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Email Notifications</Label>
-              <p className="text-sm text-muted-foreground">
-                Send booking confirmations and reminders
-              </p>
-            </div>
-            <Switch checked />
-          </div>
+          {/* 
+            Placeholder for future features:
+            - Accept Online Bookings
+            - Email Notifications
+          */}
         </div>
       </CardContent>
     </Card>

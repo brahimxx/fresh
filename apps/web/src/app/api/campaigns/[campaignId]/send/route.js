@@ -1,6 +1,7 @@
 import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, unauthorized, notFound, forbidden } from '@/lib/response';
+import { sendEmail } from '@/lib/email';
 
 // POST /api/campaigns/[campaignId]/send - Send campaign immediately
 export async function POST(request, { params }) {
@@ -8,16 +9,17 @@ export async function POST(request, { params }) {
     const session = await requireAuth();
     const { campaignId } = await params;
 
-    const campaign = await getOne(
-      'SELECT c.*, s.owner_id FROM campaigns c JOIN salons s ON s.id = c.salon_id WHERE c.id = ?',
+    const campaignList = await query(
+      'SELECT c.*, s.owner_id, s.name as salon_name FROM campaigns c JOIN salons s ON s.id = c.salon_id WHERE c.id = ?',
       [campaignId]
     );
+    const campaign = campaignList[0];
 
     if (!campaign) {
       return notFound('Campaign not found');
     }
 
-    if (session.role !== 'admin' && campaign.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(campaign.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized to send this campaign');
     }
 
@@ -26,7 +28,7 @@ export async function POST(request, { params }) {
     }
 
     // Get target recipients based on audience
-    let recipientQuery = 'SELECT DISTINCT u.id, u.email, u.phone FROM users u JOIN salon_clients sc ON sc.client_id = u.id WHERE sc.salon_id = ? AND sc.is_active = 1 AND u.deleted_at IS NULL';
+    let recipientQuery = 'SELECT DISTINCT u.id, u.email, u.phone, u.first_name, u.last_name FROM users u JOIN salon_clients sc ON sc.client_id = u.id WHERE sc.salon_id = ? AND sc.is_active = 1 AND u.deleted_at IS NULL';
     const recipientParams = [campaign.salon_id];
 
     switch (campaign.target_audience) {
@@ -43,15 +45,32 @@ export async function POST(request, { params }) {
 
     const recipients = await query(recipientQuery, recipientParams);
 
-    // Update campaign status
+    // Actual email dispatch logic via Resend
+    if (campaign.type === 'email' && recipients.length > 0) {
+      const emailPromises = recipients
+        .filter(r => r.email)
+        .map(recipient => {
+          let htmlContent = campaign.content || '';
+          
+          // Replace dynamic placeholders
+          htmlContent = htmlContent.replace(/{{first_name}}/g, recipient.first_name || 'Client');
+          htmlContent = htmlContent.replace(/{{salon_name}}/g, campaign.salon_name || 'Our Salon');
+          
+          return sendEmail({
+            to: recipient.email,
+            subject: campaign.subject || campaign.name,
+            html: htmlContent,
+          });
+        });
+        
+      await Promise.allSettled(emailPromises);
+    }
+
+    // Update campaign status and simulate completion
     await query(
-      `UPDATE campaigns SET status = 'active', sent_at = NOW(), recipient_count = ? WHERE id = ?`,
+      `UPDATE campaigns SET status = 'completed', completed_at = NOW(), recipient_count = ? WHERE id = ?`,
       [recipients.length, campaignId]
     );
-
-    // In a real implementation, you would queue the actual sending here
-    // For now, we just simulate it by marking as completed
-    await query(`UPDATE campaigns SET status = 'completed' WHERE id = ?`, [campaignId]);
 
     return success({
       message: 'Campaign sent successfully',

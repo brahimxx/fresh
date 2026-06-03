@@ -5,21 +5,9 @@ import { success, error, created, forbidden } from "@/lib/response";
 import { sendEmail } from "@/lib/email";
 import { recordGiftCardTransaction } from "@/lib/gift-card-ledger";
 import { formatCurrency } from '@/lib/format';
+import { checkSalonAccess } from '@/lib/permissions-server';
 
-// Helper to check salon access
-async function checkSalonAccess(salonId, userId, role) {
-  if (role === "admin") return true;
-  const salon = await getOne("SELECT owner_id FROM salons WHERE id = ?", [
-    salonId,
-  ]);
-  if (!salon) return false;
-  if (salon.owner_id === userId) return true;
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND role IN ('manager') AND is_active = 1",
-    [salonId, userId]
-  );
-  return !!staff;
-}
+
 
 // GET /api/gift-cards - Get all gift cards
 export async function GET(request) {

@@ -3,22 +3,9 @@ import { query, getOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { success, error, created, unauthorized, forbidden } from '@/lib/response';
 import { validate, createCampaignSchema } from '@/lib/validate';
+import { checkSalonAccess } from '@/lib/permissions-server';
 
-// Helper to check salon access and fetch plan tier
-async function checkSalonAccess(salonId, userId, role) {
-  const salon = await getOne('SELECT owner_id, plan_tier FROM salons WHERE id = ?', [salonId]);
-  if (!salon) return { hasAccess: false };
 
-  if (role === 'admin') return { hasAccess: true, tier: salon.plan_tier };
-
-  if (salon.owner_id === userId) return { hasAccess: true, tier: salon.plan_tier };
-
-  const staff = await getOne(
-    "SELECT id FROM staff WHERE salon_id = ? AND user_id = ? AND is_active = 1",
-    [salonId, userId]
-  );
-  return { hasAccess: !!staff, tier: salon.plan_tier };
-}
 
 // GET /api/salons/[id]/campaigns - Get marketing campaigns
 export async function GET(request, { params }) {

@@ -66,7 +66,7 @@ export async function POST(request, { params }) {
       return notFound('Resource not found');
     }
 
-    if (session.role !== 'admin' && resource.owner_id !== session.userId) {
+    if (session.role !== 'admin' && Number(resource.owner_id) !== Number(session.userId)) {
       return forbidden('Not authorized');
     }
 
